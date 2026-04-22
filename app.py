@@ -1,7 +1,6 @@
 import os
 import re
 import time
-import math
 import datetime as dt
 from typing import Optional, List, Tuple
 
@@ -22,7 +21,7 @@ st.set_page_config(
 CACHE_TTL_SECONDS = 60
 
 SHEET_ID = "1Q0mLvOBxEGCojUITBLxCXRtpXVMAHE3ngvGsa2Cgf9Q"
-GID_BASE = 1396326144  # Aba Clear / base de contratos conforme seu print
+GID_BASE = 1396326144  # Aba Clear / base de contratos
 
 APP_BOOT = dt.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
 APP_VERSION = os.getenv("APP_VERSION", f"boot@{APP_BOOT}")
@@ -409,7 +408,6 @@ def build_month_key(row, col_mes, col_data) -> Optional[Tuple[int, int]]:
     raw_mes = normalize_text(row[col_mes]) if col_mes and col_mes in row else ""
     raw_data = normalize_text(row[col_data]) if col_data and col_data in row else ""
 
-    # 1) tenta coluna Mês
     if raw_mes:
         s = raw_mes.lower()
 
@@ -442,7 +440,6 @@ def build_month_key(row, col_mes, col_data) -> Optional[Tuple[int, int]]:
             ano = int(ano_match.group(1)) if ano_match else dt.date.today().year
             return (ano, achou_mes)
 
-    # 2) fallback data
     d = parse_date_any(raw_data)
     if d:
         return (d.year, d.month)
@@ -474,7 +471,6 @@ def render_detail_grid(record: pd.Series, ordered_cols: List[str]):
         if c in record.index and normalize_text(record[c]) != "":
             shown_cols.append(c)
 
-    # adiciona restantes preenchidos
     for c in record.index:
         if c not in shown_cols and not str(c).startswith("_") and normalize_text(record[c]) != "":
             shown_cols.append(c)
@@ -537,7 +533,6 @@ COL_DATA = detect_col(df, [["data", "compra"], ["data"]])
 COL_MES = detect_col(df, [["mês"], ["mes"]])
 COL_RACA = detect_col(df, [["raça"], ["raca"]])
 
-# colunas auxiliares
 if COL_DATA:
     df["_data_compra"] = df[COL_DATA].apply(parse_date_any)
 else:
@@ -648,10 +643,11 @@ if selected_race != "Todas" and COL_RACA and COL_RACA in filtered_df.columns:
 
 if search_top.strip():
     q = search_top.strip().lower()
+    q_digits = re.sub(r"\D", "", q)
     mask = (
         filtered_df["_nome_norm"].str.lower().str.contains(q, na=False)
-        | filtered_df["_tel_norm"].str.contains(re.sub(r"\D", "", q), na=False)
-        | filtered_df["_cpf_norm"].str.contains(re.sub(r"\D", "", q), na=False)
+        | filtered_df["_tel_norm"].str.contains(q_digits, na=False)
+        | filtered_df["_cpf_norm"].str.contains(q_digits, na=False)
         | filtered_df["_email_norm"].str.contains(q, na=False)
     )
     filtered_df = filtered_df[mask].copy()
@@ -929,9 +925,6 @@ elif search_top.strip() and not filtered_df.empty:
 
 if selected_record is not None:
     nome_sel = normalize_text(selected_record.get(COL_NOME, "Cliente")) or "Cliente"
-    raca_sel = normalize_text(selected_record.get(COL_RACA, "")) if COL_RACA else ""
-    data_sel = selected_record.get("_data_compra")
-    data_sel_fmt = data_sel.strftime("%d/%m/%Y") if data_sel else normalize_text(selected_record.get(COL_DATA, ""))
 
     st.markdown(
         f"""
@@ -950,7 +943,6 @@ if selected_record is not None:
     ordered = [c for c in [COL_NOME, COL_TEL, COL_CPF, COL_EMAIL, COL_DATA, COL_MES, COL_RACA] if c]
     render_detail_grid(selected_record, ordered)
 
-    # histórico do mesmo cliente
     if COL_NOME and COL_NOME in df.columns:
         hist = df[df["_nome_norm"].str.lower() == nome_sel.lower()].copy()
         if len(hist) > 1:
