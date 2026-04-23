@@ -148,13 +148,6 @@ st.markdown(
         font-weight: 600 !important;
     }
 
-    .sidebar-logo-wrap {
-        width: 100%;
-        display: flex;
-        justify-content: center;
-        margin-top: 2.2rem;
-    }
-
     .page-title {
         font-size: 2.3rem;
         font-weight: 800;
@@ -566,11 +559,11 @@ with st.sidebar:
         label_visibility="collapsed",
     )
 
+    st.markdown("<div style='height: 28px;'></div>", unsafe_allow_html=True)
+
     logo_path = Path("capmotors.png")
     if logo_path.exists():
-        st.markdown('<div class="sidebar-logo-wrap">', unsafe_allow_html=True)
-        st.image(str(logo_path), width=185)
-        st.markdown('</div>', unsafe_allow_html=True)
+        st.image(str(logo_path), use_container_width=True)
 
 # =========================================================
 # LOAD + PREP
