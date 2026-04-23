@@ -133,6 +133,21 @@ st.markdown(
         margin-top: 0.28rem;
     }
 
+    /* MENU LATERAL MAIOR */
+    div[role="radiogroup"] > label {
+        padding: 0.48rem 0.25rem !important;
+        margin-bottom: 0.22rem !important;
+        min-height: 42px !important;
+        border-radius: 10px;
+        display: flex !important;
+        align-items: center !important;
+    }
+
+    div[role="radiogroup"] label p {
+        font-size: 1.08rem !important;
+        font-weight: 600 !important;
+    }
+
     .page-title {
         font-size: 2.3rem;
         font-weight: 800;
