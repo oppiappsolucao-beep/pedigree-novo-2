@@ -62,6 +62,10 @@ st.markdown(
         border-right: 1px solid rgba(255,255,255,0.08);
     }
 
+    [data-testid="stSidebar"] > div:first-child {
+        padding-top: 0.35rem;
+    }
+
     [data-testid="stSidebar"] * {
         color: white;
     }
@@ -73,8 +77,8 @@ st.markdown(
     }
 
     .brand-box {
-        padding: 0.15rem 0.5rem 0.8rem 0.5rem;
-        margin-bottom: 0.6rem;
+        padding: 0rem 0.5rem 0.7rem 0.5rem;
+        margin-bottom: 0.45rem;
         border-bottom: 1px solid rgba(255,255,255,0.12);
     }
 
@@ -86,7 +90,7 @@ st.markdown(
         display: flex;
         align-items: center;
         justify-content: center;
-        margin-bottom: 0.65rem;
+        margin-bottom: 0.5rem;
         color: var(--gold);
         font-size: 28px;
         font-weight: 800;
@@ -100,7 +104,7 @@ st.markdown(
         display: flex;
         align-items: center;
         justify-content: center;
-        margin-top: 0.75rem;
+        margin-top: 0.55rem;
         color: var(--gold);
         font-size: 21px;
         font-weight: 800;
@@ -120,7 +124,7 @@ st.markdown(
         font-size: 0.72rem;
         letter-spacing: 0.18em;
         text-transform: uppercase;
-        margin-top: 0.3rem;
+        margin-top: 0.28rem;
     }
 
     .page-title {
