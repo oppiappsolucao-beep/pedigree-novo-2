@@ -132,16 +132,6 @@ st.markdown(
         margin-bottom: 1rem;
     }
 
-    .info-banner {
-        background: #EEF4FF;
-        border: 1px solid #D8E5FF;
-        color: #24437C;
-        border-radius: 16px;
-        padding: 0.9rem 1rem;
-        margin-bottom: 1rem;
-        font-size: 0.95rem;
-    }
-
     .metric-card {
         background: var(--card);
         border: 1px solid var(--line);
@@ -300,15 +290,6 @@ st.markdown(
     .stDataFrame, .stTable {
         border-radius: 16px;
         overflow: hidden;
-    }
-
-    .muted-box {
-        background: #FBFCFE;
-        border: 1px dashed #D8DEEA;
-        border-radius: 16px;
-        padding: 0.9rem 1rem;
-        color: #5B667A;
-        font-size: 0.92rem;
     }
 </style>
 """,
@@ -597,16 +578,6 @@ with header_right:
         format_func=month_key_to_label,
     )
 
-st.markdown(
-    """
-    <div class="info-banner">
-        Este painel é <b>somente para visualização e consulta operacional</b>. 
-        Os registros aparecem exatamente como chegam da empresa, inclusive quando vierem incompletos ou divergentes.
-    </div>
-    """,
-    unsafe_allow_html=True,
-)
-
 # =========================================================
 # FILTROS GERAIS
 # =========================================================
@@ -617,24 +588,13 @@ if COL_RACA and COL_RACA in month_df.columns:
     race_vals = sorted([r for r in month_df[COL_RACA].dropna().astype(str).str.strip().unique() if r])
     races += race_vals
 
-filter_col1, filter_col2, filter_col3 = st.columns([1.2, 1.2, 1.6])
+filter_col1, filter_col2 = st.columns([1.2, 1.2])
 
 with filter_col1:
     selected_race = st.selectbox("Raça", races, index=0)
 
 with filter_col2:
     search_top = st.text_input("Busca rápida", placeholder="Nome, CPF, telefone ou e-mail")
-
-with filter_col3:
-    st.markdown(
-        """
-        <div class="muted-box">
-            <b>Modo atual:</b> leitura operacional<br>
-            Consulte contratos, clientes, datas e detalhes sem editar os dados de origem.
-        </div>
-        """,
-        unsafe_allow_html=True,
-    )
 
 filtered_df = month_df.copy()
 
