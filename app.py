@@ -1,6 +1,7 @@
 import os
 import re
 import time
+import base64
 import datetime as dt
 from pathlib import Path
 from typing import Optional, List, Tuple
@@ -26,6 +27,204 @@ GID_BASE = 1396326144
 
 APP_BOOT = dt.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
 APP_VERSION = os.getenv("APP_VERSION", f"boot@{APP_BOOT}")
+
+# =========================================================
+# HELPERS
+# =========================================================
+def image_to_base64(path: str) -> str:
+    file_path = Path(path)
+    if not file_path.exists():
+        return ""
+    return base64.b64encode(file_path.read_bytes()).decode()
+
+
+@st.cache_data(show_spinner=False, ttl=CACHE_TTL_SECONDS)
+def load_data() -> pd.DataFrame:
+    bust = int(time.time() * 1000)
+    url = f"https://docs.google.com/spreadsheets/d/{SHEET_ID}/gviz/tq?tqx=out:csv&gid={GID_BASE}&_={bust}"
+    df = pd.read_csv(url)
+    df.columns = [str(c).strip() for c in df.columns]
+    return df
+
+
+def normalize_text(v) -> str:
+    if pd.isna(v):
+        return ""
+    return str(v).strip()
+
+
+def only_digits(v) -> str:
+    return re.sub(r"\D", "", normalize_text(v))
+
+
+def format_phone(v) -> str:
+    s = only_digits(v)
+    if len(s) == 11:
+        return f"({s[:2]}) {s[2:7]}-{s[7:]}"
+    if len(s) == 10:
+        return f"({s[:2]}) {s[2:6]}-{s[6:]}"
+    return normalize_text(v)
+
+
+def format_cpf(v) -> str:
+    s = only_digits(v)
+    if len(s) == 11:
+        return f"{s[:3]}.{s[3:6]}.{s[6:9]}-{s[9:]}"
+    return normalize_text(v)
+
+
+def parse_date_any(v) -> Optional[dt.date]:
+    if pd.isna(v):
+        return None
+    s = str(v).strip()
+    if not s:
+        return None
+
+    fixed_formats = [
+        "%d/%m/%Y",
+        "%d-%m-%Y",
+        "%Y-%m-%d",
+        "%d/%m/%y",
+        "%d-%m-%y",
+    ]
+    for fmt in fixed_formats:
+        try:
+            return dt.datetime.strptime(s, fmt).date()
+        except Exception:
+            pass
+
+    d = pd.to_datetime(s, dayfirst=True, errors="coerce")
+    if pd.isna(d):
+        return None
+    return d.date()
+
+
+def month_name_pt(m: int) -> str:
+    meses = [
+        "", "Janeiro", "Fevereiro", "Março", "Abril", "Maio", "Junho",
+        "Julho", "Agosto", "Setembro", "Outubro", "Novembro", "Dezembro"
+    ]
+    return meses[m] if 1 <= m <= 12 else ""
+
+
+def month_key_to_label(ym: Tuple[int, int]) -> str:
+    y, m = ym
+    return f"{month_name_pt(m)} / {y}"
+
+
+def detect_col(df: pd.DataFrame, keywords: List[List[str]]) -> Optional[str]:
+    cols = list(df.columns)
+    lowered = {c: str(c).strip().lower() for c in cols}
+
+    for c in cols:
+        lc = lowered[c]
+        for group in keywords:
+            if all(k in lc for k in group):
+                return c
+    return None
+
+
+def build_month_key(row, col_mes, col_data) -> Optional[Tuple[int, int]]:
+    raw_mes = normalize_text(row[col_mes]) if col_mes and col_mes in row else ""
+    raw_data = normalize_text(row[col_data]) if col_data and col_data in row else ""
+
+    if raw_mes:
+        s = raw_mes.lower()
+
+        m1 = re.search(r"(\d{1,2})/(20\d{2})", s)
+        if m1:
+            mm = int(m1.group(1))
+            yy = int(m1.group(2))
+            if 1 <= mm <= 12:
+                return (yy, mm)
+
+        m2 = re.search(r"(20\d{2})[-/](\d{1,2})", s)
+        if m2:
+            yy = int(m2.group(1))
+            mm = int(m2.group(2))
+            if 1 <= mm <= 12:
+                return (yy, mm)
+
+        nomes = {
+            "janeiro": 1, "fevereiro": 2, "março": 3, "marco": 3, "abril": 4,
+            "maio": 5, "junho": 6, "julho": 7, "agosto": 8, "setembro": 9,
+            "outubro": 10, "novembro": 11, "dezembro": 12
+        }
+        achou_mes = None
+        for nome, num in nomes.items():
+            if nome in s:
+                achou_mes = num
+                break
+        if achou_mes:
+            ano_match = re.search(r"(20\d{2})", s)
+            ano = int(ano_match.group(1)) if ano_match else dt.date.today().year
+            return (ano, achou_mes)
+
+    d = parse_date_any(raw_data)
+    if d:
+        return (d.year, d.month)
+
+    return None
+
+
+def card_metric(title: str, value: str, subtitle: str, emoji: str, color: str):
+    st.markdown(
+        f"""
+        <div class="metric-card">
+            <div class="metric-wrap">
+                <div class="metric-icon" style="background:{color};">{emoji}</div>
+                <div>
+                    <div class="metric-label">{title}</div>
+                    <div class="metric-value">{value}</div>
+                    <div class="metric-sub">{subtitle}</div>
+                </div>
+            </div>
+        </div>
+        """,
+        unsafe_allow_html=True,
+    )
+
+
+def render_detail_grid(record: pd.Series, ordered_cols: List[str]):
+    shown_cols = []
+    for c in ordered_cols:
+        if c in record.index and normalize_text(record[c]) != "":
+            shown_cols.append(c)
+
+    for c in record.index:
+        if c not in shown_cols and not str(c).startswith("_") and normalize_text(record[c]) != "":
+            shown_cols.append(c)
+
+    html = ['<div class="detail-grid">']
+    for c in shown_cols:
+        val = normalize_text(record[c])
+        html.append(
+            f"""
+            <div class="detail-item">
+                <div class="detail-label">{c}</div>
+                <div class="detail-value">{val}</div>
+            </div>
+            """
+        )
+    html.append("</div>")
+    st.markdown("".join(html), unsafe_allow_html=True)
+
+
+def render_placeholder_page(title: str, subtitle: str):
+    st.markdown(f'<div class="page-title">{title}</div>', unsafe_allow_html=True)
+    st.markdown(f'<div class="page-subtitle">{subtitle}</div>', unsafe_allow_html=True)
+    st.markdown(
+        f"""
+        <div class="empty-page-card">
+            <div class="empty-page-title">{title}</div>
+            <div class="empty-page-sub">
+                Esta página já foi criada no menu e está pronta para receber os cards, gráficos e tabelas que vocês quiserem colocar.
+            </div>
+        </div>
+        """,
+        unsafe_allow_html=True,
+    )
+
 
 # =========================================================
 # ESTILO
@@ -146,6 +345,32 @@ st.markdown(
     div[role="radiogroup"] label p {
         font-size: 1.08rem !important;
         font-weight: 600 !important;
+    }
+
+    .sidebar-logo-bottom {
+        width: 100%;
+        display: flex;
+        justify-content: center;
+        margin-top: 2.0rem;
+    }
+
+    .sidebar-logo-circle {
+        width: 145px;
+        height: 145px;
+        border-radius: 50%;
+        overflow: hidden;
+        border: 3px solid var(--gold);
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        background: #1f5ca8;
+    }
+
+    .sidebar-logo-circle img {
+        width: 100%;
+        height: 100%;
+        object-fit: cover;
+        display: block;
     }
 
     .page-title {
@@ -347,200 +572,11 @@ st.markdown(
 )
 
 # =========================================================
-# HELPERS
-# =========================================================
-@st.cache_data(show_spinner=False, ttl=CACHE_TTL_SECONDS)
-def load_data() -> pd.DataFrame:
-    bust = int(time.time() * 1000)
-    url = f"https://docs.google.com/spreadsheets/d/{SHEET_ID}/gviz/tq?tqx=out:csv&gid={GID_BASE}&_={bust}"
-    df = pd.read_csv(url)
-    df.columns = [str(c).strip() for c in df.columns]
-    return df
-
-
-def normalize_text(v) -> str:
-    if pd.isna(v):
-        return ""
-    return str(v).strip()
-
-
-def only_digits(v) -> str:
-    return re.sub(r"\D", "", normalize_text(v))
-
-
-def format_phone(v) -> str:
-    s = only_digits(v)
-    if len(s) == 11:
-        return f"({s[:2]}) {s[2:7]}-{s[7:]}"
-    if len(s) == 10:
-        return f"({s[:2]}) {s[2:6]}-{s[6:]}"
-    return normalize_text(v)
-
-
-def format_cpf(v) -> str:
-    s = only_digits(v)
-    if len(s) == 11:
-        return f"{s[:3]}.{s[3:6]}.{s[6:9]}-{s[9:]}"
-    return normalize_text(v)
-
-
-def parse_date_any(v) -> Optional[dt.date]:
-    if pd.isna(v):
-        return None
-    s = str(v).strip()
-    if not s:
-        return None
-
-    fixed_formats = [
-        "%d/%m/%Y",
-        "%d-%m-%Y",
-        "%Y-%m-%d",
-        "%d/%m/%y",
-        "%d-%m-%y",
-    ]
-    for fmt in fixed_formats:
-        try:
-            return dt.datetime.strptime(s, fmt).date()
-        except Exception:
-            pass
-
-    d = pd.to_datetime(s, dayfirst=True, errors="coerce")
-    if pd.isna(d):
-        return None
-    return d.date()
-
-
-def month_name_pt(m: int) -> str:
-    meses = [
-        "", "Janeiro", "Fevereiro", "Março", "Abril", "Maio", "Junho",
-        "Julho", "Agosto", "Setembro", "Outubro", "Novembro", "Dezembro"
-    ]
-    return meses[m] if 1 <= m <= 12 else ""
-
-
-def month_key_to_label(ym: Tuple[int, int]) -> str:
-    y, m = ym
-    return f"{month_name_pt(m)} / {y}"
-
-
-def detect_col(df: pd.DataFrame, keywords: List[List[str]]) -> Optional[str]:
-    cols = list(df.columns)
-    lowered = {c: str(c).strip().lower() for c in cols}
-
-    for c in cols:
-        lc = lowered[c]
-        for group in keywords:
-            if all(k in lc for k in group):
-                return c
-    return None
-
-
-def build_month_key(row, col_mes, col_data) -> Optional[Tuple[int, int]]:
-    raw_mes = normalize_text(row[col_mes]) if col_mes and col_mes in row else ""
-    raw_data = normalize_text(row[col_data]) if col_data and col_data in row else ""
-
-    if raw_mes:
-        s = raw_mes.lower()
-
-        m1 = re.search(r"(\d{1,2})/(20\d{2})", s)
-        if m1:
-            mm = int(m1.group(1))
-            yy = int(m1.group(2))
-            if 1 <= mm <= 12:
-                return (yy, mm)
-
-        m2 = re.search(r"(20\d{2})[-/](\d{1,2})", s)
-        if m2:
-            yy = int(m2.group(1))
-            mm = int(m2.group(2))
-            if 1 <= mm <= 12:
-                return (yy, mm)
-
-        nomes = {
-            "janeiro": 1, "fevereiro": 2, "março": 3, "marco": 3, "abril": 4,
-            "maio": 5, "junho": 6, "julho": 7, "agosto": 8, "setembro": 9,
-            "outubro": 10, "novembro": 11, "dezembro": 12
-        }
-        achou_mes = None
-        for nome, num in nomes.items():
-            if nome in s:
-                achou_mes = num
-                break
-        if achou_mes:
-            ano_match = re.search(r"(20\d{2})", s)
-            ano = int(ano_match.group(1)) if ano_match else dt.date.today().year
-            return (ano, achou_mes)
-
-    d = parse_date_any(raw_data)
-    if d:
-        return (d.year, d.month)
-
-    return None
-
-
-def card_metric(title: str, value: str, subtitle: str, emoji: str, color: str):
-    st.markdown(
-        f"""
-        <div class="metric-card">
-            <div class="metric-wrap">
-                <div class="metric-icon" style="background:{color};">{emoji}</div>
-                <div>
-                    <div class="metric-label">{title}</div>
-                    <div class="metric-value">{value}</div>
-                    <div class="metric-sub">{subtitle}</div>
-                </div>
-            </div>
-        </div>
-        """,
-        unsafe_allow_html=True,
-    )
-
-
-def render_detail_grid(record: pd.Series, ordered_cols: List[str]):
-    shown_cols = []
-    for c in ordered_cols:
-        if c in record.index and normalize_text(record[c]) != "":
-            shown_cols.append(c)
-
-    for c in record.index:
-        if c not in shown_cols and not str(c).startswith("_") and normalize_text(record[c]) != "":
-            shown_cols.append(c)
-
-    html = ['<div class="detail-grid">']
-    for c in shown_cols:
-        val = normalize_text(record[c])
-        html.append(
-            f"""
-            <div class="detail-item">
-                <div class="detail-label">{c}</div>
-                <div class="detail-value">{val}</div>
-            </div>
-            """
-        )
-    html.append("</div>")
-    st.markdown("".join(html), unsafe_allow_html=True)
-
-
-def render_placeholder_page(title: str, subtitle: str):
-    st.markdown(f'<div class="page-title">{title}</div>', unsafe_allow_html=True)
-    st.markdown(f'<div class="page-subtitle">{subtitle}</div>', unsafe_allow_html=True)
-    st.markdown(
-        f"""
-        <div class="empty-page-card">
-            <div class="empty-page-title">{title}</div>
-            <div class="empty-page-sub">
-                Esta página já foi criada no menu e está pronta para receber os cards, gráficos e tabelas que vocês quiserem colocar.
-            </div>
-        </div>
-        """,
-        unsafe_allow_html=True,
-    )
-
-
-# =========================================================
 # SIDEBAR
 # =========================================================
 with st.sidebar:
+    logo_b64 = image_to_base64("campmotors.png")
+
     st.markdown(
         """
         <div class="brand-box">
@@ -559,11 +595,17 @@ with st.sidebar:
         label_visibility="collapsed",
     )
 
-    st.markdown("<div style='height: 28px;'></div>", unsafe_allow_html=True)
-
-    logo_path = Path("campmotors.png")
-    if logo_path.exists():
-        st.image(str(logo_path), width=200)
+    if logo_b64:
+        st.markdown(
+            f"""
+            <div class="sidebar-logo-bottom">
+                <div class="sidebar-logo-circle">
+                    <img src="data:image/png;base64,{logo_b64}">
+                </div>
+            </div>
+            """,
+            unsafe_allow_html=True,
+        )
 
 # =========================================================
 # LOAD + PREP
