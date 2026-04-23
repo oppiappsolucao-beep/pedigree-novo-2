@@ -226,6 +226,13 @@ def render_placeholder_page(title: str, subtitle: str):
     )
 
 
+def count_nonempty_month(df_month: pd.DataFrame, col_name: Optional[str]) -> int:
+    if not col_name or col_name not in df_month.columns:
+        return 0
+    s = df_month[col_name]
+    return int((~s.isna()) & (s.astype(str).str.strip() != "")).sum()
+
+
 # =========================================================
 # ESTILO
 # =========================================================
@@ -620,6 +627,10 @@ COL_DATA = detect_col(df, [["data", "compra"], ["data"]])
 COL_MES = detect_col(df, [["mês"], ["mes"]])
 COL_RACA = detect_col(df, [["raça"], ["raca"]])
 
+COL_1_CONTATO = detect_col(df, [["1", "contato"], ["1º", "contato"], ["primeiro", "contato"]])
+COL_2_CONTATO = detect_col(df, [["2", "contato"], ["2º", "contato"], ["segundo", "contato"]])
+COL_3_CONTATO = detect_col(df, [["3", "contato"], ["3º", "contato"], ["terceiro", "contato"]])
+
 if COL_DATA:
     df["_data_compra"] = df[COL_DATA].apply(parse_date_any)
 else:
@@ -716,33 +727,21 @@ if page == "Visão Geral":
         )
         filtered_df = filtered_df[mask].copy()
 
-    total_contracts = len(df)
-    contracts_month = len(month_df)
-    clients_month = month_df["_nome_norm"].replace("", pd.NA).dropna().nunique()
-
-    days_in_month = 30
-    try:
-        year_, month_ = selected_month
-        if month_ == 12:
-            next_first = dt.date(year_ + 1, 1, 1)
-        else:
-            next_first = dt.date(year_, month_ + 1, 1)
-        first = dt.date(year_, month_, 1)
-        days_in_month = (next_first - first).days
-    except Exception:
-        pass
-
-    avg_per_day = contracts_month / days_in_month if days_in_month else 0
+    # KPIs alterados
+    primeiro_contato = count_nonempty_month(month_df, COL_1_CONTATO)
+    segundo_contato = count_nonempty_month(month_df, COL_2_CONTATO)
+    terceiro_contato = count_nonempty_month(month_df, COL_3_CONTATO)
+    total_contratos_kpi = len(month_df)
 
     m1, m2, m3, m4 = st.columns(4)
     with m1:
-        card_metric("Total de Contratos", f"{total_contracts}", "base completa", "📄", "#8E0E3F")
+        card_metric("Primeiro contato", f"{primeiro_contato}", "no mês", "📞", "#8E0E3F")
     with m2:
-        card_metric("Contratos no Mês", f"{contracts_month}", month_key_to_label(selected_month), "🗓", "#071B49")
+        card_metric("Segundo contato", f"{segundo_contato}", "no mês", "📋", "#071B49")
     with m3:
-        card_metric("Clientes Únicos", f"{clients_month}", "no mês", "👤", "#D39A33")
+        card_metric("Terceiro contato", f"{terceiro_contato}", "no mês", "🗂", "#D39A33")
     with m4:
-        card_metric("Média por Dia", f"{avg_per_day:.2f}".replace(".", ","), "contratos / dia", "📊", "#071B49")
+        card_metric("Total de contratos", f"{total_contratos_kpi}", month_key_to_label(selected_month), "📄", "#071B49")
 
     st.markdown('<div class="section-space"></div>', unsafe_allow_html=True)
 
@@ -760,6 +759,14 @@ if page == "Visão Geral":
             )
 
             if not chart_day.empty:
+                year_, month_ = selected_month
+                if month_ == 12:
+                    next_first = dt.date(year_ + 1, 1, 1)
+                else:
+                    next_first = dt.date(year_, month_ + 1, 1)
+                first = dt.date(year_, month_, 1)
+                days_in_month = (next_first - first).days
+
                 full_days = pd.DataFrame({"_dia": list(range(1, days_in_month + 1))})
                 chart_day = full_days.merge(chart_day, on="_dia", how="left").fillna(0)
                 chart_day["Quantidade"] = chart_day["Quantidade"].astype(int)
@@ -874,10 +881,10 @@ if page == "Visão Geral":
         resumo_a, resumo_b = st.columns(2)
         with resumo_a:
             st.metric("Primeiro contrato", first_date.strftime("%d/%m/%Y") if first_date else "—")
-            st.metric("Total de registros", f"{contracts_month}")
+            st.metric("Total de registros", f"{len(month_df)}")
         with resumo_b:
             st.metric("Último contrato", last_date.strftime("%d/%m/%Y") if last_date else "—")
-            st.metric("Clientes no mês", f"{clients_month}")
+            st.metric("Clientes no mês", f"{month_df['_nome_norm'].replace('', pd.NA).dropna().nunique()}")
 
         st.markdown(
             """
