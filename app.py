@@ -73,8 +73,8 @@ st.markdown(
     }
 
     .brand-box {
-        padding: 0.8rem 0.5rem 1rem 0.5rem;
-        margin-bottom: 0.8rem;
+        padding: 0.15rem 0.5rem 0.8rem 0.5rem;
+        margin-bottom: 0.6rem;
         border-bottom: 1px solid rgba(255,255,255,0.12);
     }
 
@@ -86,7 +86,7 @@ st.markdown(
         display: flex;
         align-items: center;
         justify-content: center;
-        margin-bottom: 0.8rem;
+        margin-bottom: 0.65rem;
         color: var(--gold);
         font-size: 28px;
         font-weight: 800;
@@ -100,7 +100,7 @@ st.markdown(
         display: flex;
         align-items: center;
         justify-content: center;
-        margin-top: 0.9rem;
+        margin-top: 0.75rem;
         color: var(--gold);
         font-size: 21px;
         font-weight: 800;
@@ -108,7 +108,7 @@ st.markdown(
 
     .brand-title {
         color: #F6D089;
-        font-size: 1.15rem;
+        font-size: 1.08rem;
         font-weight: 800;
         line-height: 1.1;
         margin: 0;
@@ -120,16 +120,7 @@ st.markdown(
         font-size: 0.72rem;
         letter-spacing: 0.18em;
         text-transform: uppercase;
-        margin-top: 0.35rem;
-    }
-
-    .side-section {
-        color: rgba(255,255,255,0.55);
-        font-size: 0.75rem;
-        font-weight: 700;
-        letter-spacing: 0.12em;
-        margin: 1.4rem 0 0.5rem 0;
-        text-transform: uppercase;
+        margin-top: 0.3rem;
     }
 
     .page-title {
@@ -543,14 +534,6 @@ with st.sidebar:
         label_visibility="collapsed",
     )
 
-    st.markdown('<div class="side-section">Ferramentas</div>', unsafe_allow_html=True)
-    st.caption(f"Cache TTL: {CACHE_TTL_SECONDS}s")
-    st.caption(f"Versão: {APP_VERSION}")
-
-    if st.button("🔄 Atualizar dados", use_container_width=True):
-        st.cache_data.clear()
-        st.rerun()
-
 # =========================================================
 # LOAD + PREP
 # =========================================================
@@ -953,18 +936,12 @@ if page == "Visão Geral":
 
         st.markdown("</div>", unsafe_allow_html=True)
 
-# =========================================================
-# PÁGINA 2 — PEDIGREE
-# =========================================================
 elif page == "Pedigree":
     render_placeholder_page(
         "Pedigree",
         "Aqui ficará a página exclusiva de Pedigree."
     )
 
-# =========================================================
-# PÁGINA 3 — COMISSÃO
-# =========================================================
 elif page == "Comissão":
     render_placeholder_page(
         "Comissão",
