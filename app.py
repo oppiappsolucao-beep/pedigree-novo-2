@@ -25,9 +25,6 @@ CACHE_TTL_SECONDS = 60
 SHEET_ID = "1Q0mLvOBxEGCojUITBLxCXRtpXVMAHE3ngvGsa2Cgf9Q"
 GID_BASE = 1396326144
 
-APP_BOOT = dt.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-APP_VERSION = os.getenv("APP_VERSION", f"boot@{APP_BOOT}")
-
 # =========================================================
 # HELPERS
 # =========================================================
@@ -226,11 +223,12 @@ def render_placeholder_page(title: str, subtitle: str):
     )
 
 
-def count_nonempty_month(df_month: pd.DataFrame, col_name: Optional[str]) -> int:
-    if not col_name or col_name not in df_month.columns:
+def count_filled_exact(df_month: pd.DataFrame, exact_col_name: str) -> int:
+    if exact_col_name not in df_month.columns:
         return 0
-    s = df_month[col_name]
-    return int((~s.isna()) & (s.astype(str).str.strip() != "")).sum()
+    s = df_month[exact_col_name]
+    mask = (~s.isna()) & (s.astype(str).str.strip() != "")
+    return int(mask.sum())
 
 
 # =========================================================
@@ -619,17 +617,16 @@ with st.sidebar:
 # =========================================================
 df = load_data().copy()
 
-COL_NOME = detect_col(df, [["nome"]]) or "Nome"
-COL_TEL = detect_col(df, [["telefone"]])
-COL_CPF = detect_col(df, [["cpf"]])
-COL_EMAIL = detect_col(df, [["e-mail"], ["email"]])
+COL_NOME = "Nome" if "Nome" in df.columns else detect_col(df, [["nome"]])
+COL_TEL = "Telefone" if "Telefone" in df.columns else detect_col(df, [["telefone"]])
 COL_DATA = detect_col(df, [["data", "compra"], ["data"]])
 COL_MES = detect_col(df, [["mês"], ["mes"]])
 COL_RACA = detect_col(df, [["raça"], ["raca"]])
 
-COL_1_CONTATO = detect_col(df, [["1", "contato"], ["1º", "contato"], ["primeiro", "contato"]])
-COL_2_CONTATO = detect_col(df, [["2", "contato"], ["2º", "contato"], ["segundo", "contato"]])
-COL_3_CONTATO = detect_col(df, [["3", "contato"], ["3º", "contato"], ["terceiro", "contato"]])
+# NOMES EXATOS DA SUA PLANILHA
+COL_1_CONTATO = "1° contato"
+COL_2_CONTATO = "2° contato"
+COL_3_CONTATO = "3° contato"
 
 if COL_DATA:
     df["_data_compra"] = df[COL_DATA].apply(parse_date_any)
@@ -638,7 +635,7 @@ else:
 
 df["_mes_key"] = df.apply(lambda row: build_month_key(row, COL_MES, COL_DATA), axis=1)
 
-if COL_NOME in df.columns:
+if COL_NOME and COL_NOME in df.columns:
     df["_nome_norm"] = df[COL_NOME].astype(str).str.strip()
 else:
     df["_nome_norm"] = ""
@@ -647,16 +644,6 @@ if COL_TEL and COL_TEL in df.columns:
     df["_tel_norm"] = df[COL_TEL].apply(only_digits)
 else:
     df["_tel_norm"] = ""
-
-if COL_CPF and COL_CPF in df.columns:
-    df["_cpf_norm"] = df[COL_CPF].apply(only_digits)
-else:
-    df["_cpf_norm"] = ""
-
-if COL_EMAIL and COL_EMAIL in df.columns:
-    df["_email_norm"] = df[COL_EMAIL].astype(str).str.strip().str.lower()
-else:
-    df["_email_norm"] = ""
 
 if COL_RACA and COL_RACA in df.columns:
     df["_raca_norm"] = df[COL_RACA].astype(str).str.strip()
@@ -722,16 +709,16 @@ if page == "Visão Geral":
         mask = (
             filtered_df["_nome_norm"].str.lower().str.contains(q, na=False)
             | filtered_df["_tel_norm"].str.contains(q_digits, na=False)
-            | filtered_df["_cpf_norm"].str.contains(q_digits, na=False)
-            | filtered_df["_email_norm"].str.contains(q, na=False)
         )
         filtered_df = filtered_df[mask].copy()
 
-    # KPIs alterados
-    primeiro_contato = count_nonempty_month(month_df, COL_1_CONTATO)
-    segundo_contato = count_nonempty_month(month_df, COL_2_CONTATO)
-    terceiro_contato = count_nonempty_month(month_df, COL_3_CONTATO)
-    total_contratos_kpi = len(month_df)
+    # =========================================================
+    # KPIs PEDIDOS POR VOCÊ
+    # =========================================================
+    primeiro_contato = count_filled_exact(month_df, COL_1_CONTATO)
+    segundo_contato = count_filled_exact(month_df, COL_2_CONTATO)
+    terceiro_contato = count_filled_exact(month_df, COL_3_CONTATO)
+    total_contratos = len(month_df)
 
     m1, m2, m3, m4 = st.columns(4)
     with m1:
@@ -741,7 +728,7 @@ if page == "Visão Geral":
     with m3:
         card_metric("Terceiro contato", f"{terceiro_contato}", "no mês", "🗂", "#D39A33")
     with m4:
-        card_metric("Total de contratos", f"{total_contratos_kpi}", month_key_to_label(selected_month), "📄", "#071B49")
+        card_metric("Total de contratos", f"{total_contratos}", month_key_to_label(selected_month), "📄", "#071B49")
 
     st.markdown('<div class="section-space"></div>', unsafe_allow_html=True)
 
@@ -921,7 +908,7 @@ if page == "Visão Geral":
         """
         <div class="search-shell">
             <div class="search-title">Busca Rápida</div>
-            <div class="search-sub">Encontre contratos por nome, CPF, telefone ou e-mail e visualize todos os dados do cliente.</div>
+            <div class="search-sub">Encontre contratos por nome, telefone e visualize todos os dados do cliente.</div>
         </div>
         """,
         unsafe_allow_html=True,
@@ -929,7 +916,7 @@ if page == "Visão Geral":
 
     search_value = st.text_input(
         "Buscar cliente ou contrato",
-        placeholder="Digite nome, CPF, telefone ou e-mail...",
+        placeholder="Digite nome ou telefone...",
         label_visibility="collapsed",
     )
 
@@ -942,9 +929,7 @@ if page == "Visão Geral":
 
         mask = (
             df["_nome_norm"].str.lower().str.contains(q, na=False)
-            | df["_email_norm"].str.contains(q, na=False)
             | df["_tel_norm"].str.contains(q_digits, na=False)
-            | df["_cpf_norm"].str.contains(q_digits, na=False)
         )
         search_results = df[mask].copy()
 
@@ -962,13 +947,10 @@ if page == "Visão Geral":
             option_labels = []
             for idx, row in search_results.head(50).iterrows():
                 nome = normalize_text(row.get(COL_NOME, "Cliente sem nome")) or "Cliente sem nome"
-                cpf = format_cpf(row.get(COL_CPF, "")) if COL_CPF else ""
                 tel = format_phone(row.get(COL_TEL, "")) if COL_TEL else ""
                 data_label = row.get("_data_label", "Sem data")
                 label = f"{nome} • {data_label}"
-                if cpf:
-                    label += f" • CPF {cpf}"
-                elif tel:
+                if tel:
                     label += f" • {tel}"
                 option_labels.append((label, idx))
 
@@ -999,20 +981,15 @@ if page == "Visão Geral":
             unsafe_allow_html=True,
         )
 
-        ordered = [c for c in [COL_NOME, COL_TEL, COL_CPF, COL_EMAIL, COL_DATA, COL_MES, COL_RACA] if c]
+        ordered = [
+            c for c in [
+                COL_NOME, COL_TEL, COL_1_CONTATO, "Status 1° contato",
+                COL_2_CONTATO, "Status 2° contato",
+                COL_3_CONTATO, "Status 3° contato",
+                COL_DATA, COL_MES, COL_RACA
+            ] if c in selected_record.index
+        ]
         render_detail_grid(selected_record, ordered)
-
-        if COL_NOME and COL_NOME in df.columns:
-            hist = df[df["_nome_norm"].str.lower() == nome_sel.lower()].copy()
-            if len(hist) > 1:
-                hist_cols = [c for c in [COL_NOME, COL_DATA, COL_RACA, COL_TEL, COL_EMAIL] if c and c in hist.columns]
-                st.markdown("### Histórico do cliente na base")
-                st.dataframe(
-                    hist[hist_cols].copy(),
-                    use_container_width=True,
-                    hide_index=True,
-                    height=min(320, 80 + 35 * len(hist)),
-                )
 
         st.markdown("</div>", unsafe_allow_html=True)
 
