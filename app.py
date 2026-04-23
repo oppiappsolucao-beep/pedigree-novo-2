@@ -12,7 +12,7 @@ import streamlit as st
 # CONFIG
 # =========================================================
 st.set_page_config(
-    page_title="Pos & Pedigree — Gestão de Contratos",
+    page_title="Dashboard Vendas Clear",
     page_icon="📋",
     layout="wide",
     initial_sidebar_state="expanded",
@@ -93,11 +93,25 @@ st.markdown(
         font-weight: 800;
     }
 
+    .brand-user {
+        width: 46px;
+        height: 46px;
+        border: 2px solid var(--gold);
+        border-radius: 12px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        margin-top: 0.7rem;
+        color: var(--gold);
+        font-size: 21px;
+        font-weight: 800;
+    }
+
     .brand-title {
         color: #F6D089;
-        font-size: 1.8rem;
-        font-weight: 700;
-        line-height: 1.1;
+        font-size: 1.7rem;
+        font-weight: 800;
+        line-height: 1.05;
         margin: 0;
     }
 
@@ -106,7 +120,7 @@ st.markdown(
         font-size: 0.78rem;
         letter-spacing: 0.18em;
         text-transform: uppercase;
-        margin-top: 0.25rem;
+        margin-top: 0.35rem;
     }
 
     .side-section {
@@ -515,8 +529,9 @@ with st.sidebar:
         """
         <div class="brand-box">
             <div class="brand-logo">⚖</div>
-            <div class="brand-title">POS & PEDIGREE</div>
+            <div class="brand-title">DASHBOARD<br>VENDAS CLEAR</div>
             <div class="brand-sub">GESTÃO DE CONTRATOS</div>
+            <div class="brand-user">👤</div>
         </div>
         """,
         unsafe_allow_html=True,
