@@ -1,7 +1,6 @@
 import os
 import re
 import time
-import base64
 import datetime as dt
 from pathlib import Path
 from typing import Optional, List, Tuple
@@ -135,7 +134,6 @@ st.markdown(
         margin-top: 0.28rem;
     }
 
-    /* MENU LATERAL MAIOR */
     div[role="radiogroup"] > label {
         padding: 0.48rem 0.25rem !important;
         margin-bottom: 0.22rem !important;
@@ -150,17 +148,11 @@ st.markdown(
         font-weight: 600 !important;
     }
 
-    .sidebar-logo-bottom {
+    .sidebar-logo-wrap {
         width: 100%;
         display: flex;
         justify-content: center;
-        margin-top: 2.4rem;
-    }
-
-    .sidebar-logo-bottom img {
-        width: 185px;
-        max-width: 100%;
-        opacity: 0.98;
+        margin-top: 2.2rem;
     }
 
     .page-title {
@@ -364,13 +356,6 @@ st.markdown(
 # =========================================================
 # HELPERS
 # =========================================================
-def image_to_base64(path: str) -> str:
-    file_path = Path(path)
-    if not file_path.exists():
-        return ""
-    return base64.b64encode(file_path.read_bytes()).decode()
-
-
 @st.cache_data(show_spinner=False, ttl=CACHE_TTL_SECONDS)
 def load_data() -> pd.DataFrame:
     bust = int(time.time() * 1000)
@@ -563,8 +548,6 @@ def render_placeholder_page(title: str, subtitle: str):
 # SIDEBAR
 # =========================================================
 with st.sidebar:
-    logo_bottom_b64 = image_to_base64("clear_logo.png")
-
     st.markdown(
         """
         <div class="brand-box">
@@ -583,15 +566,11 @@ with st.sidebar:
         label_visibility="collapsed",
     )
 
-    if logo_bottom_b64:
-        st.markdown(
-            f"""
-            <div class="sidebar-logo-bottom">
-                <img src="data:image/png;base64,{logo_bottom_b64}">
-            </div>
-            """,
-            unsafe_allow_html=True,
-        )
+    logo_path = Path("capmotors.png")
+    if logo_path.exists():
+        st.markdown('<div class="sidebar-logo-wrap">', unsafe_allow_html=True)
+        st.image(str(logo_path), width=185)
+        st.markdown('</div>', unsafe_allow_html=True)
 
 # =========================================================
 # LOAD + PREP
