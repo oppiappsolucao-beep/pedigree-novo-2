@@ -291,6 +291,26 @@ st.markdown(
         border-radius: 16px;
         overflow: hidden;
     }
+
+    .empty-page-card {
+        background: white;
+        border: 1px solid var(--line);
+        border-radius: 22px;
+        padding: 1.4rem;
+        box-shadow: 0 10px 28px rgba(15, 23, 42, 0.05);
+        color: var(--text);
+    }
+
+    .empty-page-title {
+        font-size: 1.35rem;
+        font-weight: 800;
+        margin-bottom: 0.35rem;
+    }
+
+    .empty-page-sub {
+        color: var(--muted);
+        font-size: 0.98rem;
+    }
 </style>
 """,
     unsafe_allow_html=True,
@@ -471,6 +491,22 @@ def render_detail_grid(record: pd.Series, ordered_cols: List[str]):
     st.markdown("".join(html), unsafe_allow_html=True)
 
 
+def render_placeholder_page(title: str, subtitle: str):
+    st.markdown(f'<div class="page-title">{title}</div>', unsafe_allow_html=True)
+    st.markdown(f'<div class="page-subtitle">{subtitle}</div>', unsafe_allow_html=True)
+    st.markdown(
+        f"""
+        <div class="empty-page-card">
+            <div class="empty-page-title">{title}</div>
+            <div class="empty-page-sub">
+                Esta página já foi criada no menu e está pronta para receber os cards, gráficos e tabelas que vocês quiserem colocar.
+            </div>
+        </div>
+        """,
+        unsafe_allow_html=True,
+    )
+
+
 # =========================================================
 # SIDEBAR
 # =========================================================
@@ -480,20 +516,19 @@ with st.sidebar:
         <div class="brand-box">
             <div class="brand-logo">⚖</div>
             <div class="brand-title">POS & PEDIGREE</div>
-            <div class="brand-sub">Gestão de Contratos</div>
+            <div class="brand-sub">GESTÃO DE CONTRATOS</div>
         </div>
         """,
         unsafe_allow_html=True,
     )
 
-    menu = st.radio(
+    page = st.radio(
         "Navegação",
-        ["Visão Geral", "Contratos", "Clientes", "Relatórios"],
+        ["Visão Geral", "Pedigree", "Comissão"],
         label_visibility="collapsed",
     )
 
     st.markdown('<div class="side-section">Ferramentas</div>', unsafe_allow_html=True)
-    st.caption("Dashboard somente para visualização e consulta.")
     st.caption(f"Cache TTL: {CACHE_TTL_SECONDS}s")
     st.caption(f"Versão: {APP_VERSION}")
 
@@ -559,392 +594,364 @@ else:
     all_months = [default_month]
 
 # =========================================================
-# HEADER
+# PÁGINA 1 — VISÃO GERAL
 # =========================================================
-header_left, header_right = st.columns([3.2, 1.2])
+if page == "Visão Geral":
+    header_left, header_right = st.columns([3.2, 1.2])
 
-with header_left:
-    st.markdown('<div class="page-title">Visão Geral</div>', unsafe_allow_html=True)
-    st.markdown(
-        '<div class="page-subtitle">Acompanhe os contratos recebidos e consulte todos os dados do cliente sem alterar a origem.</div>',
-        unsafe_allow_html=True,
-    )
-
-with header_right:
-    selected_month = st.selectbox(
-        "Mês de referência",
-        options=all_months,
-        index=all_months.index(default_month) if default_month in all_months else 0,
-        format_func=month_key_to_label,
-    )
-
-# =========================================================
-# FILTROS GERAIS
-# =========================================================
-month_df = df[df["_mes_key"] == selected_month].copy()
-
-races = ["Todas"]
-if COL_RACA and COL_RACA in month_df.columns:
-    race_vals = sorted([r for r in month_df[COL_RACA].dropna().astype(str).str.strip().unique() if r])
-    races += race_vals
-
-filter_col1, filter_col2 = st.columns([1.2, 1.2])
-
-with filter_col1:
-    selected_race = st.selectbox("Raça", races, index=0)
-
-with filter_col2:
-    search_top = st.text_input("Busca rápida", placeholder="Nome, CPF, telefone ou e-mail")
-
-filtered_df = month_df.copy()
-
-if selected_race != "Todas" and COL_RACA and COL_RACA in filtered_df.columns:
-    filtered_df = filtered_df[filtered_df[COL_RACA].astype(str).str.strip() == selected_race].copy()
-
-if search_top.strip():
-    q = search_top.strip().lower()
-    q_digits = re.sub(r"\D", "", q)
-    mask = (
-        filtered_df["_nome_norm"].str.lower().str.contains(q, na=False)
-        | filtered_df["_tel_norm"].str.contains(q_digits, na=False)
-        | filtered_df["_cpf_norm"].str.contains(q_digits, na=False)
-        | filtered_df["_email_norm"].str.contains(q, na=False)
-    )
-    filtered_df = filtered_df[mask].copy()
-
-# =========================================================
-# MÉTRICAS
-# =========================================================
-total_contracts = len(df)
-contracts_month = len(month_df)
-clients_month = month_df["_nome_norm"].replace("", pd.NA).dropna().nunique()
-
-days_in_month = 30
-try:
-    year_, month_ = selected_month
-    if month_ == 12:
-        next_first = dt.date(year_ + 1, 1, 1)
-    else:
-        next_first = dt.date(year_, month_ + 1, 1)
-    first = dt.date(year_, month_, 1)
-    days_in_month = (next_first - first).days
-except Exception:
-    pass
-
-avg_per_day = contracts_month / days_in_month if days_in_month else 0
-
-m1, m2, m3, m4 = st.columns(4)
-with m1:
-    card_metric("Total de Contratos", f"{total_contracts}", "base completa", "📄", "#8E0E3F")
-with m2:
-    card_metric("Contratos no Mês", f"{contracts_month}", month_key_to_label(selected_month), "🗓", "#071B49")
-with m3:
-    card_metric("Clientes Únicos", f"{clients_month}", "no mês", "👤", "#D39A33")
-with m4:
-    card_metric("Média por Dia", f"{avg_per_day:.2f}".replace(".", ","), "contratos / dia", "📊", "#071B49")
-
-st.markdown('<div class="section-space"></div>', unsafe_allow_html=True)
-
-# =========================================================
-# GRÁFICOS
-# =========================================================
-left_chart, right_chart = st.columns([1.65, 1.0])
-
-with left_chart:
-    st.markdown('<div class="card-title">Contratos por Dia</div>', unsafe_allow_html=True)
-    if not month_df.empty and month_df["_data_compra"].notna().any():
-        day_df = month_df[month_df["_data_compra"].notna()].copy()
-        day_df["_dia"] = day_df["_data_compra"].apply(lambda d: d.day if d else None)
-        chart_day = (
-            day_df.groupby("_dia", as_index=False)
-            .size()
-            .rename(columns={"size": "Quantidade"})
+    with header_left:
+        st.markdown('<div class="page-title">Visão Geral</div>', unsafe_allow_html=True)
+        st.markdown(
+            '<div class="page-subtitle">Acompanhe os contratos recebidos e consulte todos os dados do cliente sem alterar a origem.</div>',
+            unsafe_allow_html=True,
         )
 
-        if not chart_day.empty:
-            full_days = pd.DataFrame({"_dia": list(range(1, days_in_month + 1))})
-            chart_day = full_days.merge(chart_day, on="_dia", how="left").fillna(0)
-            chart_day["Quantidade"] = chart_day["Quantidade"].astype(int)
+    with header_right:
+        selected_month = st.selectbox(
+            "Mês de referência",
+            options=all_months,
+            index=all_months.index(default_month) if default_month in all_months else 0,
+            format_func=month_key_to_label,
+        )
 
-            fig_day = px.bar(
-                chart_day,
-                x="_dia",
-                y="Quantidade",
-                labels={"_dia": "Dia", "Quantidade": "Contratos"},
+    month_df = df[df["_mes_key"] == selected_month].copy()
+
+    races = ["Todas"]
+    if COL_RACA and COL_RACA in month_df.columns:
+        race_vals = sorted([r for r in month_df[COL_RACA].dropna().astype(str).str.strip().unique() if r])
+        races += race_vals
+
+    filter_col1, filter_col2 = st.columns([1.2, 1.2])
+
+    with filter_col1:
+        selected_race = st.selectbox("Raça", races, index=0)
+
+    with filter_col2:
+        search_top = st.text_input("Busca rápida", placeholder="Nome, CPF, telefone ou e-mail")
+
+    filtered_df = month_df.copy()
+
+    if selected_race != "Todas" and COL_RACA and COL_RACA in filtered_df.columns:
+        filtered_df = filtered_df[filtered_df[COL_RACA].astype(str).str.strip() == selected_race].copy()
+
+    if search_top.strip():
+        q = search_top.strip().lower()
+        q_digits = re.sub(r"\D", "", q)
+        mask = (
+            filtered_df["_nome_norm"].str.lower().str.contains(q, na=False)
+            | filtered_df["_tel_norm"].str.contains(q_digits, na=False)
+            | filtered_df["_cpf_norm"].str.contains(q_digits, na=False)
+            | filtered_df["_email_norm"].str.contains(q, na=False)
+        )
+        filtered_df = filtered_df[mask].copy()
+
+    total_contracts = len(df)
+    contracts_month = len(month_df)
+    clients_month = month_df["_nome_norm"].replace("", pd.NA).dropna().nunique()
+
+    days_in_month = 30
+    try:
+        year_, month_ = selected_month
+        if month_ == 12:
+            next_first = dt.date(year_ + 1, 1, 1)
+        else:
+            next_first = dt.date(year_, month_ + 1, 1)
+        first = dt.date(year_, month_, 1)
+        days_in_month = (next_first - first).days
+    except Exception:
+        pass
+
+    avg_per_day = contracts_month / days_in_month if days_in_month else 0
+
+    m1, m2, m3, m4 = st.columns(4)
+    with m1:
+        card_metric("Total de Contratos", f"{total_contracts}", "base completa", "📄", "#8E0E3F")
+    with m2:
+        card_metric("Contratos no Mês", f"{contracts_month}", month_key_to_label(selected_month), "🗓", "#071B49")
+    with m3:
+        card_metric("Clientes Únicos", f"{clients_month}", "no mês", "👤", "#D39A33")
+    with m4:
+        card_metric("Média por Dia", f"{avg_per_day:.2f}".replace(".", ","), "contratos / dia", "📊", "#071B49")
+
+    st.markdown('<div class="section-space"></div>', unsafe_allow_html=True)
+
+    left_chart, right_chart = st.columns([1.65, 1.0])
+
+    with left_chart:
+        st.markdown('<div class="card-title">Contratos por Dia</div>', unsafe_allow_html=True)
+        if not month_df.empty and month_df["_data_compra"].notna().any():
+            day_df = month_df[month_df["_data_compra"].notna()].copy()
+            day_df["_dia"] = day_df["_data_compra"].apply(lambda d: d.day if d else None)
+            chart_day = (
+                day_df.groupby("_dia", as_index=False)
+                .size()
+                .rename(columns={"size": "Quantidade"})
             )
-            fig_day.update_traces(marker_color="#8E0E3F")
-            fig_day.update_layout(
-                height=320,
-                margin=dict(l=10, r=10, t=10, b=10),
-                paper_bgcolor="white",
-                plot_bgcolor="white",
-                xaxis=dict(tickmode="linear"),
-                yaxis_title="",
-                xaxis_title="",
-            )
-            st.plotly_chart(fig_day, use_container_width=True)
+
+            if not chart_day.empty:
+                full_days = pd.DataFrame({"_dia": list(range(1, days_in_month + 1))})
+                chart_day = full_days.merge(chart_day, on="_dia", how="left").fillna(0)
+                chart_day["Quantidade"] = chart_day["Quantidade"].astype(int)
+
+                fig_day = px.bar(
+                    chart_day,
+                    x="_dia",
+                    y="Quantidade",
+                    labels={"_dia": "Dia", "Quantidade": "Contratos"},
+                )
+                fig_day.update_traces(marker_color="#8E0E3F")
+                fig_day.update_layout(
+                    height=320,
+                    margin=dict(l=10, r=10, t=10, b=10),
+                    paper_bgcolor="white",
+                    plot_bgcolor="white",
+                    xaxis=dict(tickmode="linear"),
+                    yaxis_title="",
+                    xaxis_title="",
+                )
+                st.plotly_chart(fig_day, use_container_width=True)
+            else:
+                st.info("Não há datas suficientes para montar o gráfico deste mês.")
         else:
             st.info("Não há datas suficientes para montar o gráfico deste mês.")
-    else:
-        st.info("Não há datas suficientes para montar o gráfico deste mês.")
 
-with right_chart:
-    st.markdown('<div class="card-title">Contratos por Raça</div>', unsafe_allow_html=True)
-    if COL_RACA and COL_RACA in month_df.columns:
-        race_chart = (
-            month_df[COL_RACA]
-            .fillna("Não informado")
-            .astype(str)
-            .str.strip()
-            .replace("", "Não informado")
-            .value_counts()
-            .reset_index()
-        )
-        race_chart.columns = ["Raça", "Quantidade"]
+    with right_chart:
+        st.markdown('<div class="card-title">Contratos por Raça</div>', unsafe_allow_html=True)
+        if COL_RACA and COL_RACA in month_df.columns:
+            race_chart = (
+                month_df[COL_RACA]
+                .fillna("Não informado")
+                .astype(str)
+                .str.strip()
+                .replace("", "Não informado")
+                .value_counts()
+                .reset_index()
+            )
+            race_chart.columns = ["Raça", "Quantidade"]
 
-        if not race_chart.empty:
-            fig_race = px.pie(
-                race_chart,
-                names="Raça",
-                values="Quantidade",
-                hole=0.56,
-            )
-            fig_race.update_layout(
-                height=320,
-                margin=dict(l=10, r=10, t=10, b=10),
-                paper_bgcolor="white",
-            )
-            st.plotly_chart(fig_race, use_container_width=True)
+            if not race_chart.empty:
+                fig_race = px.pie(
+                    race_chart,
+                    names="Raça",
+                    values="Quantidade",
+                    hole=0.56,
+                )
+                fig_race.update_layout(
+                    height=320,
+                    margin=dict(l=10, r=10, t=10, b=10),
+                    paper_bgcolor="white",
+                )
+                st.plotly_chart(fig_race, use_container_width=True)
+            else:
+                st.info("Sem dados de raça para o mês selecionado.")
         else:
-            st.info("Sem dados de raça para o mês selecionado.")
-    else:
-        st.info("Coluna de raça não encontrada na base.")
+            st.info("Coluna de raça não encontrada na base.")
 
-# =========================================================
-# LINHA 2
-# =========================================================
-c1, c2, c3 = st.columns([1.0, 1.0, 1.1])
+    c1, c2, c3 = st.columns([1.0, 1.0, 1.1])
 
-with c1:
-    st.markdown('<div class="card"><div class="card-title">Contratos por Raça (Top 5)</div>', unsafe_allow_html=True)
-    if COL_RACA and COL_RACA in month_df.columns:
-        top5 = (
-            month_df[COL_RACA]
-            .fillna("Não informado")
-            .astype(str)
-            .str.strip()
-            .replace("", "Não informado")
-            .value_counts()
-            .head(5)
-            .reset_index()
-        )
-        top5.columns = ["Raça", "Quantidade"]
-
-        if not top5.empty:
-            fig_top = px.bar(
-                top5.sort_values("Quantidade", ascending=True),
-                x="Quantidade",
-                y="Raça",
-                orientation="h",
-                text="Quantidade",
+    with c1:
+        st.markdown('<div class="card"><div class="card-title">Contratos por Raça (Top 5)</div>', unsafe_allow_html=True)
+        if COL_RACA and COL_RACA in month_df.columns:
+            top5 = (
+                month_df[COL_RACA]
+                .fillna("Não informado")
+                .astype(str)
+                .str.strip()
+                .replace("", "Não informado")
+                .value_counts()
+                .head(5)
+                .reset_index()
             )
-            fig_top.update_traces(marker_color="#8E0E3F", textposition="outside")
-            fig_top.update_layout(
+            top5.columns = ["Raça", "Quantidade"]
+
+            if not top5.empty:
+                fig_top = px.bar(
+                    top5.sort_values("Quantidade", ascending=True),
+                    x="Quantidade",
+                    y="Raça",
+                    orientation="h",
+                    text="Quantidade",
+                )
+                fig_top.update_traces(marker_color="#8E0E3F", textposition="outside")
+                fig_top.update_layout(
+                    height=260,
+                    margin=dict(l=10, r=10, t=10, b=10),
+                    paper_bgcolor="white",
+                    plot_bgcolor="white",
+                    xaxis_title="",
+                    yaxis_title="",
+                    showlegend=False,
+                )
+                st.plotly_chart(fig_top, use_container_width=True)
+            else:
+                st.info("Sem dados para o Top 5.")
+        else:
+            st.info("Coluna de raça não encontrada.")
+        st.markdown("</div>", unsafe_allow_html=True)
+
+    with c2:
+        st.markdown('<div class="card"><div class="card-title">Resumo do Mês</div>', unsafe_allow_html=True)
+
+        first_date = None
+        last_date = None
+        if month_df["_data_compra"].notna().any():
+            valid_dates = month_df["_data_compra"].dropna()
+            if not valid_dates.empty:
+                first_date = min(valid_dates)
+                last_date = max(valid_dates)
+
+        resumo_a, resumo_b = st.columns(2)
+        with resumo_a:
+            st.metric("Primeiro contrato", first_date.strftime("%d/%m/%Y") if first_date else "—")
+            st.metric("Total de registros", f"{contracts_month}")
+        with resumo_b:
+            st.metric("Último contrato", last_date.strftime("%d/%m/%Y") if last_date else "—")
+            st.metric("Clientes no mês", f"{clients_month}")
+
+        st.markdown(
+            """
+            <div class="small-note">
+                Os contratos exibidos neste mês seguem exatamente o que foi recebido na planilha de origem.
+            </div>
+            """,
+            unsafe_allow_html=True,
+        )
+        st.markdown("</div>", unsafe_allow_html=True)
+
+    with c3:
+        st.markdown('<div class="card"><div class="card-title">Últimos Contratos</div>', unsafe_allow_html=True)
+        display_cols = [c for c in [COL_NOME, COL_RACA, COL_DATA, COL_TEL] if c and c in month_df.columns]
+        recent_df = month_df.copy()
+
+        if "_data_compra" in recent_df.columns and recent_df["_data_compra"].notna().any():
+            recent_df = recent_df.sort_values("_data_compra", ascending=False)
+        else:
+            recent_df = recent_df.tail(8).copy()
+
+        if display_cols:
+            st.dataframe(
+                recent_df[display_cols].head(8),
+                use_container_width=True,
                 height=260,
-                margin=dict(l=10, r=10, t=10, b=10),
-                paper_bgcolor="white",
-                plot_bgcolor="white",
-                xaxis_title="",
-                yaxis_title="",
-                showlegend=False,
+                hide_index=True,
             )
-            st.plotly_chart(fig_top, use_container_width=True)
         else:
-            st.info("Sem dados para o Top 5.")
-    else:
-        st.info("Coluna de raça não encontrada.")
-    st.markdown("</div>", unsafe_allow_html=True)
-
-with c2:
-    st.markdown('<div class="card"><div class="card-title">Resumo do Mês</div>', unsafe_allow_html=True)
-
-    first_date = None
-    last_date = None
-    if month_df["_data_compra"].notna().any():
-        valid_dates = month_df["_data_compra"].dropna()
-        if not valid_dates.empty:
-            first_date = min(valid_dates)
-            last_date = max(valid_dates)
-
-    resumo_a, resumo_b = st.columns(2)
-    with resumo_a:
-        st.metric("Primeiro contrato", first_date.strftime("%d/%m/%Y") if first_date else "—")
-        st.metric("Total de registros", f"{contracts_month}")
-    with resumo_b:
-        st.metric("Último contrato", last_date.strftime("%d/%m/%Y") if last_date else "—")
-        st.metric("Clientes no mês", f"{clients_month}")
+            st.info("Não foi possível montar a lista de contratos recentes.")
+        st.markdown("</div>", unsafe_allow_html=True)
 
     st.markdown(
         """
-        <div class="small-note">
-            Os contratos exibidos neste mês seguem exatamente o que foi recebido na planilha de origem.
+        <div class="search-shell">
+            <div class="search-title">Busca Rápida</div>
+            <div class="search-sub">Encontre contratos por nome, CPF, telefone ou e-mail e visualize todos os dados do cliente.</div>
         </div>
         """,
         unsafe_allow_html=True,
     )
-    st.markdown("</div>", unsafe_allow_html=True)
 
-with c3:
-    st.markdown('<div class="card"><div class="card-title">Últimos Contratos</div>', unsafe_allow_html=True)
-    display_cols = [c for c in [COL_NOME, COL_RACA, COL_DATA, COL_TEL] if c and c in month_df.columns]
-    recent_df = month_df.copy()
-
-    if "_data_compra" in recent_df.columns and recent_df["_data_compra"].notna().any():
-        recent_df = recent_df.sort_values("_data_compra", ascending=False)
-    else:
-        recent_df = recent_df.tail(8).copy()
-
-    if display_cols:
-        st.dataframe(
-            recent_df[display_cols].head(8),
-            use_container_width=True,
-            height=260,
-            hide_index=True,
-        )
-    else:
-        st.info("Não foi possível montar a lista de contratos recentes.")
-    st.markdown("</div>", unsafe_allow_html=True)
-
-# =========================================================
-# BUSCA RÁPIDA + DETALHE DO CLIENTE
-# =========================================================
-st.markdown(
-    """
-    <div class="search-shell">
-        <div class="search-title">Busca Rápida</div>
-        <div class="search-sub">Encontre contratos por nome, CPF, telefone ou e-mail e visualize todos os dados do cliente.</div>
-    </div>
-    """,
-    unsafe_allow_html=True,
-)
-
-search_value = st.text_input(
-    "Buscar cliente ou contrato",
-    placeholder="Digite nome, CPF, telefone ou e-mail...",
-    label_visibility="collapsed",
-)
-
-selected_record = None
-search_results = pd.DataFrame()
-
-if search_value.strip():
-    q = search_value.strip().lower()
-    q_digits = re.sub(r"\D", "", q)
-
-    mask = (
-        df["_nome_norm"].str.lower().str.contains(q, na=False)
-        | df["_email_norm"].str.contains(q, na=False)
-        | df["_tel_norm"].str.contains(q_digits, na=False)
-        | df["_cpf_norm"].str.contains(q_digits, na=False)
+    search_value = st.text_input(
+        "Buscar cliente ou contrato",
+        placeholder="Digite nome, CPF, telefone ou e-mail...",
+        label_visibility="collapsed",
     )
-    search_results = df[mask].copy()
 
-    if search_results.empty:
-        st.warning("Nenhum cliente encontrado para essa busca.")
-    else:
-        search_results = search_results.copy()
-        if "_data_compra" in search_results.columns:
-            search_results["_data_label"] = search_results["_data_compra"].apply(
-                lambda d: d.strftime("%d/%m/%Y") if d else "Sem data"
-            )
+    selected_record = None
+    search_results = pd.DataFrame()
+
+    if search_value.strip():
+        q = search_value.strip().lower()
+        q_digits = re.sub(r"\D", "", q)
+
+        mask = (
+            df["_nome_norm"].str.lower().str.contains(q, na=False)
+            | df["_email_norm"].str.contains(q, na=False)
+            | df["_tel_norm"].str.contains(q_digits, na=False)
+            | df["_cpf_norm"].str.contains(q_digits, na=False)
+        )
+        search_results = df[mask].copy()
+
+        if search_results.empty:
+            st.warning("Nenhum cliente encontrado para essa busca.")
         else:
-            search_results["_data_label"] = "Sem data"
+            search_results = search_results.copy()
+            if "_data_compra" in search_results.columns:
+                search_results["_data_label"] = search_results["_data_compra"].apply(
+                    lambda d: d.strftime("%d/%m/%Y") if d else "Sem data"
+                )
+            else:
+                search_results["_data_label"] = "Sem data"
 
-        option_labels = []
-        for idx, row in search_results.head(50).iterrows():
-            nome = normalize_text(row.get(COL_NOME, "Cliente sem nome")) or "Cliente sem nome"
-            cpf = format_cpf(row.get(COL_CPF, "")) if COL_CPF else ""
-            tel = format_phone(row.get(COL_TEL, "")) if COL_TEL else ""
-            data_label = row.get("_data_label", "Sem data")
-            label = f"{nome} • {data_label}"
-            if cpf:
-                label += f" • CPF {cpf}"
-            elif tel:
-                label += f" • {tel}"
-            option_labels.append((label, idx))
+            option_labels = []
+            for idx, row in search_results.head(50).iterrows():
+                nome = normalize_text(row.get(COL_NOME, "Cliente sem nome")) or "Cliente sem nome"
+                cpf = format_cpf(row.get(COL_CPF, "")) if COL_CPF else ""
+                tel = format_phone(row.get(COL_TEL, "")) if COL_TEL else ""
+                data_label = row.get("_data_label", "Sem data")
+                label = f"{nome} • {data_label}"
+                if cpf:
+                    label += f" • CPF {cpf}"
+                elif tel:
+                    label += f" • {tel}"
+                option_labels.append((label, idx))
 
-        selected_label = st.selectbox(
-            "Selecione o registro",
-            options=option_labels,
-            format_func=lambda x: x[0],
+            selected_label = st.selectbox(
+                "Selecione o registro",
+                options=option_labels,
+                format_func=lambda x: x[0],
+            )
+            selected_record = search_results.loc[selected_label[1]]
+
+    elif search_top.strip() and not filtered_df.empty:
+        selected_record = filtered_df.iloc[0]
+
+    if selected_record is not None:
+        nome_sel = normalize_text(selected_record.get(COL_NOME, "Cliente")) or "Cliente"
+
+        st.markdown(
+            f"""
+            <div class="client-preview">
+                <div class="client-title">
+                    {nome_sel}
+                    <span class="detail-badge">registro da base</span>
+                </div>
+                <div class="small-note">
+                    Visualização completa das informações recebidas para este cliente.
+                </div>
+            """,
+            unsafe_allow_html=True,
         )
-        selected_record = search_results.loc[selected_label[1]]
 
-elif search_top.strip() and not filtered_df.empty:
-    selected_record = filtered_df.iloc[0]
+        ordered = [c for c in [COL_NOME, COL_TEL, COL_CPF, COL_EMAIL, COL_DATA, COL_MES, COL_RACA] if c]
+        render_detail_grid(selected_record, ordered)
 
-if selected_record is not None:
-    nome_sel = normalize_text(selected_record.get(COL_NOME, "Cliente")) or "Cliente"
+        if COL_NOME and COL_NOME in df.columns:
+            hist = df[df["_nome_norm"].str.lower() == nome_sel.lower()].copy()
+            if len(hist) > 1:
+                hist_cols = [c for c in [COL_NOME, COL_DATA, COL_RACA, COL_TEL, COL_EMAIL] if c and c in hist.columns]
+                st.markdown("### Histórico do cliente na base")
+                st.dataframe(
+                    hist[hist_cols].copy(),
+                    use_container_width=True,
+                    hide_index=True,
+                    height=min(320, 80 + 35 * len(hist)),
+                )
 
-    st.markdown(
-        f"""
-        <div class="client-preview">
-            <div class="client-title">
-                {nome_sel}
-                <span class="detail-badge">registro da base</span>
-            </div>
-            <div class="small-note">
-                Visualização completa das informações recebidas para este cliente.
-            </div>
-        """,
-        unsafe_allow_html=True,
+        st.markdown("</div>", unsafe_allow_html=True)
+
+# =========================================================
+# PÁGINA 2 — PEDIGREE
+# =========================================================
+elif page == "Pedigree":
+    render_placeholder_page(
+        "Pedigree",
+        "Aqui ficará a página exclusiva de Pedigree."
     )
 
-    ordered = [c for c in [COL_NOME, COL_TEL, COL_CPF, COL_EMAIL, COL_DATA, COL_MES, COL_RACA] if c]
-    render_detail_grid(selected_record, ordered)
-
-    if COL_NOME and COL_NOME in df.columns:
-        hist = df[df["_nome_norm"].str.lower() == nome_sel.lower()].copy()
-        if len(hist) > 1:
-            hist_cols = [c for c in [COL_NOME, COL_DATA, COL_RACA, COL_TEL, COL_EMAIL] if c and c in hist.columns]
-            st.markdown("### Histórico do cliente na base")
-            st.dataframe(
-                hist[hist_cols].copy(),
-                use_container_width=True,
-                hide_index=True,
-                height=min(320, 80 + 35 * len(hist)),
-            )
-
-    st.markdown("</div>", unsafe_allow_html=True)
-
 # =========================================================
-# TELAS SECUNDÁRIAS
+# PÁGINA 3 — COMISSÃO
 # =========================================================
-if menu == "Contratos":
-    st.markdown("---")
-    st.markdown("## Contratos")
-    contract_cols = [c for c in [COL_NOME, COL_TEL, COL_CPF, COL_EMAIL, COL_DATA, COL_MES, COL_RACA] if c and c in df.columns]
-
-    if contract_cols:
-        export_df = df[contract_cols].copy()
-        st.dataframe(export_df, use_container_width=True, hide_index=True, height=520)
-    else:
-        st.info("Não foi possível identificar as colunas principais da base.")
-
-elif menu == "Clientes":
-    st.markdown("---")
-    st.markdown("## Clientes")
-    if COL_NOME and COL_NOME in df.columns:
-        clients_df = (
-            df[[COL_NOME] + ([COL_TEL] if COL_TEL else []) + ([COL_EMAIL] if COL_EMAIL else [])]
-            .copy()
-            .drop_duplicates()
-        )
-        st.dataframe(clients_df, use_container_width=True, hide_index=True, height=520)
-    else:
-        st.info("A coluna de nome não foi encontrada.")
-
-elif menu == "Relatórios":
-    st.markdown("---")
-    st.markdown("## Relatórios")
-    st.info("Essa área pode receber depois filtros mais avançados, exportação e relatórios operacionais.")
+elif page == "Comissão":
+    render_placeholder_page(
+        "Comissão",
+        "Aqui ficará a página exclusiva de Comissão."
+    )
