@@ -21,7 +21,7 @@ st.set_page_config(
 CACHE_TTL_SECONDS = 60
 
 SHEET_ID = "1Q0mLvOBxEGCojUITBLxCXRtpXVMAHE3ngvGsa2Cgf9Q"
-GID_BASE = 1396326144  # Aba Clear / base de contratos
+GID_BASE = 1396326144
 
 APP_BOOT = dt.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
 APP_VERSION = os.getenv("APP_VERSION", f"boot@{APP_BOOT}")
@@ -42,7 +42,6 @@ st.markdown(
         --line:#E7EAF3;
         --text:#18243D;
         --muted:#6B7280;
-        --ok:#16A34A;
         --soft:#F9FAFB;
     }
 
@@ -101,7 +100,7 @@ st.markdown(
         display: flex;
         align-items: center;
         justify-content: center;
-        margin-top: 0.7rem;
+        margin-top: 0.9rem;
         color: var(--gold);
         font-size: 21px;
         font-weight: 800;
@@ -109,15 +108,16 @@ st.markdown(
 
     .brand-title {
         color: #F6D089;
-        font-size: 1.7rem;
+        font-size: 1.15rem;
         font-weight: 800;
-        line-height: 1.05;
+        line-height: 1.1;
         margin: 0;
+        white-space: nowrap;
     }
 
     .brand-sub {
         color: #E7C27A;
-        font-size: 0.78rem;
+        font-size: 0.72rem;
         letter-spacing: 0.18em;
         text-transform: uppercase;
         margin-top: 0.35rem;
@@ -529,7 +529,7 @@ with st.sidebar:
         """
         <div class="brand-box">
             <div class="brand-logo">⚖</div>
-            <div class="brand-title">DASHBOARD<br>VENDAS CLEAR</div>
+            <div class="brand-title">DASHBOARD VENDAS CLEAR</div>
             <div class="brand-sub">GESTÃO DE CONTRATOS</div>
             <div class="brand-user">👤</div>
         </div>
