@@ -2,6 +2,7 @@ import re
 import time
 import base64
 import html
+import unicodedata
 import datetime as dt
 from pathlib import Path
 from typing import Optional, List, Tuple
@@ -48,6 +49,16 @@ def normalize_text(v) -> str:
     if pd.isna(v):
         return ""
     return str(v).strip()
+
+
+def normalize_search_text(v) -> str:
+    if pd.isna(v):
+        return ""
+    s = str(v).strip().lower()
+    s = unicodedata.normalize("NFKD", s)
+    s = "".join(ch for ch in s if not unicodedata.combining(ch))
+    s = re.sub(r"\s+", " ", s)
+    return s
 
 
 def only_digits(v) -> str:
@@ -672,10 +683,10 @@ COL_WHATSAPP = "WhatsApp" if "WhatsApp" in df.columns else detect_col(df, [["wha
 df["_data_compra"] = df[COL_DATA].apply(parse_date_any) if COL_DATA else None
 df["_mes_key"] = df.apply(lambda row: build_month_key(row, COL_MES, COL_DATA), axis=1)
 
-df["_nome_norm"] = df[COL_NOME].astype(str).str.strip() if COL_NOME and COL_NOME in df.columns else ""
+df["_nome_norm"] = df[COL_NOME].apply(normalize_search_text) if COL_NOME and COL_NOME in df.columns else ""
 df["_tel_norm"] = df[COL_TEL].apply(only_digits) if COL_TEL and COL_TEL in df.columns else ""
 df["_cpf_norm"] = df[COL_CPF].apply(only_digits) if COL_CPF and COL_CPF in df.columns else ""
-df["_email_norm"] = df[COL_EMAIL].astype(str).str.strip().str.lower() if COL_EMAIL and COL_EMAIL in df.columns else ""
+df["_email_norm"] = df[COL_EMAIL].apply(normalize_search_text) if COL_EMAIL and COL_EMAIL in df.columns else ""
 df["_raca_norm"] = df[COL_RACA].astype(str).str.strip() if COL_RACA and COL_RACA in df.columns else "Não informado"
 
 all_months = sorted(
@@ -733,15 +744,20 @@ if page == "Visão Geral":
         filtered_df = filtered_df[filtered_df[COL_RACA].astype(str).str.strip() == selected_race].copy()
 
     if search_top.strip():
-        q = search_top.strip().lower()
-        q_digits = re.sub(r"\D", "", q)
+        q = normalize_search_text(search_top)
+        q_digits = re.sub(r"\D", "", search_top)
 
-        mask = (
-            filtered_df["_nome_norm"].str.lower().str.contains(q, na=False)
-            | filtered_df["_tel_norm"].str.contains(q_digits, na=False)
-            | filtered_df["_cpf_norm"].str.contains(q_digits, na=False)
-            | filtered_df["_email_norm"].str.contains(q, na=False)
-        )
+        mask = filtered_df["_nome_norm"].str.contains(q, na=False)
+
+        if q_digits:
+            mask = (
+                mask
+                | filtered_df["_tel_norm"].str.contains(q_digits, na=False)
+                | filtered_df["_cpf_norm"].str.contains(q_digits, na=False)
+            )
+
+        if "_email_norm" in filtered_df.columns:
+            mask = mask | filtered_df["_email_norm"].str.contains(q, na=False)
 
         filtered_df = filtered_df[mask].copy()
 
