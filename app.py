@@ -1,4 +1,3 @@
-import os
 import re
 import time
 import base64
@@ -7,7 +6,6 @@ from pathlib import Path
 from typing import Optional, List, Tuple
 
 import pandas as pd
-import plotly.express as px
 import streamlit as st
 
 # =========================================================
@@ -53,37 +51,15 @@ def only_digits(v) -> str:
     return re.sub(r"\D", "", normalize_text(v))
 
 
-def format_phone(v) -> str:
-    s = only_digits(v)
-    if len(s) == 11:
-        return f"({s[:2]}) {s[2:7]}-{s[7:]}"
-    if len(s) == 10:
-        return f"({s[:2]}) {s[2:6]}-{s[6:]}"
-    return normalize_text(v)
-
-
-def format_cpf(v) -> str:
-    s = only_digits(v)
-    if len(s) == 11:
-        return f"{s[:3]}.{s[3:6]}.{s[6:9]}-{s[9:]}"
-    return normalize_text(v)
-
-
 def parse_date_any(v) -> Optional[dt.date]:
     if pd.isna(v):
         return None
+
     s = str(v).strip()
     if not s:
         return None
 
-    fixed_formats = [
-        "%d/%m/%Y",
-        "%d-%m-%Y",
-        "%Y-%m-%d",
-        "%d/%m/%y",
-        "%d-%m-%y",
-    ]
-    for fmt in fixed_formats:
+    for fmt in ["%d/%m/%Y", "%d-%m-%Y", "%Y-%m-%d", "%d/%m/%y", "%d-%m-%y"]:
         try:
             return dt.datetime.strptime(s, fmt).date()
         except Exception:
@@ -92,6 +68,7 @@ def parse_date_any(v) -> Optional[dt.date]:
     d = pd.to_datetime(s, dayfirst=True, errors="coerce")
     if pd.isna(d):
         return None
+
     return d.date()
 
 
@@ -109,14 +86,11 @@ def month_key_to_label(ym: Tuple[int, int]) -> str:
 
 
 def detect_col(df: pd.DataFrame, keywords: List[List[str]]) -> Optional[str]:
-    cols = list(df.columns)
-    lowered = {c: str(c).strip().lower() for c in cols}
-
-    for c in cols:
-        lc = lowered[c]
+    for col in df.columns:
+        lc = str(col).strip().lower()
         for group in keywords:
             if all(k in lc for k in group):
-                return c
+                return col
     return None
 
 
@@ -132,94 +106,33 @@ def build_month_key(row, col_mes, col_data) -> Optional[Tuple[int, int]]:
             mm = int(m1.group(1))
             yy = int(m1.group(2))
             if 1 <= mm <= 12:
-                return (yy, mm)
+                return yy, mm
 
         m2 = re.search(r"(20\d{2})[-/](\d{1,2})", s)
         if m2:
             yy = int(m2.group(1))
             mm = int(m2.group(2))
             if 1 <= mm <= 12:
-                return (yy, mm)
+                return yy, mm
 
         nomes = {
-            "janeiro": 1, "fevereiro": 2, "março": 3, "marco": 3, "abril": 4,
-            "maio": 5, "junho": 6, "julho": 7, "agosto": 8, "setembro": 9,
-            "outubro": 10, "novembro": 11, "dezembro": 12
+            "janeiro": 1, "fevereiro": 2, "março": 3, "marco": 3,
+            "abril": 4, "maio": 5, "junho": 6, "julho": 7,
+            "agosto": 8, "setembro": 9, "outubro": 10,
+            "novembro": 11, "dezembro": 12,
         }
-        achou_mes = None
+
         for nome, num in nomes.items():
             if nome in s:
-                achou_mes = num
-                break
-        if achou_mes:
-            ano_match = re.search(r"(20\d{2})", s)
-            ano = int(ano_match.group(1)) if ano_match else dt.date.today().year
-            return (ano, achou_mes)
+                ano_match = re.search(r"(20\d{2})", s)
+                ano = int(ano_match.group(1)) if ano_match else dt.date.today().year
+                return ano, num
 
     d = parse_date_any(raw_data)
     if d:
-        return (d.year, d.month)
+        return d.year, d.month
 
     return None
-
-
-def card_metric(title: str, value: str, subtitle: str, emoji: str, color: str):
-    st.markdown(
-        f"""
-        <div class="metric-card">
-            <div class="metric-wrap">
-                <div class="metric-icon" style="background:{color};">{emoji}</div>
-                <div>
-                    <div class="metric-label">{title}</div>
-                    <div class="metric-value">{value}</div>
-                    <div class="metric-sub">{subtitle}</div>
-                </div>
-            </div>
-        </div>
-        """,
-        unsafe_allow_html=True,
-    )
-
-
-def render_detail_grid(record: pd.Series, ordered_cols: List[str]):
-    shown_cols = []
-    for c in ordered_cols:
-        if c in record.index and normalize_text(record[c]) != "":
-            shown_cols.append(c)
-
-    for c in record.index:
-        if c not in shown_cols and not str(c).startswith("_") and normalize_text(record[c]) != "":
-            shown_cols.append(c)
-
-    html = ['<div class="detail-grid">']
-    for c in shown_cols:
-        val = normalize_text(record[c])
-        html.append(
-            f"""
-            <div class="detail-item">
-                <div class="detail-label">{c}</div>
-                <div class="detail-value">{val}</div>
-            </div>
-            """
-        )
-    html.append("</div>")
-    st.markdown("".join(html), unsafe_allow_html=True)
-
-
-def render_placeholder_page(title: str, subtitle: str):
-    st.markdown(f'<div class="page-title">{title}</div>', unsafe_allow_html=True)
-    st.markdown(f'<div class="page-subtitle">{subtitle}</div>', unsafe_allow_html=True)
-    st.markdown(
-        f"""
-        <div class="empty-page-card">
-            <div class="empty-page-title">{title}</div>
-            <div class="empty-page-sub">
-                Esta página já foi criada no menu e está pronta para receber os cards, gráficos e tabelas que vocês quiserem colocar.
-            </div>
-        </div>
-        """,
-        unsafe_allow_html=True,
-    )
 
 
 def normalize_header_name(s: str) -> str:
@@ -242,7 +155,6 @@ def count_filled_matching_columns(df_month: pd.DataFrame, target: str) -> int:
     masks = []
     for col in matching_cols:
         s = df_month[col]
-
         if isinstance(s, pd.DataFrame):
             for subcol in s.columns:
                 ss = s[subcol]
@@ -260,15 +172,88 @@ def count_filled_matching_columns(df_month: pd.DataFrame, target: str) -> int:
     return int(final_mask.sum())
 
 
+def format_phone(v) -> str:
+    s = only_digits(v)
+    if len(s) == 11:
+        return f"({s[:2]}) {s[2:7]}-{s[7:]}"
+    if len(s) == 10:
+        return f"({s[:2]}) {s[2:6]}-{s[6:]}"
+    return normalize_text(v)
+
+
+def format_cpf(v) -> str:
+    s = only_digits(v)
+    if len(s) == 11:
+        return f"{s[:3]}.{s[3:6]}.{s[6:9]}-{s[9:]}"
+    return normalize_text(v)
+
+
+def card_metric(title: str, value: str, subtitle: str, emoji: str, color: str):
+    st.markdown(
+        f"""
+        <div class="metric-card">
+            <div class="metric-wrap">
+                <div class="metric-icon" style="background:{color};">{emoji}</div>
+                <div>
+                    <div class="metric-label">{title}</div>
+                    <div class="metric-value">{value}</div>
+                    <div class="metric-sub">{subtitle}</div>
+                </div>
+            </div>
+        </div>
+        """,
+        unsafe_allow_html=True,
+    )
+
+
+def render_placeholder_page(title: str, subtitle: str):
+    st.markdown(f'<div class="page-title">{title}</div>', unsafe_allow_html=True)
+    st.markdown(f'<div class="page-subtitle">{subtitle}</div>', unsafe_allow_html=True)
+    st.markdown(
+        f"""
+        <div class="empty-page-card">
+            <div class="empty-page-title">{title}</div>
+            <div class="empty-page-sub">{subtitle}</div>
+        </div>
+        """,
+        unsafe_allow_html=True,
+    )
+
+
+def render_detail_grid(record: pd.Series, ordered_cols: List[str]):
+    shown_cols = []
+
+    for c in ordered_cols:
+        if c in record.index and normalize_text(record[c]) != "":
+            shown_cols.append(c)
+
+    for c in record.index:
+        if c not in shown_cols and not str(c).startswith("_") and normalize_text(record[c]) != "":
+            shown_cols.append(c)
+
+    html = ['<div class="detail-grid">']
+    for c in shown_cols:
+        html.append(
+            f"""
+            <div class="detail-item">
+                <div class="detail-label">{c}</div>
+                <div class="detail-value">{normalize_text(record[c])}</div>
+            </div>
+            """
+        )
+    html.append("</div>")
+
+    st.markdown("".join(html), unsafe_allow_html=True)
+
+
 # =========================================================
-# ESTILO
+# CSS
 # =========================================================
 st.markdown(
     """
 <style>
     :root{
         --navy:#071B49;
-        --navy-2:#0D2A6B;
         --wine:#8E0E3F;
         --gold:#D39A33;
         --bg:#F4F6FB;
@@ -276,38 +261,23 @@ st.markdown(
         --line:#E7EAF3;
         --text:#18243D;
         --muted:#6B7280;
-        --soft:#F9FAFB;
     }
 
-    .stApp {
-        background: var(--bg);
-    }
-
-    [data-testid="stHeader"] {
-        background: transparent;
-    }
-
-    #MainMenu, footer {
-        visibility: hidden;
-    }
+    .stApp { background: var(--bg); }
+    [data-testid="stHeader"] { background: transparent; }
+    #MainMenu, footer { visibility: hidden; }
 
     [data-testid="stSidebar"] {
         background: linear-gradient(180deg, var(--navy) 0%, #051535 100%);
         border-right: 1px solid rgba(255,255,255,0.08);
     }
 
-    [data-testid="stSidebar"] > div:first-child {
-        padding-top: 0rem !important;
-    }
-
+    [data-testid="stSidebar"] > div:first-child { padding-top: 0rem !important; }
     [data-testid="stSidebar"] .block-container {
         padding-top: 0rem !important;
         padding-bottom: 0.5rem !important;
     }
-
-    [data-testid="stSidebar"] * {
-        color: white;
-    }
+    [data-testid="stSidebar"] * { color: white; }
 
     .block-container {
         padding-top: 1.2rem;
@@ -385,7 +355,7 @@ st.markdown(
         width: 100%;
         display: flex;
         justify-content: center;
-        margin-top: 2.0rem;
+        margin-top: 2rem;
     }
 
     .sidebar-logo-circle {
@@ -469,11 +439,13 @@ st.markdown(
         margin-top: 0.15rem;
     }
 
+    .section-space { margin-top: 1rem; }
+
     .card {
         background: var(--card);
         border: 1px solid var(--line);
         border-radius: 22px;
-        padding: 1rem 1rem 0.9rem 1rem;
+        padding: 1rem;
         box-shadow: 0 10px 28px rgba(15, 23, 42, 0.05);
         height: 100%;
     }
@@ -493,9 +465,9 @@ st.markdown(
     .search-shell {
         background: linear-gradient(90deg, var(--navy) 0%, #0A225D 100%);
         border-radius: 22px;
-        padding: 1.1rem 1.1rem;
+        padding: 1.1rem;
         border: 1px solid rgba(7,27,73,0.08);
-        margin-top: 0.5rem;
+        margin-top: 0.8rem;
     }
 
     .search-title {
@@ -568,19 +540,6 @@ st.markdown(
         word-break: break-word;
     }
 
-    .section-space {
-        margin-top: 0.6rem;
-    }
-
-    div[data-testid="stMetricValue"] {
-        font-weight: 800;
-    }
-
-    .stDataFrame, .stTable {
-        border-radius: 16px;
-        overflow: hidden;
-    }
-
     .empty-page-card {
         background: white;
         border: 1px solid var(--line);
@@ -642,7 +601,7 @@ with st.sidebar:
         )
 
 # =========================================================
-# LOAD + PREP
+# LOAD
 # =========================================================
 df = load_data().copy()
 
@@ -654,41 +613,18 @@ COL_DATA = detect_col(df, [["data", "compra"], ["data"]])
 COL_MES = detect_col(df, [["mês"], ["mes"]])
 COL_RACA = detect_col(df, [["raça"], ["raca"]])
 
-if COL_DATA:
-    df["_data_compra"] = df[COL_DATA].apply(parse_date_any)
-else:
-    df["_data_compra"] = None
-
+df["_data_compra"] = df[COL_DATA].apply(parse_date_any) if COL_DATA else None
 df["_mes_key"] = df.apply(lambda row: build_month_key(row, COL_MES, COL_DATA), axis=1)
 
-if COL_NOME and COL_NOME in df.columns:
-    df["_nome_norm"] = df[COL_NOME].astype(str).str.strip()
-else:
-    df["_nome_norm"] = ""
-
-if COL_TEL and COL_TEL in df.columns:
-    df["_tel_norm"] = df[COL_TEL].apply(only_digits)
-else:
-    df["_tel_norm"] = ""
-
-if COL_CPF and COL_CPF in df.columns:
-    df["_cpf_norm"] = df[COL_CPF].apply(only_digits)
-else:
-    df["_cpf_norm"] = ""
-
-if COL_EMAIL and COL_EMAIL in df.columns:
-    df["_email_norm"] = df[COL_EMAIL].astype(str).str.strip().str.lower()
-else:
-    df["_email_norm"] = ""
-
-if COL_RACA and COL_RACA in df.columns:
-    df["_raca_norm"] = df[COL_RACA].astype(str).str.strip()
-else:
-    df["_raca_norm"] = "Não informado"
+df["_nome_norm"] = df[COL_NOME].astype(str).str.strip() if COL_NOME and COL_NOME in df.columns else ""
+df["_tel_norm"] = df[COL_TEL].apply(only_digits) if COL_TEL and COL_TEL in df.columns else ""
+df["_cpf_norm"] = df[COL_CPF].apply(only_digits) if COL_CPF and COL_CPF in df.columns else ""
+df["_email_norm"] = df[COL_EMAIL].astype(str).str.strip().str.lower() if COL_EMAIL and COL_EMAIL in df.columns else ""
+df["_raca_norm"] = df[COL_RACA].astype(str).str.strip() if COL_RACA and COL_RACA in df.columns else "Não informado"
 
 all_months = sorted(
     [m for m in df["_mes_key"].dropna().unique().tolist()],
-    key=lambda x: (x[0], x[1])
+    key=lambda x: (x[0], x[1]),
 )
 
 if all_months:
@@ -699,7 +635,7 @@ else:
     all_months = [default_month]
 
 # =========================================================
-# PÁGINA 1 — VISÃO GERAL
+# PÁGINAS
 # =========================================================
 if page == "Visão Geral":
     header_left, header_right = st.columns([3.2, 1.2])
@@ -723,7 +659,9 @@ if page == "Visão Geral":
 
     races = ["Todas"]
     if COL_RACA and COL_RACA in month_df.columns:
-        race_vals = sorted([r for r in month_df[COL_RACA].dropna().astype(str).str.strip().unique() if r])
+        race_vals = sorted(
+            [r for r in month_df[COL_RACA].dropna().astype(str).str.strip().unique() if r]
+        )
         races += race_vals
 
     filter_col1, filter_col2 = st.columns([1.2, 1.2])
@@ -737,7 +675,9 @@ if page == "Visão Geral":
     filtered_df = month_df.copy()
 
     if selected_race != "Todas" and COL_RACA and COL_RACA in filtered_df.columns:
-        filtered_df = filtered_df[filtered_df[COL_RACA].astype(str).str.strip() == selected_race].copy()
+        filtered_df = filtered_df[
+            filtered_df[COL_RACA].astype(str).str.strip() == selected_race
+        ].copy()
 
     if search_top.strip():
         q = search_top.strip().lower()
@@ -767,133 +707,14 @@ if page == "Visão Geral":
 
     st.markdown('<div class="section-space"></div>', unsafe_allow_html=True)
 
-    left_chart, right_chart = st.columns([1.65, 1.0])
-
-    with left_chart:
-        st.markdown('<div class="card-title">Contratos por Dia</div>', unsafe_allow_html=True)
-        if not month_df.empty and month_df["_data_compra"].notna().any():
-            day_df = month_df[month_df["_data_compra"].notna()].copy()
-            day_df["_dia"] = day_df["_data_compra"].apply(lambda d: d.day if d else None)
-            chart_day = (
-                day_df.groupby("_dia", as_index=False)
-                .size()
-                .rename(columns={"size": "Quantidade"})
-            )
-
-            if not chart_day.empty:
-                year_, month_ = selected_month
-                if month_ == 12:
-                    next_first = dt.date(year_ + 1, 1, 1)
-                else:
-                    next_first = dt.date(year_, month_ + 1, 1)
-                first = dt.date(year_, month_, 1)
-                days_in_month = (next_first - first).days
-
-                full_days = pd.DataFrame({"_dia": list(range(1, days_in_month + 1))})
-                chart_day = full_days.merge(chart_day, on="_dia", how="left").fillna(0)
-                chart_day["Quantidade"] = chart_day["Quantidade"].astype(int)
-
-                fig_day = px.bar(
-                    chart_day,
-                    x="_dia",
-                    y="Quantidade",
-                    labels={"_dia": "Dia", "Quantidade": "Contratos"},
-                )
-                fig_day.update_traces(marker_color="#8E0E3F")
-                fig_day.update_layout(
-                    height=320,
-                    margin=dict(l=10, r=10, t=10, b=10),
-                    paper_bgcolor="white",
-                    plot_bgcolor="white",
-                    xaxis=dict(tickmode="linear"),
-                    yaxis_title="",
-                    xaxis_title="",
-                )
-                st.plotly_chart(fig_day, use_container_width=True)
-            else:
-                st.info("Não há datas suficientes para montar o gráfico deste mês.")
-        else:
-            st.info("Não há datas suficientes para montar o gráfico deste mês.")
-
-    with right_chart:
-        st.markdown('<div class="card-title">Contratos por Raça</div>', unsafe_allow_html=True)
-        if COL_RACA and COL_RACA in month_df.columns:
-            race_chart = (
-                month_df[COL_RACA]
-                .fillna("Não informado")
-                .astype(str)
-                .str.strip()
-                .replace("", "Não informado")
-                .value_counts()
-                .reset_index()
-            )
-            race_chart.columns = ["Raça", "Quantidade"]
-
-            if not race_chart.empty:
-                fig_race = px.pie(
-                    race_chart,
-                    names="Raça",
-                    values="Quantidade",
-                    hole=0.56,
-                )
-                fig_race.update_layout(
-                    height=320,
-                    margin=dict(l=10, r=10, t=10, b=10),
-                    paper_bgcolor="white",
-                )
-                st.plotly_chart(fig_race, use_container_width=True)
-            else:
-                st.info("Sem dados de raça para o mês selecionado.")
-        else:
-            st.info("Coluna de raça não encontrada na base.")
-
-    c1, c2, c3 = st.columns([1.0, 1.0, 1.1])
-
-    with c1:
-        st.markdown('<div class="card"><div class="card-title">Contratos por Raça (Top 5)</div>', unsafe_allow_html=True)
-        if COL_RACA and COL_RACA in month_df.columns:
-            top5 = (
-                month_df[COL_RACA]
-                .fillna("Não informado")
-                .astype(str)
-                .str.strip()
-                .replace("", "Não informado")
-                .value_counts()
-                .head(5)
-                .reset_index()
-            )
-            top5.columns = ["Raça", "Quantidade"]
-
-            if not top5.empty:
-                fig_top = px.bar(
-                    top5.sort_values("Quantidade", ascending=True),
-                    x="Quantidade",
-                    y="Raça",
-                    orientation="h",
-                    text="Quantidade",
-                )
-                fig_top.update_traces(marker_color="#8E0E3F", textposition="outside")
-                fig_top.update_layout(
-                    height=260,
-                    margin=dict(l=10, r=10, t=10, b=10),
-                    paper_bgcolor="white",
-                    plot_bgcolor="white",
-                    xaxis_title="",
-                    yaxis_title="",
-                    showlegend=False,
-                )
-                st.plotly_chart(fig_top, use_container_width=True)
-            else:
-                st.info("Sem dados para o Top 5.")
-        else:
-            st.info("Coluna de raça não encontrada.")
-        st.markdown("</div>", unsafe_allow_html=True)
+    c2, c3 = st.columns([1.0, 1.1])
 
     with c2:
         st.markdown('<div class="card"><div class="card-title">Resumo do Mês</div>', unsafe_allow_html=True)
 
         first_date = None
         last_date = None
+
         if month_df["_data_compra"].notna().any():
             valid_dates = month_df["_data_compra"].dropna()
             if not valid_dates.empty:
@@ -901,9 +722,11 @@ if page == "Visão Geral":
                 last_date = max(valid_dates)
 
         resumo_a, resumo_b = st.columns(2)
+
         with resumo_a:
             st.metric("Primeiro contrato", first_date.strftime("%d/%m/%Y") if first_date else "—")
             st.metric("Total de registros", f"{len(month_df)}")
+
         with resumo_b:
             st.metric("Último contrato", last_date.strftime("%d/%m/%Y") if last_date else "—")
             st.metric("Clientes no mês", f"{month_df['_nome_norm'].replace('', pd.NA).dropna().nunique()}")
@@ -920,6 +743,7 @@ if page == "Visão Geral":
 
     with c3:
         st.markdown('<div class="card"><div class="card-title">Últimos Contratos</div>', unsafe_allow_html=True)
+
         display_cols = [c for c in [COL_NOME, COL_RACA, COL_DATA, COL_TEL] if c and c in month_df.columns]
         recent_df = month_df.copy()
 
@@ -937,6 +761,7 @@ if page == "Visão Geral":
             )
         else:
             st.info("Não foi possível montar a lista de contratos recentes.")
+
         st.markdown("</div>", unsafe_allow_html=True)
 
     st.markdown(
@@ -956,7 +781,6 @@ if page == "Visão Geral":
     )
 
     selected_record = None
-    search_results = pd.DataFrame()
 
     if search_value.strip():
         q = search_value.strip().lower()
@@ -968,30 +792,30 @@ if page == "Visão Geral":
             | df["_tel_norm"].str.contains(q_digits, na=False)
             | df["_cpf_norm"].str.contains(q_digits, na=False)
         )
+
         search_results = df[mask].copy()
 
         if search_results.empty:
             st.warning("Nenhum cliente encontrado para essa busca.")
         else:
-            search_results = search_results.copy()
-            if "_data_compra" in search_results.columns:
-                search_results["_data_label"] = search_results["_data_compra"].apply(
-                    lambda d: d.strftime("%d/%m/%Y") if d else "Sem data"
-                )
-            else:
-                search_results["_data_label"] = "Sem data"
+            search_results["_data_label"] = search_results["_data_compra"].apply(
+                lambda d: d.strftime("%d/%m/%Y") if d else "Sem data"
+            )
 
             option_labels = []
+
             for idx, row in search_results.head(50).iterrows():
                 nome = normalize_text(row.get(COL_NOME, "Cliente sem nome")) or "Cliente sem nome"
                 cpf = format_cpf(row.get(COL_CPF, "")) if COL_CPF else ""
                 tel = format_phone(row.get(COL_TEL, "")) if COL_TEL else ""
                 data_label = row.get("_data_label", "Sem data")
+
                 label = f"{nome} • {data_label}"
                 if cpf:
                     label += f" • CPF {cpf}"
                 elif tel:
                     label += f" • {tel}"
+
                 option_labels.append((label, idx))
 
             selected_label = st.selectbox(
@@ -999,6 +823,7 @@ if page == "Visão Geral":
                 options=option_labels,
                 format_func=lambda x: x[0],
             )
+
             selected_record = search_results.loc[selected_label[1]]
 
     elif search_top.strip() and not filtered_df.empty:
@@ -1023,10 +848,11 @@ if page == "Visão Geral":
 
         ordered_base = [COL_NOME, COL_TEL, COL_CPF, COL_EMAIL, COL_DATA, COL_MES, COL_RACA]
         ordered_contatos = []
+
         for target in [
             "1° contato", "Status 1° contato",
             "2° contato", "Status 2° contato",
-            "3° contato", "Status 3° contato"
+            "3° contato", "Status 3° contato",
         ]:
             ordered_contatos.extend(find_matching_columns(df, target))
 
@@ -1036,13 +862,7 @@ if page == "Visão Geral":
         st.markdown("</div>", unsafe_allow_html=True)
 
 elif page == "Pedigree":
-    render_placeholder_page(
-        "Pedigree",
-        "Aqui ficará a página exclusiva de Pedigree."
-    )
+    render_placeholder_page("Pedigree", "Aqui ficará a página exclusiva de Pedigree.")
 
 elif page == "Comissão":
-    render_placeholder_page(
-        "Comissão",
-        "Aqui ficará a página exclusiva de Comissão."
-    )
+    render_placeholder_page("Comissão", "Aqui ficará a página exclusiva de Comissão.")
