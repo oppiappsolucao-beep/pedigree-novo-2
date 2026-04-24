@@ -1,16 +1,15 @@
 import re
 import time
 import base64
+import html
 import datetime as dt
 from pathlib import Path
 from typing import Optional, List, Tuple
 
 import pandas as pd
 import streamlit as st
+import streamlit.components.v1 as components
 
-# =========================================================
-# CONFIG
-# =========================================================
 st.set_page_config(
     page_title="Dashboard Vendas Clear",
     page_icon="📋",
@@ -22,9 +21,7 @@ CACHE_TTL_SECONDS = 60
 SHEET_ID = "1Q0mLvOBxEGCojUITBLxCXRtpXVMAHE3ngvGsa2Cgf9Q"
 GID_BASE = 1396326144
 
-# =========================================================
-# HELPERS
-# =========================================================
+
 def image_to_base64(path: str) -> str:
     file_path = Path(path)
     if not file_path.exists():
@@ -70,6 +67,13 @@ def parse_date_any(v) -> Optional[dt.date]:
         return None
 
     return d.date()
+
+
+def format_date(v) -> str:
+    d = parse_date_any(v)
+    if d:
+        return d.strftime("%d/%m/%Y")
+    return normalize_text(v)
 
 
 def month_name_pt(m: int) -> str:
@@ -172,22 +176,6 @@ def count_filled_matching_columns(df_month: pd.DataFrame, target: str) -> int:
     return int(final_mask.sum())
 
 
-def format_phone(v) -> str:
-    s = only_digits(v)
-    if len(s) == 11:
-        return f"({s[:2]}) {s[2:7]}-{s[7:]}"
-    if len(s) == 10:
-        return f"({s[:2]}) {s[2:6]}-{s[6:]}"
-    return normalize_text(v)
-
-
-def format_cpf(v) -> str:
-    s = only_digits(v)
-    if len(s) == 11:
-        return f"{s[:3]}.{s[3:6]}.{s[6:9]}-{s[9:]}"
-    return normalize_text(v)
-
-
 def card_metric(title: str, value: str, subtitle: str, emoji: str, color: str):
     st.markdown(
         f"""
@@ -220,35 +208,134 @@ def render_placeholder_page(title: str, subtitle: str):
     )
 
 
-def render_detail_grid(record: pd.Series, ordered_cols: List[str]):
-    shown_cols = []
+def render_realtime_table(df_table: pd.DataFrame, cols_to_show: list[str]):
+    safe_rows = []
 
-    for c in ordered_cols:
-        if c in record.index and normalize_text(record[c]) != "":
-            shown_cols.append(c)
+    for _, row in df_table.iterrows():
+        cells = []
 
-    for c in record.index:
-        if c not in shown_cols and not str(c).startswith("_") and normalize_text(record[c]) != "":
-            shown_cols.append(c)
+        for col in cols_to_show:
+            val = normalize_text(row.get(col, ""))
 
-    html = ['<div class="detail-grid">']
-    for c in shown_cols:
-        html.append(
-            f"""
-            <div class="detail-item">
-                <div class="detail-label">{c}</div>
-                <div class="detail-value">{normalize_text(record[c])}</div>
-            </div>
-            """
-        )
-    html.append("</div>")
+            if "data" in normalize_header_name(col) or "nascimento" in normalize_header_name(col):
+                val = format_date(val)
 
-    st.markdown("".join(html), unsafe_allow_html=True)
+            if normalize_header_name(col) == "telefone":
+                digits = only_digits(val)
+                cell = f"""
+                <div class="phone-cell">
+                    <span>{html.escape(val)}</span>
+                    <button class="copy-btn" onclick="copyText('{html.escape(digits)}', this)">Copiar</button>
+                </div>
+                """
+            else:
+                cell = html.escape(val)
+
+            cells.append(f"<td>{cell}</td>")
+
+        safe_rows.append("<tr>" + "".join(cells) + "</tr>")
+
+    headers = "".join([f"<th>{html.escape(c)}</th>" for c in cols_to_show])
+    rows = "".join(safe_rows)
+
+    table_html = f"""
+    <html>
+    <head>
+        <style>
+            body {{
+                margin: 0;
+                font-family: Arial, sans-serif;
+                background: transparent;
+            }}
+
+            .table-wrap {{
+                border: 1px solid #E7EAF3;
+                border-radius: 18px;
+                overflow: auto;
+                background: white;
+                max-height: 520px;
+            }}
+
+            table {{
+                border-collapse: collapse;
+                width: 100%;
+                min-width: 980px;
+                font-size: 13px;
+            }}
+
+            thead th {{
+                position: sticky;
+                top: 0;
+                background: #071B49;
+                color: white;
+                padding: 12px 10px;
+                text-align: left;
+                z-index: 2;
+                white-space: nowrap;
+            }}
+
+            tbody td {{
+                border-bottom: 1px solid #EEF1F7;
+                padding: 10px;
+                color: #17213A;
+                white-space: nowrap;
+            }}
+
+            tbody tr:hover {{
+                background: #F8FAFF;
+            }}
+
+            .phone-cell {{
+                display: flex;
+                align-items: center;
+                gap: 8px;
+            }}
+
+            .copy-btn {{
+                border: none;
+                border-radius: 999px;
+                padding: 5px 10px;
+                font-size: 11px;
+                font-weight: 700;
+                background: #D39A33;
+                color: white;
+                cursor: pointer;
+            }}
+
+            .copy-btn:hover {{
+                filter: brightness(0.95);
+            }}
+        </style>
+    </head>
+
+    <body>
+        <div class="table-wrap">
+            <table>
+                <thead>
+                    <tr>{headers}</tr>
+                </thead>
+                <tbody>{rows}</tbody>
+            </table>
+        </div>
+
+        <script>
+            function copyText(text, btn) {{
+                navigator.clipboard.writeText(text).then(function() {{
+                    const old = btn.innerText;
+                    btn.innerText = "Copiado";
+                    setTimeout(function() {{
+                        btn.innerText = old;
+                    }}, 1200);
+                }});
+            }}
+        </script>
+    </body>
+    </html>
+    """
+
+    components.html(table_html, height=560, scrolling=True)
 
 
-# =========================================================
-# CSS
-# =========================================================
 st.markdown(
     """
 <style>
@@ -273,10 +360,12 @@ st.markdown(
     }
 
     [data-testid="stSidebar"] > div:first-child { padding-top: 0rem !important; }
+
     [data-testid="stSidebar"] .block-container {
         padding-top: 0rem !important;
         padding-bottom: 0.5rem !important;
     }
+
     [data-testid="stSidebar"] * { color: white; }
 
     .block-container {
@@ -441,103 +530,26 @@ st.markdown(
 
     .section-space { margin-top: 1rem; }
 
-    .card {
+    .live-card {
         background: var(--card);
         border: 1px solid var(--line);
         border-radius: 22px;
         padding: 1rem;
         box-shadow: 0 10px 28px rgba(15, 23, 42, 0.05);
-        height: 100%;
-    }
-
-    .card-title {
-        color: var(--text);
-        font-size: 1.05rem;
-        font-weight: 800;
-        margin-bottom: 0.75rem;
-    }
-
-    .small-note {
-        color: var(--muted);
-        font-size: 0.86rem;
-    }
-
-    .search-shell {
-        background: linear-gradient(90deg, var(--navy) 0%, #0A225D 100%);
-        border-radius: 22px;
-        padding: 1.1rem;
-        border: 1px solid rgba(7,27,73,0.08);
-        margin-top: 0.8rem;
-    }
-
-    .search-title {
-        color: white;
-        font-size: 1.3rem;
-        font-weight: 800;
-        margin: 0;
-    }
-
-    .search-sub {
-        color: rgba(255,255,255,0.78);
-        font-size: 0.92rem;
-        margin-top: 0.15rem;
-        margin-bottom: 0.7rem;
-    }
-
-    .client-preview {
-        background: #FFF9EF;
-        border: 1px solid #F2DFC1;
-        border-radius: 18px;
-        padding: 1rem;
         margin-top: 1rem;
     }
 
-    .client-title {
+    .live-title {
         color: var(--text);
-        font-size: 1.12rem;
+        font-size: 1.2rem;
         font-weight: 800;
-        margin-bottom: 0.35rem;
-    }
-
-    .detail-badge {
-        display: inline-block;
-        background: #F6E7C5;
-        color: #7A4C00;
-        border-radius: 999px;
-        padding: 0.25rem 0.6rem;
-        font-size: 0.78rem;
-        font-weight: 700;
-        margin-left: 0.4rem;
-    }
-
-    .detail-grid {
-        display: grid;
-        grid-template-columns: repeat(2, minmax(0, 1fr));
-        gap: 10px 18px;
-        margin-top: 0.8rem;
-    }
-
-    .detail-item {
-        background: white;
-        border: 1px solid #EFE4CF;
-        border-radius: 14px;
-        padding: 0.7rem 0.8rem;
-    }
-
-    .detail-label {
-        color: #7B8495;
-        font-size: 0.8rem;
-        font-weight: 700;
-        text-transform: uppercase;
-        letter-spacing: 0.04em;
         margin-bottom: 0.2rem;
     }
 
-    .detail-value {
-        color: var(--text);
-        font-size: 0.95rem;
-        font-weight: 600;
-        word-break: break-word;
+    .live-sub {
+        color: var(--muted);
+        font-size: 0.9rem;
+        margin-bottom: 0.8rem;
     }
 
     .empty-page-card {
@@ -564,9 +576,7 @@ st.markdown(
     unsafe_allow_html=True,
 )
 
-# =========================================================
-# SIDEBAR
-# =========================================================
+
 with st.sidebar:
     logo_b64 = image_to_base64("campmotors.png")
 
@@ -600,9 +610,7 @@ with st.sidebar:
             unsafe_allow_html=True,
         )
 
-# =========================================================
-# LOAD
-# =========================================================
+
 df = load_data().copy()
 
 COL_NOME = "Nome" if "Nome" in df.columns else detect_col(df, [["nome"]])
@@ -612,6 +620,7 @@ COL_EMAIL = detect_col(df, [["e-mail"], ["email"]])
 COL_DATA = detect_col(df, [["data", "compra"], ["data"]])
 COL_MES = detect_col(df, [["mês"], ["mes"]])
 COL_RACA = detect_col(df, [["raça"], ["raca"]])
+COL_WHATSAPP = "WhatsApp" if "WhatsApp" in df.columns else detect_col(df, [["whatsapp"], ["whats"]])
 
 df["_data_compra"] = df[COL_DATA].apply(parse_date_any) if COL_DATA else None
 df["_mes_key"] = df.apply(lambda row: build_month_key(row, COL_MES, COL_DATA), axis=1)
@@ -634,16 +643,14 @@ else:
     default_month = (today.year, today.month)
     all_months = [default_month]
 
-# =========================================================
-# PÁGINAS
-# =========================================================
+
 if page == "Visão Geral":
     header_left, header_right = st.columns([3.2, 1.2])
 
     with header_left:
         st.markdown('<div class="page-title">Visão Geral</div>', unsafe_allow_html=True)
         st.markdown(
-            '<div class="page-subtitle">Acompanhe os contratos recebidos e consulte todos os dados do cliente sem alterar a origem.</div>',
+            '<div class="page-subtitle">Acompanhe os contratos recebidos em tempo real, filtrados pelo mês selecionado.</div>',
             unsafe_allow_html=True,
         )
 
@@ -659,9 +666,7 @@ if page == "Visão Geral":
 
     races = ["Todas"]
     if COL_RACA and COL_RACA in month_df.columns:
-        race_vals = sorted(
-            [r for r in month_df[COL_RACA].dropna().astype(str).str.strip().unique() if r]
-        )
+        race_vals = sorted([r for r in month_df[COL_RACA].dropna().astype(str).str.strip().unique() if r])
         races += race_vals
 
     filter_col1, filter_col2 = st.columns([1.2, 1.2])
@@ -675,19 +680,19 @@ if page == "Visão Geral":
     filtered_df = month_df.copy()
 
     if selected_race != "Todas" and COL_RACA and COL_RACA in filtered_df.columns:
-        filtered_df = filtered_df[
-            filtered_df[COL_RACA].astype(str).str.strip() == selected_race
-        ].copy()
+        filtered_df = filtered_df[filtered_df[COL_RACA].astype(str).str.strip() == selected_race].copy()
 
     if search_top.strip():
         q = search_top.strip().lower()
         q_digits = re.sub(r"\D", "", q)
+
         mask = (
             filtered_df["_nome_norm"].str.lower().str.contains(q, na=False)
             | filtered_df["_tel_norm"].str.contains(q_digits, na=False)
             | filtered_df["_cpf_norm"].str.contains(q_digits, na=False)
             | filtered_df["_email_norm"].str.contains(q, na=False)
         )
+
         filtered_df = filtered_df[mask].copy()
 
     primeiro_contato = count_filled_matching_columns(month_df, "1° contato")
@@ -696,170 +701,44 @@ if page == "Visão Geral":
     total_contratos = len(month_df)
 
     m1, m2, m3, m4 = st.columns(4)
+
     with m1:
         card_metric("Primeiro contato", f"{primeiro_contato}", "no mês", "📞", "#8E0E3F")
+
     with m2:
         card_metric("Segundo contato", f"{segundo_contato}", "no mês", "📋", "#071B49")
+
     with m3:
         card_metric("Terceiro contato", f"{terceiro_contato}", "no mês", "🗂", "#D39A33")
+
     with m4:
         card_metric("Total de contratos", f"{total_contratos}", month_key_to_label(selected_month), "📄", "#071B49")
 
-    st.markdown('<div class="section-space"></div>', unsafe_allow_html=True)
-
-    c2, c3 = st.columns([1.0, 1.1])
-
-    with c2:
-        st.markdown('<div class="card"><div class="card-title">Resumo do Mês</div>', unsafe_allow_html=True)
-
-        first_date = None
-        last_date = None
-
-        if month_df["_data_compra"].notna().any():
-            valid_dates = month_df["_data_compra"].dropna()
-            if not valid_dates.empty:
-                first_date = min(valid_dates)
-                last_date = max(valid_dates)
-
-        resumo_a, resumo_b = st.columns(2)
-
-        with resumo_a:
-            st.metric("Primeiro contrato", first_date.strftime("%d/%m/%Y") if first_date else "—")
-            st.metric("Total de registros", f"{len(month_df)}")
-
-        with resumo_b:
-            st.metric("Último contrato", last_date.strftime("%d/%m/%Y") if last_date else "—")
-            st.metric("Clientes no mês", f"{month_df['_nome_norm'].replace('', pd.NA).dropna().nunique()}")
-
-        st.markdown(
-            """
-            <div class="small-note">
-                Os contratos exibidos neste mês seguem exatamente o que foi recebido na planilha de origem.
-            </div>
-            """,
-            unsafe_allow_html=True,
-        )
-        st.markdown("</div>", unsafe_allow_html=True)
-
-    with c3:
-        st.markdown('<div class="card"><div class="card-title">Últimos Contratos</div>', unsafe_allow_html=True)
-
-        display_cols = [c for c in [COL_NOME, COL_RACA, COL_DATA, COL_TEL] if c and c in month_df.columns]
-        recent_df = month_df.copy()
-
-        if "_data_compra" in recent_df.columns and recent_df["_data_compra"].notna().any():
-            recent_df = recent_df.sort_values("_data_compra", ascending=False)
-        else:
-            recent_df = recent_df.tail(8).copy()
-
-        if display_cols:
-            st.dataframe(
-                recent_df[display_cols].head(8),
-                use_container_width=True,
-                height=260,
-                hide_index=True,
-            )
-        else:
-            st.info("Não foi possível montar a lista de contratos recentes.")
-
-        st.markdown("</div>", unsafe_allow_html=True)
-
     st.markdown(
-        """
-        <div class="search-shell">
-            <div class="search-title">Busca Rápida</div>
-            <div class="search-sub">Encontre contratos por nome, CPF, telefone ou e-mail e visualize todos os dados do cliente.</div>
+        f"""
+        <div class="live-card">
+            <div class="live-title">Contratos em tempo real</div>
+            <div class="live-sub">
+                Exibindo {len(filtered_df)} registros de {month_key_to_label(selected_month)} até a coluna WhatsApp.
+            </div>
         </div>
         """,
         unsafe_allow_html=True,
     )
 
-    search_value = st.text_input(
-        "Buscar cliente ou contrato",
-        placeholder="Digite nome, CPF, telefone ou e-mail...",
-        label_visibility="collapsed",
-    )
+    cols_until_whatsapp = []
 
-    selected_record = None
+    if COL_WHATSAPP and COL_WHATSAPP in df.columns:
+        end_idx = list(df.columns).index(COL_WHATSAPP)
+        cols_until_whatsapp = [
+            c for c in df.columns[: end_idx + 1]
+            if not str(c).startswith("_") and not str(c).lower().startswith("unnamed")
+        ]
+    else:
+        preferred_cols = [COL_NOME, COL_TEL, COL_RACA, COL_DATA]
+        cols_until_whatsapp = [c for c in preferred_cols if c and c in df.columns]
 
-    if search_value.strip():
-        q = search_value.strip().lower()
-        q_digits = re.sub(r"\D", "", q)
-
-        mask = (
-            df["_nome_norm"].str.lower().str.contains(q, na=False)
-            | df["_email_norm"].str.contains(q, na=False)
-            | df["_tel_norm"].str.contains(q_digits, na=False)
-            | df["_cpf_norm"].str.contains(q_digits, na=False)
-        )
-
-        search_results = df[mask].copy()
-
-        if search_results.empty:
-            st.warning("Nenhum cliente encontrado para essa busca.")
-        else:
-            search_results["_data_label"] = search_results["_data_compra"].apply(
-                lambda d: d.strftime("%d/%m/%Y") if d else "Sem data"
-            )
-
-            option_labels = []
-
-            for idx, row in search_results.head(50).iterrows():
-                nome = normalize_text(row.get(COL_NOME, "Cliente sem nome")) or "Cliente sem nome"
-                cpf = format_cpf(row.get(COL_CPF, "")) if COL_CPF else ""
-                tel = format_phone(row.get(COL_TEL, "")) if COL_TEL else ""
-                data_label = row.get("_data_label", "Sem data")
-
-                label = f"{nome} • {data_label}"
-                if cpf:
-                    label += f" • CPF {cpf}"
-                elif tel:
-                    label += f" • {tel}"
-
-                option_labels.append((label, idx))
-
-            selected_label = st.selectbox(
-                "Selecione o registro",
-                options=option_labels,
-                format_func=lambda x: x[0],
-            )
-
-            selected_record = search_results.loc[selected_label[1]]
-
-    elif search_top.strip() and not filtered_df.empty:
-        selected_record = filtered_df.iloc[0]
-
-    if selected_record is not None:
-        nome_sel = normalize_text(selected_record.get(COL_NOME, "Cliente")) or "Cliente"
-
-        st.markdown(
-            f"""
-            <div class="client-preview">
-                <div class="client-title">
-                    {nome_sel}
-                    <span class="detail-badge">registro da base</span>
-                </div>
-                <div class="small-note">
-                    Visualização completa das informações recebidas para este cliente.
-                </div>
-            """,
-            unsafe_allow_html=True,
-        )
-
-        ordered_base = [COL_NOME, COL_TEL, COL_CPF, COL_EMAIL, COL_DATA, COL_MES, COL_RACA]
-        ordered_contatos = []
-
-        for target in [
-            "1° contato", "Status 1° contato",
-            "2° contato", "Status 2° contato",
-            "3° contato", "Status 3° contato",
-        ]:
-            ordered_contatos.extend(find_matching_columns(df, target))
-
-        ordered = [c for c in (ordered_base + ordered_contatos) if c in selected_record.index]
-        render_detail_grid(selected_record, ordered)
-
-        st.markdown("</div>", unsafe_allow_html=True)
+    render_realtime_table(filtered_df, cols_until_whatsapp)
 
 elif page == "Pedigree":
     render_placeholder_page("Pedigree", "Aqui ficará a página exclusiva de Pedigree.")
