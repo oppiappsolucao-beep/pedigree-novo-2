@@ -858,19 +858,8 @@ elif page == "Pedigree":
         unsafe_allow_html=True,
     )
 
-    if "Status Venda Pedigree" in df.columns:
-        idx_status = list(df.columns).index("Status Venda Pedigree")
-        cols_ped = [
-            c for c in df.columns[:idx_status + 1]
-            if not str(c).startswith("_") and not str(c).lower().startswith("unnamed")
-        ]
-    else:
-        cols_ped = [
-            c for c in df.columns
-            if not str(c).startswith("_") and not str(c).lower().startswith("unnamed")
-        ]
-
-    render_realtime_table(df_ped, cols_ped)
+    # A tabela foi removida da tela propositalmente.
+    # Os dados filtrados continuam disponíveis em df_ped para as próximas etapas.
 
 elif page == "Comissão":
     render_placeholder_page("Comissão", "Aqui ficará a página exclusiva de Comissão.")
