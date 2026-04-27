@@ -65,10 +65,8 @@ def only_digits(v) -> str:
     if pd.isna(v):
         return ""
     s = str(v).strip()
-
     if s.endswith(".0"):
         s = s[:-2]
-
     return re.sub(r"\D", "", s)
 
 
@@ -792,8 +790,6 @@ if page == "Visão Geral":
         unsafe_allow_html=True,
     )
 
-    cols_until_whatsapp = []
-
     if COL_WHATSAPP and COL_WHATSAPP in df.columns:
         end_idx = list(df.columns).index(COL_WHATSAPP)
         cols_until_whatsapp = [
@@ -807,7 +803,74 @@ if page == "Visão Geral":
     render_realtime_table(filtered_df, cols_until_whatsapp)
 
 elif page == "Pedigree":
-    render_placeholder_page("Pedigree", "Aqui ficará a página exclusiva de Pedigree.")
+    st.markdown('<div class="page-title">Pedigree</div>', unsafe_allow_html=True)
+    st.markdown(
+        '<div class="page-subtitle">Consulta completa de clientes para análise de Pedigree.</div>',
+        unsafe_allow_html=True,
+    )
+
+    busca_ped = st.text_input(
+        "Buscar cliente no Pedigree",
+        placeholder="Cole o telefone copiado da Visão Geral ou busque por nome, código, status, raça...",
+    )
+
+    df_ped = df.copy()
+
+    def normalize_full_row(row):
+        values = []
+        for v in row:
+            if pd.isna(v):
+                continue
+            values.append(normalize_search_text(v))
+        return " ".join(values)
+
+    df_ped["_search_all"] = df_ped.apply(normalize_full_row, axis=1)
+    df_ped["_tel_digits_ped"] = df_ped[COL_TEL].apply(only_digits) if COL_TEL and COL_TEL in df_ped.columns else ""
+
+    if busca_ped.strip():
+        q = normalize_search_text(busca_ped)
+        q_digits = re.sub(r"\D", "", busca_ped)
+
+        mask = df_ped["_search_all"].str.contains(q, na=False)
+
+        if q_digits:
+            clean_variants = [q_digits]
+            if q_digits.startswith("55") and len(q_digits) > 11:
+                clean_variants.append(q_digits[2:])
+
+            phone_mask = pd.Series(False, index=df_ped.index)
+            for variant in clean_variants:
+                phone_mask = phone_mask | df_ped["_tel_digits_ped"].str.contains(variant, na=False)
+
+            mask = mask | phone_mask
+
+        df_ped = df_ped[mask].copy()
+
+    st.markdown(
+        f"""
+        <div class="live-card">
+            <div class="live-title">Resultados encontrados</div>
+            <div class="live-sub">
+                {len(df_ped)} registro(s) encontrado(s) na base de Pedigree.
+            </div>
+        </div>
+        """,
+        unsafe_allow_html=True,
+    )
+
+    if "Status Venda Pedigree" in df.columns:
+        idx_status = list(df.columns).index("Status Venda Pedigree")
+        cols_ped = [
+            c for c in df.columns[:idx_status + 1]
+            if not str(c).startswith("_") and not str(c).lower().startswith("unnamed")
+        ]
+    else:
+        cols_ped = [
+            c for c in df.columns
+            if not str(c).startswith("_") and not str(c).lower().startswith("unnamed")
+        ]
+
+    render_realtime_table(df_ped, cols_ped)
 
 elif page == "Comissão":
     render_placeholder_page("Comissão", "Aqui ficará a página exclusiva de Comissão.")
