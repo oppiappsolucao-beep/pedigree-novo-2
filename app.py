@@ -949,6 +949,24 @@ elif page == "Pedigree":
         if st.session_state.acao_ped == "Novo":
             st.markdown("### Formulário Pedigree")
 
+            status_opcoes = [
+                "Pendências / Problemas",
+                "Fazer Pedigree venda",
+                "Fazer Pedigree s/ trans",
+                "Fazer RG/Certidão",
+                "Pendências / Problemas",
+                "Aprovação Cliente",
+                "Para Imprimir Pedigree",
+                "Imprimir Etiqueta",
+                "Imprimir RG + Certidão",
+                "Airtag",
+                "Envio Correio",
+                "Postado/Enviado Corr",
+                "Postado/ enviado loja",
+                "Pendência Cliente",
+                "Sem Matriz",
+            ]
+
             with st.form("formulario_pedigree_novo"):
                 st.markdown("#### Informações Tutor")
 
@@ -961,14 +979,9 @@ elif page == "Pedigree":
                     tutor_endereco = st.text_input("Endereço completo")
 
                 with col2:
-                    status_cliente = st.checkbox("Status cliente")
-                    fazendo = st.checkbox("Fazendo")
-                    rg_certidao = st.checkbox("RG e certidão fazer")
-                    pagamento = st.checkbox("Pagamento")
-                    aprovacao = st.checkbox("Aprovação")
-                    imprimir = st.checkbox("Imprimir")
-                    enviar = st.checkbox("Enviar")
-                    enviado = st.checkbox("Enviado")
+                    status_cliente = st.selectbox("Status do Cliente", status_opcoes)
+                    pagamento = st.radio("Houve pedido de transferência?", ["Sim", "Não"], horizontal=True)
+                    observacoes_status = st.text_area("Observações do status")
 
                 st.markdown("#### Informações Cão")
 
@@ -985,13 +998,7 @@ elif page == "Pedigree":
                     if foto_pet:
                         st.image(foto_pet, caption="Foto do pet", width=220)
 
-                transferencia = st.radio(
-                    "Houve pedido de transferência?",
-                    ["Sim", "Não"],
-                    horizontal=True
-                )
-
-                observacoes = st.text_area("Observações")
+                observacoes = st.text_area("Observações gerais")
 
                 salvar = st.form_submit_button("Executar tudo")
 
@@ -1001,20 +1008,14 @@ elif page == "Pedigree":
                         "CPF": tutor_cpf,
                         "E-mail": tutor_email,
                         "Endereço": tutor_endereco,
-                        "Status cliente": status_cliente,
-                        "Fazendo": fazendo,
-                        "RG e certidão fazer": rg_certidao,
-                        "Pagamento": pagamento,
-                        "Aprovação": aprovacao,
-                        "Imprimir": imprimir,
-                        "Enviar": enviar,
-                        "Enviado": enviado,
+                        "Status do Cliente": status_cliente,
+                        "Transferência": pagamento,
+                        "Observações do status": observacoes_status,
                         "Nome cão": cao_nome,
                         "Data nascimento": nascimento,
                         "Pelagem": pelagem,
                         "Raça": raca,
-                        "Transferência": transferencia,
-                        "Observações": observacoes,
+                        "Observações gerais": observacoes,
                     }
 
                     st.session_state["novo_pedigree_form"] = dados_formulario
