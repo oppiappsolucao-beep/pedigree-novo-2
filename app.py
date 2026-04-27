@@ -612,6 +612,52 @@ st.markdown(
         color: var(--muted);
         font-size: 0.98rem;
     }
+
+    .ped-btn-title {
+        color: var(--text);
+        font-size: 1.1rem;
+        font-weight: 800;
+        margin-top: 1rem;
+        margin-bottom: 0.6rem;
+    }
+
+    .ped-action-card {
+        background: white;
+        border: 1px solid var(--line);
+        border-radius: 20px;
+        padding: 1.2rem;
+        margin-top: 1rem;
+        box-shadow: 0 10px 28px rgba(15, 23, 42, 0.05);
+    }
+
+    .ped-action-title {
+        color: var(--text);
+        font-size: 1.35rem;
+        font-weight: 800;
+        margin-bottom: 0.25rem;
+    }
+
+    .ped-action-sub {
+        color: var(--muted);
+        font-size: 0.95rem;
+    }
+
+    div.stButton > button {
+        border-radius: 999px !important;
+        border: 1px solid #D8DDEA !important;
+        background: #FFFFFF !important;
+        color: #071B49 !important;
+        font-weight: 700 !important;
+        font-size: 0.82rem !important;
+        padding: 0.45rem 0.6rem !important;
+        min-height: 36px !important;
+        box-shadow: 0 4px 12px rgba(15, 23, 42, 0.04) !important;
+    }
+
+    div.stButton > button:hover {
+        border-color: #D39A33 !important;
+        color: #D39A33 !important;
+    }
 </style>
 """,
     unsafe_allow_html=True,
@@ -850,6 +896,95 @@ elif page == "Pedigree":
 
     else:
         st.info("Cole um telefone, nome, código, status ou raça para consultar o cliente.")
+
+    st.markdown('<div class="ped-btn-title">Ações do Pedigree</div>', unsafe_allow_html=True)
+
+    if "acao_ped" not in st.session_state:
+        st.session_state.acao_ped = None
+
+    def set_acao_ped(nome):
+        st.session_state.acao_ped = nome
+
+    linha1 = st.columns(4)
+    linha2 = st.columns(4)
+    linha3 = st.columns(4)
+
+    with linha1[0]:
+        st.button("Novo", use_container_width=True, on_click=set_acao_ped, args=("Novo",))
+    with linha1[1]:
+        st.button("Transferência", use_container_width=True, on_click=set_acao_ped, args=("Transferência",))
+    with linha1[2]:
+        st.button("Sem transferência", use_container_width=True, on_click=set_acao_ped, args=("Sem transferência",))
+    with linha1[3]:
+        st.button("RG E CERTIDÃO", use_container_width=True, on_click=set_acao_ped, args=("RG E CERTIDÃO",))
+
+    with linha2[0]:
+        st.button("Problemas", use_container_width=True, on_click=set_acao_ped, args=("Problemas",))
+    with linha2[1]:
+        st.button("Aprovação", use_container_width=True, on_click=set_acao_ped, args=("Aprovação",))
+    with linha2[2]:
+        st.button("Imprimir Pedigree", use_container_width=True, on_click=set_acao_ped, args=("Imprimir Pedigree",))
+    with linha2[3]:
+        st.button("Imprimir RG e CERTIDÃO", use_container_width=True, on_click=set_acao_ped, args=("Imprimir RG e CERTIDÃO",))
+
+    with linha3[0]:
+        st.button("Imprimir etiqueta", use_container_width=True, on_click=set_acao_ped, args=("Imprimir etiqueta",))
+    with linha3[1]:
+        st.button("Airtag", use_container_width=True, on_click=set_acao_ped, args=("Airtag",))
+    with linha3[2]:
+        st.button("Enviar", use_container_width=True, on_click=set_acao_ped, args=("Enviar",))
+    with linha3[3]:
+        st.button("Enviado Cliente", use_container_width=True, on_click=set_acao_ped, args=("Enviado Cliente",))
+
+    if st.session_state.acao_ped:
+        st.markdown(
+            f"""
+            <div class="ped-action-card">
+                <div class="ped-action-title">{st.session_state.acao_ped}</div>
+                <div class="ped-action-sub">
+                    Área aberta dentro da própria página Pedigree. As informações desta ação aparecerão aqui.
+                </div>
+            </div>
+            """,
+            unsafe_allow_html=True,
+        )
+
+        if st.session_state.acao_ped == "Novo":
+            st.info("Informações da ação: Novo.")
+
+        elif st.session_state.acao_ped == "Transferência":
+            st.info("Informações da ação: Transferência.")
+
+        elif st.session_state.acao_ped == "Sem transferência":
+            st.info("Informações da ação: Sem transferência.")
+
+        elif st.session_state.acao_ped == "RG E CERTIDÃO":
+            st.info("Informações da ação: RG E CERTIDÃO.")
+
+        elif st.session_state.acao_ped == "Problemas":
+            st.warning("Informações da ação: Problemas.")
+
+        elif st.session_state.acao_ped == "Aprovação":
+            st.success("Informações da ação: Aprovação.")
+
+        elif st.session_state.acao_ped == "Imprimir Pedigree":
+            st.info("Informações da ação: Imprimir Pedigree.")
+
+        elif st.session_state.acao_ped == "Imprimir RG e CERTIDÃO":
+            st.info("Informações da ação: Imprimir RG e CERTIDÃO.")
+
+        elif st.session_state.acao_ped == "Imprimir etiqueta":
+            st.info("Informações da ação: Imprimir etiqueta.")
+
+        elif st.session_state.acao_ped == "Airtag":
+            st.info("Informações da ação: Airtag.")
+
+        elif st.session_state.acao_ped == "Enviar":
+            st.info("Informações da ação: Enviar.")
+
+        elif st.session_state.acao_ped == "Enviado Cliente":
+            st.success("Informações da ação: Enviado Cliente.")
+
 
 elif page == "Comissão":
     render_placeholder_page("Comissão", "Aqui ficará a página exclusiva de Comissão.")
