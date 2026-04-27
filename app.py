@@ -11,9 +11,6 @@ import pandas as pd
 import streamlit as st
 import streamlit.components.v1 as components
 
-# =========================================================
-# CONFIG
-# =========================================================
 st.set_page_config(
     page_title="Dashboard Vendas Clear",
     page_icon="📋",
@@ -26,9 +23,6 @@ SHEET_ID = "1Q0mLvOBxEGCojUITBLxCXRtpXVMAHE3ngvGsa2Cgf9Q"
 GID_BASE = 1396326144
 
 
-# =========================================================
-# HELPERS
-# =========================================================
 def image_to_base64(path: str) -> str:
     file_path = Path(path)
     if not file_path.exists():
@@ -383,9 +377,6 @@ def render_realtime_table(df_table: pd.DataFrame, cols_to_show: list[str]):
     components.html(table_html, height=590, scrolling=True)
 
 
-# =========================================================
-# CSS
-# =========================================================
 st.markdown(
     """
 <style>
@@ -627,9 +618,6 @@ st.markdown(
 )
 
 
-# =========================================================
-# SIDEBAR
-# =========================================================
 with st.sidebar:
     logo_b64 = image_to_base64("campmotors.png")
 
@@ -664,9 +652,6 @@ with st.sidebar:
         )
 
 
-# =========================================================
-# LOAD + PREP
-# =========================================================
 df = load_data().copy()
 
 COL_NOME = "Nome" if "Nome" in df.columns else detect_col(df, [["nome"]])
@@ -700,9 +685,6 @@ else:
     all_months = [default_month]
 
 
-# =========================================================
-# PÁGINAS
-# =========================================================
 if page == "Visão Geral":
     header_left, header_right = st.columns([3.2, 1.2])
 
@@ -835,10 +817,12 @@ elif page == "Pedigree":
 
         if q_digits:
             clean_variants = [q_digits]
+
             if q_digits.startswith("55") and len(q_digits) > 11:
                 clean_variants.append(q_digits[2:])
 
             phone_mask = pd.Series(False, index=df_ped.index)
+
             for variant in clean_variants:
                 phone_mask = phone_mask | df_ped["_tel_digits_ped"].str.contains(variant, na=False)
 
@@ -846,31 +830,26 @@ elif page == "Pedigree":
 
         df_ped = df_ped[mask].copy()
 
-    st.markdown(
-        f"""
-        <div class="live-card">
-            <div class="live-title">Resultados encontrados</div>
-            <div class="live-sub">
-                {len(df_ped)} registro(s) encontrado(s) na base de Pedigree.
-            </div>
-        </div>
-        """,
-        unsafe_allow_html=True,
-    )
+        if not df_ped.empty:
+            if "Status Venda Pedigree" in df.columns:
+                idx_status = list(df.columns).index("Status Venda Pedigree")
+                cols_ped = [
+                    c for c in df.columns[:idx_status + 1]
+                    if not str(c).startswith("_") and not str(c).lower().startswith("unnamed")
+                ]
+            else:
+                cols_ped = [
+                    c for c in df.columns
+                    if not str(c).startswith("_") and not str(c).lower().startswith("unnamed")
+                ]
 
-    if "Status Venda Pedigree" in df.columns:
-        idx_status = list(df.columns).index("Status Venda Pedigree")
-        cols_ped = [
-            c for c in df.columns[:idx_status + 1]
-            if not str(c).startswith("_") and not str(c).lower().startswith("unnamed")
-        ]
+            render_realtime_table(df_ped, cols_ped)
+
+        else:
+            st.warning("Nenhum cliente encontrado com essa busca.")
+
     else:
-        cols_ped = [
-            c for c in df.columns
-            if not str(c).startswith("_") and not str(c).lower().startswith("unnamed")
-        ]
-
-    render_realtime_table(df_ped, cols_ped)
+        st.info("Cole um telefone, nome, código, status ou raça para consultar o cliente.")
 
 elif page == "Comissão":
     render_placeholder_page("Comissão", "Aqui ficará a página exclusiva de Comissão.")
