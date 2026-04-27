@@ -621,13 +621,6 @@ st.markdown(
         color: var(--muted);
         font-size: 0.98rem;
     }
-
-    .ped-grid {
-        display: grid;
-        grid-template-columns: repeat(2, minmax(0, 1fr));
-        gap: 14px;
-        margin-top: 16px;
-    }
 </style>
 """,
     unsafe_allow_html=True,
@@ -865,77 +858,19 @@ elif page == "Pedigree":
         unsafe_allow_html=True,
     )
 
-    if busca_ped.strip() and not df_ped.empty:
-        cliente = df_ped.iloc[0]
-
-        nome = normalize_text(cliente.get(COL_NOME, ""))
-        telefone = format_phone_br(cliente.get(COL_TEL, ""))
-        whatsapp = normalize_text(cliente.get(COL_WHATSAPP, "")) if COL_WHATSAPP else ""
-        cpf = normalize_text(cliente.get(COL_CPF, "")) if COL_CPF else ""
-        email = normalize_text(cliente.get(COL_EMAIL, "")) if COL_EMAIL else ""
-        raca = normalize_text(cliente.get(COL_RACA, "")) if COL_RACA else ""
-        status_venda = normalize_text(cliente.get("Status Venda Pedigree", ""))
-        status_pedigree = normalize_text(cliente.get("Status Pedigree", ""))
-        codigo_royal = normalize_text(cliente.get("Código Royal", ""))
-
-        st.markdown(
-            f"""
-            <div class="live-card">
-                <div class="live-title">{nome}</div>
-                <div class="live-sub">Ficha do cliente encontrada na base</div>
-
-                <div class="ped-grid">
-                    <div class="empty-page-card">
-                        <div class="empty-page-title">Telefone</div>
-                        <div class="empty-page-sub">{telefone}</div>
-                    </div>
-
-                    <div class="empty-page-card">
-                        <div class="empty-page-title">WhatsApp</div>
-                        <div class="empty-page-sub">{whatsapp}</div>
-                    </div>
-
-                    <div class="empty-page-card">
-                        <div class="empty-page-title">CPF</div>
-                        <div class="empty-page-sub">{cpf}</div>
-                    </div>
-
-                    <div class="empty-page-card">
-                        <div class="empty-page-title">E-mail</div>
-                        <div class="empty-page-sub">{email}</div>
-                    </div>
-
-                    <div class="empty-page-card">
-                        <div class="empty-page-title">Raça</div>
-                        <div class="empty-page-sub">{raca}</div>
-                    </div>
-
-                    <div class="empty-page-card">
-                        <div class="empty-page-title">Status Venda Pedigree</div>
-                        <div class="empty-page-sub">{status_venda}</div>
-                    </div>
-
-                    <div class="empty-page-card">
-                        <div class="empty-page-title">Status Pedigree</div>
-                        <div class="empty-page-sub">{status_pedigree}</div>
-                    </div>
-
-                    <div class="empty-page-card">
-                        <div class="empty-page-title">Código Royal</div>
-                        <div class="empty-page-sub">{codigo_royal}</div>
-                    </div>
-                </div>
-            </div>
-            """,
-            unsafe_allow_html=True,
-        )
-
-    elif busca_ped.strip() and df_ped.empty:
-        st.warning("Nenhum cliente encontrado com essa busca.")
-
+    if "Status Venda Pedigree" in df.columns:
+        idx_status = list(df.columns).index("Status Venda Pedigree")
+        cols_ped = [
+            c for c in df.columns[:idx_status + 1]
+            if not str(c).startswith("_") and not str(c).lower().startswith("unnamed")
+        ]
     else:
-        st.info("Cole um telefone, nome, código, status ou raça para consultar o cliente.")
+        cols_ped = [
+            c for c in df.columns
+            if not str(c).startswith("_") and not str(c).lower().startswith("unnamed")
+        ]
 
+    render_realtime_table(df_ped, cols_ped)
 
 elif page == "Comissão":
     render_placeholder_page("Comissão", "Aqui ficará a página exclusiva de Comissão.")
