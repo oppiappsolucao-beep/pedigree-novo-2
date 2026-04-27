@@ -894,9 +894,6 @@ elif page == "Pedigree":
         else:
             st.warning("Nenhum cliente encontrado com essa busca.")
 
-    else:
-        st.info("Cole um telefone, nome, código, status ou raça para consultar o cliente.")
-
     st.markdown('<div class="ped-btn-title">Ações do Pedigree</div>', unsafe_allow_html=True)
 
     if "acao_ped" not in st.session_state:
