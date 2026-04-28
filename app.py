@@ -23,7 +23,7 @@ st.set_page_config(
 CACHE_TTL_SECONDS = 60
 
 SHEET_ID = "1Q0mLvOBxEGCojUITBLxCXRtpXVMAHE3ngvGsa2Cgf9Q"
-WORKSHEET_NAME = "Clear"
+WORKSHEET_NAME = "Planilha Dash Valéria sem mayra"
 
 SCOPES = [
     "https://www.googleapis.com/auth/spreadsheets",
