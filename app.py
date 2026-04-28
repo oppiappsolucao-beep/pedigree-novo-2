@@ -132,6 +132,8 @@ def salvar_formulario_pedigree(dados):
         "Data Nascimento",
         "Pelagem",
         "Raça",
+        "Sexo",
+        "Cor",
         "Microchip",
         "Observações gerais",
     ]
@@ -1084,6 +1086,8 @@ elif page == "Pedigree":
                     nascimento = st.date_input("Data de nascimento")
                     pelagem = st.text_input("Pelagem")
                     raca = st.text_input("Raça do pet")
+                    sexo = st.selectbox("Sexo", ["", "MACHO", "FÊMEA"])
+                    cor = st.text_input("Cor")
                     microchip = st.text_input("Microchip")
 
                 with col4:
@@ -1109,6 +1113,8 @@ elif page == "Pedigree":
                         "Data Nascimento": nascimento.strftime("%d/%m/%Y"),
                         "Pelagem": pelagem,
                         "Raça": raca,
+                        "Sexo": sexo,
+                        "Cor": cor,
                         "Microchip": microchip,
                         "Observações gerais": observacoes,
                     }
