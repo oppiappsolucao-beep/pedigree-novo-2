@@ -1,5 +1,4 @@
 import re
-import time
 import base64
 import html
 import unicodedata
@@ -13,6 +12,10 @@ import streamlit.components.v1 as components
 import gspread
 from google.oauth2.service_account import Credentials
 
+
+# =========================================================
+# CONFIG
+# =========================================================
 st.set_page_config(
     page_title="Dashboard Vendas Clear",
     page_icon="📋",
@@ -23,7 +26,9 @@ st.set_page_config(
 CACHE_TTL_SECONDS = 60
 
 SHEET_ID = "1Q0mLvOBxEGCojUITBLxCXRtpXVMAHE3ngvGsa2Cgf9Q"
-WORKSHEET_NAME = "Planilha Dash Valéria sem mayra"
+
+MAIN_WORKSHEET_NAME = "Clear"
+PED_WORKSHEET_NAME = "Planilha Dash Valéria sem mayra"
 
 SCOPES = [
     "https://www.googleapis.com/auth/spreadsheets",
@@ -31,6 +36,9 @@ SCOPES = [
 ]
 
 
+# =========================================================
+# GOOGLE SHEETS
+# =========================================================
 @st.cache_resource
 def get_gsheet_client():
     creds = Credentials.from_service_account_info(
@@ -40,21 +48,33 @@ def get_gsheet_client():
     return gspread.authorize(creds)
 
 
-def get_worksheet():
+def get_worksheet(worksheet_name: str):
     client = get_gsheet_client()
     sheet = client.open_by_key(SHEET_ID)
-    return sheet.worksheet(WORKSHEET_NAME)
+    return sheet.worksheet(worksheet_name)
 
 
 @st.cache_data(show_spinner=False, ttl=CACHE_TTL_SECONDS)
-def load_data() -> pd.DataFrame:
-    worksheet = get_worksheet()
+def load_main_data() -> pd.DataFrame:
+    worksheet = get_worksheet(MAIN_WORKSHEET_NAME)
     records = worksheet.get_all_records()
     df = pd.DataFrame(records)
     df.columns = [str(c).strip() for c in df.columns]
     return df
 
 
+@st.cache_data(show_spinner=False, ttl=CACHE_TTL_SECONDS)
+def load_pedigree_data() -> pd.DataFrame:
+    worksheet = get_worksheet(PED_WORKSHEET_NAME)
+    records = worksheet.get_all_records()
+    df = pd.DataFrame(records)
+    df.columns = [str(c).strip() for c in df.columns]
+    return df
+
+
+# =========================================================
+# HELPERS
+# =========================================================
 def image_to_base64(path: str) -> str:
     file_path = Path(path)
     if not file_path.exists():
@@ -85,77 +105,6 @@ def only_digits(v) -> str:
     if s.endswith(".0"):
         s = s[:-2]
     return re.sub(r"\D", "", s)
-
-
-def ensure_columns(worksheet, required_cols):
-    headers = worksheet.row_values(1)
-
-    for col in required_cols:
-        if col not in headers:
-            headers.append(col)
-
-    worksheet.update("A1", [headers])
-    return headers
-
-
-def find_row_by_phone_or_cpf(worksheet, telefone, cpf):
-    records = worksheet.get_all_records()
-    tel_digits = only_digits(telefone)
-    cpf_digits = only_digits(cpf)
-
-    for idx, row in enumerate(records, start=2):
-        row_tel = only_digits(row.get("Telefone", ""))
-        row_cpf = only_digits(row.get("CPF", ""))
-
-        if tel_digits and row_tel == tel_digits:
-            return idx
-
-        if cpf_digits and row_cpf == cpf_digits:
-            return idx
-
-    return None
-
-
-def salvar_formulario_pedigree(dados):
-    worksheet = get_worksheet()
-
-    required_cols = [
-        "Nome",
-        "Telefone",
-        "CPF",
-        "E-mail",
-        "Endereço completo",
-        "Status Pedigree",
-        "Transferência",
-        "Observações Status",
-        "Nome Cachorro",
-        "Data Nascimento",
-        "Pelagem",
-        "Raça",
-        "Sexo",
-        "Cor",
-        "Microchip",
-        "Observações gerais",
-    ]
-
-    headers = ensure_columns(worksheet, required_cols)
-
-    row_number = find_row_by_phone_or_cpf(
-        worksheet,
-        dados.get("Telefone", ""),
-        dados.get("CPF", ""),
-    )
-
-    row_values = []
-    for header in headers:
-        row_values.append(dados.get(header, ""))
-
-    if row_number:
-        worksheet.update(f"A{row_number}", [row_values], value_input_option="USER_ENTERED")
-    else:
-        worksheet.append_row(row_values, value_input_option="USER_ENTERED")
-
-    st.cache_data.clear()
 
 
 def format_phone_br(v) -> str:
@@ -299,6 +248,77 @@ def count_filled_matching_columns(df_month: pd.DataFrame, target: str) -> int:
         final_mask = final_mask | m
 
     return int(final_mask.sum())
+
+
+def ensure_columns(worksheet, required_cols):
+    headers = worksheet.row_values(1)
+
+    for col in required_cols:
+        if col not in headers:
+            headers.append(col)
+
+    worksheet.update("A1", [headers])
+    return headers
+
+
+def find_row_by_phone_or_cpf(worksheet, telefone, cpf):
+    records = worksheet.get_all_records()
+    tel_digits = only_digits(telefone)
+    cpf_digits = only_digits(cpf)
+
+    for idx, row in enumerate(records, start=2):
+        row_tel = only_digits(row.get("Telefone", ""))
+        row_cpf = only_digits(row.get("CPF", ""))
+
+        if tel_digits and row_tel == tel_digits:
+            return idx
+
+        if cpf_digits and row_cpf == cpf_digits:
+            return idx
+
+    return None
+
+
+def salvar_formulario_pedigree(dados):
+    worksheet = get_worksheet(PED_WORKSHEET_NAME)
+
+    required_cols = [
+        "Nome",
+        "Telefone",
+        "CPF",
+        "E-mail",
+        "Endereço completo",
+        "Status Pedigree",
+        "Transferência",
+        "Observações Status",
+        "Nome Cachorro",
+        "Data Nascimento",
+        "Pelagem",
+        "Raça",
+        "Sexo",
+        "Cor",
+        "Microchip",
+        "Observações gerais",
+    ]
+
+    headers = ensure_columns(worksheet, required_cols)
+
+    row_number = find_row_by_phone_or_cpf(
+        worksheet,
+        dados.get("Telefone", ""),
+        dados.get("CPF", ""),
+    )
+
+    row_values = []
+    for header in headers:
+        row_values.append(dados.get(header, ""))
+
+    if row_number:
+        worksheet.update(f"A{row_number}", [row_values], value_input_option="USER_ENTERED")
+    else:
+        worksheet.append_row(row_values, value_input_option="USER_ENTERED")
+
+    st.cache_data.clear()
 
 
 def card_metric(title: str, value: str, subtitle: str, emoji: str, color: str):
@@ -472,6 +492,62 @@ def render_realtime_table(df_table: pd.DataFrame, cols_to_show: list[str]):
     components.html(table_html, height=590, scrolling=True)
 
 
+def render_cliente_card(cliente: pd.Series):
+    nome = normalize_text(cliente.get("Nome", ""))
+    telefone = format_phone_br(cliente.get("Telefone", ""))
+    cpf = normalize_text(cliente.get("CPF", ""))
+    email = normalize_text(cliente.get("E-mail", ""))
+    endereco = normalize_text(cliente.get("Endereço completo", ""))
+    status = normalize_text(cliente.get("Status Pedigree", ""))
+    transferencia = normalize_text(cliente.get("Transferência", ""))
+    obs_status = normalize_text(cliente.get("Observações Status", ""))
+    cao = normalize_text(cliente.get("Nome Cachorro", ""))
+    nascimento = format_date(cliente.get("Data Nascimento", ""))
+    pelagem = normalize_text(cliente.get("Pelagem", ""))
+    raca = normalize_text(cliente.get("Raça", ""))
+    sexo = normalize_text(cliente.get("Sexo", ""))
+    cor = normalize_text(cliente.get("Cor", ""))
+    microchip = normalize_text(cliente.get("Microchip", ""))
+    obs = normalize_text(cliente.get("Observações gerais", ""))
+
+    st.markdown(
+        f"""
+        <div class="ped-ficha">
+            <div class="ped-ficha-title">{html.escape(nome)}</div>
+            <div class="ped-ficha-sub">Ficha completa do formulário</div>
+        </div>
+        """,
+        unsafe_allow_html=True,
+    )
+
+    c1, c2 = st.columns(2)
+
+    with c1:
+        st.markdown("#### Informações Tutor")
+        st.write("**Nome:**", nome)
+        st.write("**Telefone:**", telefone)
+        st.write("**CPF:**", cpf)
+        st.write("**E-mail:**", email)
+        st.write("**Endereço:**", endereco)
+        st.write("**Status Pedigree:**", status)
+        st.write("**Transferência:**", transferencia)
+        st.write("**Observações Status:**", obs_status)
+
+    with c2:
+        st.markdown("#### Informações Cão")
+        st.write("**Nome do cão:**", cao)
+        st.write("**Data de nascimento:**", nascimento)
+        st.write("**Pelagem:**", pelagem)
+        st.write("**Raça:**", raca)
+        st.write("**Sexo:**", sexo)
+        st.write("**Cor:**", cor)
+        st.write("**Microchip:**", microchip)
+        st.write("**Observações gerais:**", obs)
+
+
+# =========================================================
+# CSS
+# =========================================================
 st.markdown(
     """
 <style>
@@ -735,6 +811,37 @@ st.markdown(
         font-size: 0.95rem;
     }
 
+    .ped-count-card {
+        background: #EAF2FF;
+        border: 1px solid #CFE0FA;
+        color: #073B7A;
+        border-radius: 18px;
+        padding: 1rem;
+        margin-top: 1rem;
+        font-weight: 700;
+    }
+
+    .ped-ficha {
+        background: white;
+        border: 1px solid var(--line);
+        border-radius: 20px;
+        padding: 1.2rem;
+        margin-top: 1rem;
+        box-shadow: 0 10px 28px rgba(15, 23, 42, 0.05);
+    }
+
+    .ped-ficha-title {
+        color: var(--text);
+        font-size: 1.35rem;
+        font-weight: 800;
+    }
+
+    .ped-ficha-sub {
+        color: var(--muted);
+        font-size: 0.95rem;
+        margin-top: 0.2rem;
+    }
+
     div.stButton > button {
         border-radius: 999px !important;
         border: 1px solid #D8DDEA !important;
@@ -757,6 +864,9 @@ st.markdown(
 )
 
 
+# =========================================================
+# SIDEBAR
+# =========================================================
 with st.sidebar:
     logo_b64 = image_to_base64("campmotors.png")
 
@@ -791,7 +901,10 @@ with st.sidebar:
         )
 
 
-df = load_data().copy()
+# =========================================================
+# DADOS PRINCIPAIS
+# =========================================================
+df = load_main_data().copy()
 
 COL_NOME = "Nome" if "Nome" in df.columns else detect_col(df, [["nome"]])
 COL_TEL = "Telefone" if "Telefone" in df.columns else detect_col(df, [["telefone"]])
@@ -802,19 +915,22 @@ COL_MES = detect_col(df, [["mês"], ["mes"]])
 COL_RACA = detect_col(df, [["raça"], ["raca"]])
 COL_WHATSAPP = "WhatsApp" if "WhatsApp" in df.columns else detect_col(df, [["whatsapp"], ["whats"]])
 
-df["_data_compra"] = df[COL_DATA].apply(parse_date_any) if COL_DATA else None
-df["_mes_key"] = df.apply(lambda row: build_month_key(row, COL_MES, COL_DATA), axis=1)
+if not df.empty:
+    df["_data_compra"] = df[COL_DATA].apply(parse_date_any) if COL_DATA else None
+    df["_mes_key"] = df.apply(lambda row: build_month_key(row, COL_MES, COL_DATA), axis=1)
 
-df["_nome_norm"] = df[COL_NOME].apply(normalize_search_text) if COL_NOME and COL_NOME in df.columns else ""
-df["_tel_norm"] = df[COL_TEL].apply(only_digits) if COL_TEL and COL_TEL in df.columns else ""
-df["_cpf_norm"] = df[COL_CPF].apply(only_digits) if COL_CPF and COL_CPF in df.columns else ""
-df["_email_norm"] = df[COL_EMAIL].apply(normalize_search_text) if COL_EMAIL and COL_EMAIL in df.columns else ""
-df["_raca_norm"] = df[COL_RACA].astype(str).str.strip() if COL_RACA and COL_RACA in df.columns else "Não informado"
+    df["_nome_norm"] = df[COL_NOME].apply(normalize_search_text) if COL_NOME and COL_NOME in df.columns else ""
+    df["_tel_norm"] = df[COL_TEL].apply(only_digits) if COL_TEL and COL_TEL in df.columns else ""
+    df["_cpf_norm"] = df[COL_CPF].apply(only_digits) if COL_CPF and COL_CPF in df.columns else ""
+    df["_email_norm"] = df[COL_EMAIL].apply(normalize_search_text) if COL_EMAIL and COL_EMAIL in df.columns else ""
+    df["_raca_norm"] = df[COL_RACA].astype(str).str.strip() if COL_RACA and COL_RACA in df.columns else "Não informado"
 
-all_months = sorted(
-    [m for m in df["_mes_key"].dropna().unique().tolist()],
-    key=lambda x: (x[0], x[1]),
-)
+    all_months = sorted(
+        [m for m in df["_mes_key"].dropna().unique().tolist()],
+        key=lambda x: (x[0], x[1]),
+    )
+else:
+    all_months = []
 
 if all_months:
     default_month = all_months[-1]
@@ -824,6 +940,9 @@ else:
     all_months = [default_month]
 
 
+# =========================================================
+# VISÃO GERAL
+# =========================================================
 if page == "Visão Geral":
     header_left, header_right = st.columns([3.2, 1.2])
 
@@ -842,10 +961,10 @@ if page == "Visão Geral":
             format_func=month_key_to_label,
         )
 
-    month_df = df[df["_mes_key"] == selected_month].copy()
+    month_df = df[df["_mes_key"] == selected_month].copy() if not df.empty and "_mes_key" in df.columns else pd.DataFrame()
 
     races = ["Todas"]
-    if COL_RACA and COL_RACA in month_df.columns:
+    if not month_df.empty and COL_RACA and COL_RACA in month_df.columns:
         race_vals = sorted([r for r in month_df[COL_RACA].dropna().astype(str).str.strip().unique() if r])
         races += race_vals
 
@@ -859,30 +978,31 @@ if page == "Visão Geral":
 
     filtered_df = month_df.copy()
 
-    if selected_race != "Todas" and COL_RACA and COL_RACA in filtered_df.columns:
-        filtered_df = filtered_df[filtered_df[COL_RACA].astype(str).str.strip() == selected_race].copy()
+    if not filtered_df.empty:
+        if selected_race != "Todas" and COL_RACA and COL_RACA in filtered_df.columns:
+            filtered_df = filtered_df[filtered_df[COL_RACA].astype(str).str.strip() == selected_race].copy()
 
-    if search_top.strip():
-        q = normalize_search_text(search_top)
-        q_digits = re.sub(r"\D", "", search_top)
+        if search_top.strip():
+            q = normalize_search_text(search_top)
+            q_digits = re.sub(r"\D", "", search_top)
 
-        mask = filtered_df["_nome_norm"].str.contains(q, na=False)
+            mask = filtered_df["_nome_norm"].str.contains(q, na=False)
 
-        if q_digits:
-            mask = (
-                mask
-                | filtered_df["_tel_norm"].str.contains(q_digits, na=False)
-                | filtered_df["_cpf_norm"].str.contains(q_digits, na=False)
-            )
+            if q_digits:
+                mask = (
+                    mask
+                    | filtered_df["_tel_norm"].str.contains(q_digits, na=False)
+                    | filtered_df["_cpf_norm"].str.contains(q_digits, na=False)
+                )
 
-        if "_email_norm" in filtered_df.columns:
-            mask = mask | filtered_df["_email_norm"].str.contains(q, na=False)
+            if "_email_norm" in filtered_df.columns:
+                mask = mask | filtered_df["_email_norm"].str.contains(q, na=False)
 
-        filtered_df = filtered_df[mask].copy()
+            filtered_df = filtered_df[mask].copy()
 
-    primeiro_contato = count_filled_matching_columns(month_df, "1° contato")
-    segundo_contato = count_filled_matching_columns(month_df, "2° contato")
-    terceiro_contato = count_filled_matching_columns(month_df, "3° contato")
+    primeiro_contato = count_filled_matching_columns(month_df, "1° contato") if not month_df.empty else 0
+    segundo_contato = count_filled_matching_columns(month_df, "2° contato") if not month_df.empty else 0
+    terceiro_contato = count_filled_matching_columns(month_df, "3° contato") if not month_df.empty else 0
     total_contratos = len(month_df)
 
     m1, m2, m3, m4 = st.columns(4)
@@ -911,19 +1031,23 @@ if page == "Visão Geral":
         unsafe_allow_html=True,
     )
 
-    if COL_WHATSAPP and COL_WHATSAPP in df.columns:
-        end_idx = list(df.columns).index(COL_WHATSAPP)
-        cols_until_whatsapp = [
-            c for c in df.columns[: end_idx + 1]
-            if not str(c).startswith("_") and not str(c).lower().startswith("unnamed")
-        ]
-    else:
-        preferred_cols = [COL_NOME, COL_TEL, COL_RACA, COL_DATA]
-        cols_until_whatsapp = [c for c in preferred_cols if c and c in df.columns]
+    if not filtered_df.empty:
+        if COL_WHATSAPP and COL_WHATSAPP in df.columns:
+            end_idx = list(df.columns).index(COL_WHATSAPP)
+            cols_until_whatsapp = [
+                c for c in df.columns[: end_idx + 1]
+                if not str(c).startswith("_") and not str(c).lower().startswith("unnamed")
+            ]
+        else:
+            preferred_cols = [COL_NOME, COL_TEL, COL_RACA, COL_DATA]
+            cols_until_whatsapp = [c for c in preferred_cols if c and c in df.columns]
 
-    render_realtime_table(filtered_df, cols_until_whatsapp)
+        render_realtime_table(filtered_df, cols_until_whatsapp)
 
 
+# =========================================================
+# PEDIGREE
+# =========================================================
 elif page == "Pedigree":
     st.markdown('<div class="page-title">Pedigree</div>', unsafe_allow_html=True)
     st.markdown(
@@ -931,23 +1055,80 @@ elif page == "Pedigree":
         unsafe_allow_html=True,
     )
 
+    MAP_STATUS_ACAO = {
+        "Fazer Pedigree venda": "Transferência",
+        "Fazer Pedigree s/ trans": "Sem transferência",
+        "Fazer RG/Certidão": "RG E CERTIDÃO",
+        "Pendências / Problemas": "Problemas",
+        "Aprovação Cliente": "Aprovação",
+        "Para Imprimir Pedigree": "Imprimir Pedigree",
+        "Imprimir Etiqueta": "Imprimir etiqueta",
+        "Imprimir RG + Certidão": "Imprimir RG e CERTIDÃO",
+        "Airtag": "Airtag",
+        "Envio Correio": "Enviar",
+        "Postado/Enviado Corr": "Enviado Cliente",
+        "Postado/ enviado loja": "Enviado Cliente",
+        "Pendência Cliente": "Problemas",
+        "Sem Matriz": "Problemas",
+    }
+
+    ACOES = [
+        "Novo",
+        "Transferência",
+        "Sem transferência",
+        "RG E CERTIDÃO",
+        "Problemas",
+        "Aprovação",
+        "Imprimir Pedigree",
+        "Imprimir RG e CERTIDÃO",
+        "Imprimir etiqueta",
+        "Airtag",
+        "Enviar",
+        "Enviado Cliente",
+    ]
+
     busca_ped = st.text_input(
         "Buscar cliente no Pedigree",
         placeholder="Cole o telefone copiado da Visão Geral ou busque por nome, código, status, raça...",
     )
 
-    df_ped = df.copy()
+    df_ped = load_pedigree_data().copy()
 
-    def normalize_full_row(row):
-        values = []
-        for v in row:
-            if pd.isna(v):
-                continue
-            values.append(normalize_search_text(v))
-        return " ".join(values)
+    if not df_ped.empty:
+        for col in [
+            "Nome",
+            "Telefone",
+            "CPF",
+            "E-mail",
+            "Status Pedigree",
+            "Nome Cachorro",
+            "Raça",
+            "Sexo",
+            "Cor",
+            "Microchip",
+        ]:
+            if col not in df_ped.columns:
+                df_ped[col] = ""
 
-    df_ped["_search_all"] = df_ped.apply(normalize_full_row, axis=1)
-    df_ped["_tel_digits_ped"] = df_ped[COL_TEL].apply(only_digits) if COL_TEL and COL_TEL in df_ped.columns else ""
+        def normalize_full_row(row):
+            values = []
+            for v in row:
+                if pd.isna(v):
+                    continue
+                values.append(normalize_search_text(v))
+            return " ".join(values)
+
+        df_ped["_search_all"] = df_ped.apply(normalize_full_row, axis=1)
+        df_ped["_tel_digits_ped"] = df_ped["Telefone"].apply(only_digits)
+        df_ped["ACAO"] = df_ped["Status Pedigree"].map(MAP_STATUS_ACAO).fillna("")
+    else:
+        df_ped = pd.DataFrame(columns=[
+            "Nome", "Telefone", "CPF", "E-mail", "Endereço completo",
+            "Status Pedigree", "Transferência", "Observações Status",
+            "Nome Cachorro", "Data Nascimento", "Pelagem", "Raça",
+            "Sexo", "Cor", "Microchip", "Observações gerais",
+            "_search_all", "_tel_digits_ped", "ACAO"
+        ])
 
     if busca_ped.strip():
         q = normalize_search_text(busca_ped)
@@ -968,23 +1149,14 @@ elif page == "Pedigree":
 
             mask = mask | phone_mask
 
-        df_ped = df_ped[mask].copy()
+        df_busca = df_ped[mask].copy()
 
-        if not df_ped.empty:
-            if "Status Venda Pedigree" in df.columns:
-                idx_status = list(df.columns).index("Status Venda Pedigree")
-                cols_ped = [
-                    c for c in df.columns[:idx_status + 1]
-                    if not str(c).startswith("_") and not str(c).lower().startswith("unnamed")
-                ]
-            else:
-                cols_ped = [
-                    c for c in df.columns
-                    if not str(c).startswith("_") and not str(c).lower().startswith("unnamed")
-                ]
-
-            render_realtime_table(df_ped, cols_ped)
-
+        if not df_busca.empty:
+            cols_ped = [
+                c for c in df_busca.columns
+                if not str(c).startswith("_") and c != "ACAO"
+            ]
+            render_realtime_table(df_busca, cols_ped)
         else:
             st.warning("Nenhum cliente encontrado com essa busca.")
 
@@ -1028,19 +1200,21 @@ elif page == "Pedigree":
         st.button("Enviado Cliente", use_container_width=True, on_click=set_acao_ped, args=("Enviado Cliente",))
 
     if st.session_state.acao_ped:
+        acao_atual = st.session_state.acao_ped
+
         st.markdown(
             f"""
             <div class="ped-action-card">
-                <div class="ped-action-title">{st.session_state.acao_ped}</div>
+                <div class="ped-action-title">{html.escape(acao_atual)}</div>
                 <div class="ped-action-sub">
-                    Área aberta dentro da própria página Pedigree. As informações desta ação aparecerão aqui.
+                    Área aberta dentro da própria página Pedigree.
                 </div>
             </div>
             """,
             unsafe_allow_html=True,
         )
 
-        if st.session_state.acao_ped == "Novo":
+        if acao_atual == "Novo":
             st.markdown("### Formulário Pedigree")
 
             status_opcoes = [
@@ -1073,7 +1247,7 @@ elif page == "Pedigree":
                     tutor_endereco = st.text_input("Endereço completo")
 
                 with col2:
-                    status_cliente = st.selectbox("Status do Cliente", status_opcoes)
+                    status_cliente = st.selectbox("Status do Pedigree", status_opcoes)
                     transferencia = st.radio("Houve pedido de transferência?", ["Sim", "Não"], horizontal=True)
                     observacoes_status = st.text_area("Observações do status")
 
@@ -1126,38 +1300,35 @@ elif page == "Pedigree":
                     except Exception as e:
                         st.error(f"Erro ao salvar na planilha: {e}")
 
-        elif st.session_state.acao_ped == "Transferência":
-            st.info("Informações da ação: Transferência.")
+        else:
+            df_acao = df_ped[df_ped["ACAO"] == acao_atual].copy()
+            total_acao = len(df_acao)
 
-        elif st.session_state.acao_ped == "Sem transferência":
-            st.info("Informações da ação: Sem transferência.")
+            st.markdown(
+                f"""
+                <div class="ped-count-card">
+                    📂 {total_acao} formulário(s) em {html.escape(acao_atual)}
+                </div>
+                """,
+                unsafe_allow_html=True,
+            )
 
-        elif st.session_state.acao_ped == "RG E CERTIDÃO":
-            st.info("Informações da ação: RG E CERTIDÃO.")
+            if total_acao > 0:
+                nomes = df_acao["Nome"].fillna("").astype(str).tolist()
+                nomes = [n if n.strip() else "Sem nome" for n in nomes]
 
-        elif st.session_state.acao_ped == "Problemas":
-            st.warning("Informações da ação: Problemas.")
+                nome_escolhido = st.selectbox(
+                    "Clique e selecione um nome para abrir a ficha",
+                    nomes,
+                    key=f"select_{acao_atual}",
+                )
 
-        elif st.session_state.acao_ped == "Aprovação":
-            st.success("Informações da ação: Aprovação.")
+                idx_nome = nomes.index(nome_escolhido)
+                cliente = df_acao.iloc[idx_nome]
 
-        elif st.session_state.acao_ped == "Imprimir Pedigree":
-            st.info("Informações da ação: Imprimir Pedigree.")
-
-        elif st.session_state.acao_ped == "Imprimir RG e CERTIDÃO":
-            st.info("Informações da ação: Imprimir RG e CERTIDÃO.")
-
-        elif st.session_state.acao_ped == "Imprimir etiqueta":
-            st.info("Informações da ação: Imprimir etiqueta.")
-
-        elif st.session_state.acao_ped == "Airtag":
-            st.info("Informações da ação: Airtag.")
-
-        elif st.session_state.acao_ped == "Enviar":
-            st.info("Informações da ação: Enviar.")
-
-        elif st.session_state.acao_ped == "Enviado Cliente":
-            st.success("Informações da ação: Enviado Cliente.")
+                render_cliente_card(cliente)
+            else:
+                st.info("Nenhum formulário nesta ação no momento.")
 
 
 elif page == "Comissão":
