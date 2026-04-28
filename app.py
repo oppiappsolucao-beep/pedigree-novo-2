@@ -10,6 +10,8 @@ from typing import Optional, List, Tuple
 import pandas as pd
 import streamlit as st
 import streamlit.components.v1 as components
+import gspread
+from google.oauth2.service_account import Credentials
 
 st.set_page_config(
     page_title="Dashboard Vendas Clear",
@@ -19,8 +21,35 @@ st.set_page_config(
 )
 
 CACHE_TTL_SECONDS = 60
+
 SHEET_ID = "1Q0mLvOBxEGCojUITBLxCXRtpXVMAHE3ngvGsa2Cgf9Q"
-GID_BASE = 1396326144
+WORKSHEET_NAME = "Clear"
+
+SCOPES = [
+    "https://www.googleapis.com/auth/spreadsheets",
+    "https://www.googleapis.com/auth/drive",
+]
+
+
+@st.cache_resource
+def get_gsheet_client():
+    creds = Credentials.from_service_account_info(
+        dict(st.secrets["gcp_service_account"]),
+        scopes=SCOPES,
+    )
+    return gspread.authorize(creds)
+
+
+@st.cache_data(show_spinner=False, ttl=CACHE_TTL_SECONDS)
+def load_data() -> pd.DataFrame:
+    client = get_gsheet_client()
+    sheet = client.open_by_key(SHEET_ID)
+    worksheet = sheet.worksheet(WORKSHEET_NAME)
+
+    records = worksheet.get_all_records()
+    df = pd.DataFrame(records)
+    df.columns = [str(c).strip() for c in df.columns]
+    return df
 
 
 def image_to_base64(path: str) -> str:
@@ -28,15 +57,6 @@ def image_to_base64(path: str) -> str:
     if not file_path.exists():
         return ""
     return base64.b64encode(file_path.read_bytes()).decode()
-
-
-@st.cache_data(show_spinner=False, ttl=CACHE_TTL_SECONDS)
-def load_data() -> pd.DataFrame:
-    bust = int(time.time() * 1000)
-    url = f"https://docs.google.com/spreadsheets/d/{SHEET_ID}/gviz/tq?tqx=out:csv&gid={GID_BASE}&_={bust}"
-    df = pd.read_csv(url)
-    df.columns = [str(c).strip() for c in df.columns]
-    return df
 
 
 def normalize_text(v) -> str:
@@ -189,15 +209,7 @@ def count_filled_matching_columns(df_month: pd.DataFrame, target: str) -> int:
     masks = []
     for col in matching_cols:
         s = df_month[col]
-        if isinstance(s, pd.DataFrame):
-            for subcol in s.columns:
-                ss = s[subcol]
-                masks.append((~ss.isna()) & (ss.astype(str).str.strip() != ""))
-        else:
-            masks.append((~s.isna()) & (s.astype(str).str.strip() != ""))
-
-    if not masks:
-        return 0
+        masks.append((~s.isna()) & (s.astype(str).str.strip() != ""))
 
     final_mask = masks[0].copy()
     for m in masks[1:]:
@@ -377,6 +389,9 @@ def render_realtime_table(df_table: pd.DataFrame, cols_to_show: list[str]):
     components.html(table_html, height=590, scrolling=True)
 
 
+# =========================================================
+# CSS
+# =========================================================
 st.markdown(
     """
 <style>
@@ -569,8 +584,6 @@ st.markdown(
         margin-top: 0.15rem;
     }
 
-    .section-space { margin-top: 1rem; }
-
     .live-card {
         background: var(--card);
         border: 1px solid var(--line);
@@ -664,6 +677,9 @@ st.markdown(
 )
 
 
+# =========================================================
+# SIDEBAR
+# =========================================================
 with st.sidebar:
     logo_b64 = image_to_base64("campmotors.png")
 
@@ -698,6 +714,9 @@ with st.sidebar:
         )
 
 
+# =========================================================
+# LOAD + PREP
+# =========================================================
 df = load_data().copy()
 
 COL_NOME = "Nome" if "Nome" in df.columns else detect_col(df, [["nome"]])
@@ -731,6 +750,9 @@ else:
     all_months = [default_month]
 
 
+# =========================================================
+# VISÃO GERAL
+# =========================================================
 if page == "Visão Geral":
     header_left, header_right = st.columns([3.2, 1.2])
 
@@ -830,6 +852,10 @@ if page == "Visão Geral":
 
     render_realtime_table(filtered_df, cols_until_whatsapp)
 
+
+# =========================================================
+# PEDIGREE
+# =========================================================
 elif page == "Pedigree":
     st.markdown('<div class="page-title">Pedigree</div>', unsafe_allow_html=True)
     st.markdown(
@@ -954,7 +980,6 @@ elif page == "Pedigree":
                 "Fazer Pedigree venda",
                 "Fazer Pedigree s/ trans",
                 "Fazer RG/Certidão",
-                "Pendências / Problemas",
                 "Aprovação Cliente",
                 "Para Imprimir Pedigree",
                 "Imprimir Etiqueta",
@@ -980,7 +1005,7 @@ elif page == "Pedigree":
 
                 with col2:
                     status_cliente = st.selectbox("Status do Cliente", status_opcoes)
-                    pagamento = st.radio("Houve pedido de transferência?", ["Sim", "Não"], horizontal=True)
+                    transferencia = st.radio("Houve pedido de transferência?", ["Sim", "Não"], horizontal=True)
                     observacoes_status = st.text_area("Observações do status")
 
                 st.markdown("#### Informações Cão")
@@ -1009,7 +1034,7 @@ elif page == "Pedigree":
                         "E-mail": tutor_email,
                         "Endereço": tutor_endereco,
                         "Status do Cliente": status_cliente,
-                        "Transferência": pagamento,
+                        "Transferência": transferencia,
                         "Observações do status": observacoes_status,
                         "Nome cão": cao_nome,
                         "Data nascimento": nascimento,
