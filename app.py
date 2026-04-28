@@ -40,12 +40,15 @@ def get_gsheet_client():
     return gspread.authorize(creds)
 
 
-@st.cache_data(show_spinner=False, ttl=CACHE_TTL_SECONDS)
-def load_data() -> pd.DataFrame:
+def get_worksheet():
     client = get_gsheet_client()
     sheet = client.open_by_key(SHEET_ID)
-    worksheet = sheet.worksheet(WORKSHEET_NAME)
+    return sheet.worksheet(WORKSHEET_NAME)
 
+
+@st.cache_data(show_spinner=False, ttl=CACHE_TTL_SECONDS)
+def load_data() -> pd.DataFrame:
+    worksheet = get_worksheet()
     records = worksheet.get_all_records()
     df = pd.DataFrame(records)
     df.columns = [str(c).strip() for c in df.columns]
@@ -82,6 +85,75 @@ def only_digits(v) -> str:
     if s.endswith(".0"):
         s = s[:-2]
     return re.sub(r"\D", "", s)
+
+
+def ensure_columns(worksheet, required_cols):
+    headers = worksheet.row_values(1)
+
+    for col in required_cols:
+        if col not in headers:
+            headers.append(col)
+
+    worksheet.update("A1", [headers])
+    return headers
+
+
+def find_row_by_phone_or_cpf(worksheet, telefone, cpf):
+    records = worksheet.get_all_records()
+    tel_digits = only_digits(telefone)
+    cpf_digits = only_digits(cpf)
+
+    for idx, row in enumerate(records, start=2):
+        row_tel = only_digits(row.get("Telefone", ""))
+        row_cpf = only_digits(row.get("CPF", ""))
+
+        if tel_digits and row_tel == tel_digits:
+            return idx
+
+        if cpf_digits and row_cpf == cpf_digits:
+            return idx
+
+    return None
+
+
+def salvar_formulario_pedigree(dados):
+    worksheet = get_worksheet()
+
+    required_cols = [
+        "Nome",
+        "Telefone",
+        "CPF",
+        "E-mail",
+        "Endereço completo",
+        "Status Pedigree",
+        "Transferência",
+        "Observações Status",
+        "Nome Cachorro",
+        "Data Nascimento",
+        "Pelagem",
+        "Raça",
+        "Microchip",
+        "Observações gerais",
+    ]
+
+    headers = ensure_columns(worksheet, required_cols)
+
+    row_number = find_row_by_phone_or_cpf(
+        worksheet,
+        dados.get("Telefone", ""),
+        dados.get("CPF", ""),
+    )
+
+    row_values = []
+    for header in headers:
+        row_values.append(dados.get(header, ""))
+
+    if row_number:
+        worksheet.update(f"A{row_number}", [row_values], value_input_option="USER_ENTERED")
+    else:
+        worksheet.append_row(row_values, value_input_option="USER_ENTERED")
+
+    st.cache_data.clear()
 
 
 def format_phone_br(v) -> str:
@@ -129,7 +201,7 @@ def format_date(v) -> str:
 def month_name_pt(m: int) -> str:
     meses = [
         "", "Janeiro", "Fevereiro", "Março", "Abril", "Maio", "Junho",
-        "Julho", "Agosto", "Setembro", "Outubro", "Novembro", "Dezembro"
+        "Julho", "Agosto", "Setembro", "Outubro", "Novembro", "Dezembro",
     ]
     return meses[m] if 1 <= m <= 12 else ""
 
@@ -170,10 +242,19 @@ def build_month_key(row, col_mes, col_data) -> Optional[Tuple[int, int]]:
                 return yy, mm
 
         nomes = {
-            "janeiro": 1, "fevereiro": 2, "março": 3, "marco": 3,
-            "abril": 4, "maio": 5, "junho": 6, "julho": 7,
-            "agosto": 8, "setembro": 9, "outubro": 10,
-            "novembro": 11, "dezembro": 12,
+            "janeiro": 1,
+            "fevereiro": 2,
+            "março": 3,
+            "marco": 3,
+            "abril": 4,
+            "maio": 5,
+            "junho": 6,
+            "julho": 7,
+            "agosto": 8,
+            "setembro": 9,
+            "outubro": 10,
+            "novembro": 11,
+            "dezembro": 12,
         }
 
         for nome, num in nomes.items():
@@ -389,9 +470,6 @@ def render_realtime_table(df_table: pd.DataFrame, cols_to_show: list[str]):
     components.html(table_html, height=590, scrolling=True)
 
 
-# =========================================================
-# CSS
-# =========================================================
 st.markdown(
     """
 <style>
@@ -677,9 +755,6 @@ st.markdown(
 )
 
 
-# =========================================================
-# SIDEBAR
-# =========================================================
 with st.sidebar:
     logo_b64 = image_to_base64("campmotors.png")
 
@@ -714,9 +789,6 @@ with st.sidebar:
         )
 
 
-# =========================================================
-# LOAD + PREP
-# =========================================================
 df = load_data().copy()
 
 COL_NOME = "Nome" if "Nome" in df.columns else detect_col(df, [["nome"]])
@@ -750,9 +822,6 @@ else:
     all_months = [default_month]
 
 
-# =========================================================
-# VISÃO GERAL
-# =========================================================
 if page == "Visão Geral":
     header_left, header_right = st.columns([3.2, 1.2])
 
@@ -853,9 +922,6 @@ if page == "Visão Geral":
     render_realtime_table(filtered_df, cols_until_whatsapp)
 
 
-# =========================================================
-# PEDIGREE
-# =========================================================
 elif page == "Pedigree":
     st.markdown('<div class="page-title">Pedigree</div>', unsafe_allow_html=True)
     st.markdown(
@@ -999,6 +1065,7 @@ elif page == "Pedigree":
 
                 with col1:
                     tutor_nome = st.text_input("Nome do tutor")
+                    tutor_telefone = st.text_input("Telefone")
                     tutor_cpf = st.text_input("CPF")
                     tutor_email = st.text_input("E-mail")
                     tutor_endereco = st.text_input("Endereço completo")
@@ -1017,6 +1084,7 @@ elif page == "Pedigree":
                     nascimento = st.date_input("Data de nascimento")
                     pelagem = st.text_input("Pelagem")
                     raca = st.text_input("Raça do pet")
+                    microchip = st.text_input("Microchip")
 
                 with col4:
                     foto_pet = st.file_uploader("Foto do pet", type=["png", "jpg", "jpeg"])
@@ -1029,22 +1097,28 @@ elif page == "Pedigree":
 
                 if salvar:
                     dados_formulario = {
-                        "Nome tutor": tutor_nome,
+                        "Nome": tutor_nome,
+                        "Telefone": tutor_telefone,
                         "CPF": tutor_cpf,
                         "E-mail": tutor_email,
-                        "Endereço": tutor_endereco,
-                        "Status do Cliente": status_cliente,
+                        "Endereço completo": tutor_endereco,
+                        "Status Pedigree": status_cliente,
                         "Transferência": transferencia,
-                        "Observações do status": observacoes_status,
-                        "Nome cão": cao_nome,
-                        "Data nascimento": nascimento,
+                        "Observações Status": observacoes_status,
+                        "Nome Cachorro": cao_nome,
+                        "Data Nascimento": nascimento.strftime("%d/%m/%Y"),
                         "Pelagem": pelagem,
                         "Raça": raca,
+                        "Microchip": microchip,
                         "Observações gerais": observacoes,
                     }
 
-                    st.session_state["novo_pedigree_form"] = dados_formulario
-                    st.success("Formulário preenchido com sucesso.")
+                    try:
+                        salvar_formulario_pedigree(dados_formulario)
+                        st.session_state["novo_pedigree_form"] = dados_formulario
+                        st.success("Formulário salvo/atualizado na planilha com sucesso.")
+                    except Exception as e:
+                        st.error(f"Erro ao salvar na planilha: {e}")
 
         elif st.session_state.acao_ped == "Transferência":
             st.info("Informações da ação: Transferência.")
