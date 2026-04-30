@@ -9,6 +9,7 @@ from typing import Optional, List, Tuple
 import pandas as pd
 import streamlit as st
 import streamlit.components.v1 as components
+import plotly.express as px
 import gspread
 from google.oauth2.service_account import Credentials
 
@@ -154,8 +155,7 @@ def month_key_to_label(ym: Tuple[int, int]) -> str:
 
 def detect_col(df: pd.DataFrame, keywords: List[List[str]]) -> Optional[str]:
     for col in df.columns:
-        lc = str(col).strip().lower()
-        lc_norm = normalize_search_text(lc)
+        lc_norm = normalize_search_text(str(col).strip().lower())
         for group in keywords:
             if all(normalize_search_text(k) in lc_norm for k in group):
                 return col
@@ -440,7 +440,6 @@ def render_realtime_table(df_table: pd.DataFrame, cols_to_show: list[str]):
                 font-family: Arial, sans-serif;
                 background: transparent;
             }}
-
             .table-wrap {{
                 border: 1px solid #E7EAF3;
                 border-radius: 18px;
@@ -448,14 +447,12 @@ def render_realtime_table(df_table: pd.DataFrame, cols_to_show: list[str]):
                 background: white;
                 max-height: 560px;
             }}
-
             table {{
                 border-collapse: collapse;
                 width: 100%;
                 min-width: 1100px;
                 font-size: 13px;
             }}
-
             thead th {{
                 position: sticky;
                 top: 0;
@@ -466,24 +463,20 @@ def render_realtime_table(df_table: pd.DataFrame, cols_to_show: list[str]):
                 z-index: 2;
                 white-space: nowrap;
             }}
-
             tbody td {{
                 border-bottom: 1px solid #EEF1F7;
                 padding: 10px;
                 color: #17213A;
                 white-space: nowrap;
             }}
-
             tbody tr:hover {{
                 background: #F8FAFF;
             }}
-
             .phone-cell {{
                 display: flex;
                 align-items: center;
                 gap: 8px;
             }}
-
             .copy-btn {{
                 border: none;
                 border-radius: 999px;
@@ -494,13 +487,11 @@ def render_realtime_table(df_table: pd.DataFrame, cols_to_show: list[str]):
                 color: white;
                 cursor: pointer;
             }}
-
             .copy-btn:hover {{
                 filter: brightness(0.95);
             }}
         </style>
     </head>
-
     <body>
         <div class="table-wrap">
             <table>
@@ -559,10 +550,7 @@ def render_cliente_card(cliente: pd.Series, status_opcoes: list):
         unsafe_allow_html=True,
     )
 
-    if status_atual in status_opcoes:
-        status_index = status_opcoes.index(status_atual)
-    else:
-        status_index = 0
+    status_index = status_opcoes.index(status_atual) if status_atual in status_opcoes else 0
 
     col_status_1, col_status_2 = st.columns([3, 1])
 
@@ -1052,481 +1040,3 @@ if all_months:
 else:
     default_month = (today.year, today.month)
     all_months = [default_month]
-
-
-if page == "Visão Geral":
-    header_left, header_right = st.columns([3.2, 1.2])
-
-    with header_left:
-        st.markdown('<div class="page-title">Visão Geral</div>', unsafe_allow_html=True)
-        st.markdown(
-            '<div class="page-subtitle">Acompanhe os contratos recebidos em tempo real, filtrados pelo mês selecionado.</div>',
-            unsafe_allow_html=True,
-        )
-
-    with header_right:
-        selected_month = st.selectbox(
-            "Mês de referência",
-            options=all_months,
-            index=all_months.index(default_month) if default_month in all_months else 0,
-            format_func=month_key_to_label,
-        )
-
-    month_df = df[df["_mes_key"] == selected_month].copy() if not df.empty and "_mes_key" in df.columns else pd.DataFrame()
-
-    races = ["Todas"]
-    if not month_df.empty and COL_RACA and COL_RACA in month_df.columns:
-        race_vals = sorted([r for r in month_df[COL_RACA].dropna().astype(str).str.strip().unique() if r])
-        races += race_vals
-
-    filter_col1, filter_col2 = st.columns([1.2, 1.2])
-
-    with filter_col1:
-        selected_race = st.selectbox("Raça", races, index=0)
-
-    with filter_col2:
-        search_top = st.text_input("Busca rápida", placeholder="Nome, CPF, telefone ou e-mail")
-
-    filtered_df = month_df.copy()
-
-    if not filtered_df.empty:
-        if selected_race != "Todas" and COL_RACA and COL_RACA in filtered_df.columns:
-            filtered_df = filtered_df[filtered_df[COL_RACA].astype(str).str.strip() == selected_race].copy()
-
-        if search_top.strip():
-            q = normalize_search_text(search_top)
-            q_digits = re.sub(r"\D", "", search_top)
-
-            mask = filtered_df["_nome_norm"].str.contains(q, na=False)
-
-            if q_digits:
-                mask = (
-                    mask
-                    | filtered_df["_tel_norm"].str.contains(q_digits, na=False)
-                    | filtered_df["_cpf_norm"].str.contains(q_digits, na=False)
-                )
-
-            if "_email_norm" in filtered_df.columns:
-                mask = mask | filtered_df["_email_norm"].str.contains(q, na=False)
-
-            filtered_df = filtered_df[mask].copy()
-
-    primeiro_contato = count_filled_matching_columns(month_df, "1° contato") if not month_df.empty else 0
-    segundo_contato = count_filled_matching_columns(month_df, "2° contato") if not month_df.empty else 0
-    terceiro_contato = count_filled_matching_columns(month_df, "3° contato") if not month_df.empty else 0
-    total_contratos = len(month_df)
-
-    m1, m2, m3, m4 = st.columns(4)
-
-    with m1:
-        card_metric("Primeiro contato", f"{primeiro_contato}", "no mês", "📞", "#8E0E3F")
-
-    with m2:
-        card_metric("Segundo contato", f"{segundo_contato}", "no mês", "📋", "#071B49")
-
-    with m3:
-        card_metric("Terceiro contato", f"{terceiro_contato}", "no mês", "🗂", "#D39A33")
-
-    with m4:
-        card_metric("Total de contratos", f"{total_contratos}", month_key_to_label(selected_month), "📄", "#071B49")
-
-    st.markdown(
-        f"""
-        <div class="live-card">
-            <div class="live-title">Contratos em tempo real</div>
-            <div class="live-sub">
-                Exibindo {len(filtered_df)} registros de {month_key_to_label(selected_month)} até a coluna WhatsApp.
-            </div>
-        </div>
-        """,
-        unsafe_allow_html=True,
-    )
-
-    if not filtered_df.empty:
-        if COL_WHATSAPP and COL_WHATSAPP in df.columns:
-            end_idx = list(df.columns).index(COL_WHATSAPP)
-            cols_until_whatsapp = [
-                c for c in df.columns[: end_idx + 1]
-                if not str(c).startswith("_") and not str(c).lower().startswith("unnamed")
-            ]
-        else:
-            preferred_cols = [COL_NOME, COL_TEL, COL_RACA, COL_DATA]
-            cols_until_whatsapp = [c for c in preferred_cols if c and c in df.columns]
-
-        render_realtime_table(filtered_df, cols_until_whatsapp)
-
-
-elif page == "Pedigree":
-    st.markdown('<div class="page-title">Pedigree</div>', unsafe_allow_html=True)
-    st.markdown(
-        '<div class="page-subtitle">Consulta completa de clientes para análise de Pedigree.</div>',
-        unsafe_allow_html=True,
-    )
-
-    status_opcoes = [
-        "Pendências / Problemas",
-        "Fazer Pedigree venda",
-        "Fazer Pedigree s/ trans",
-        "Fazer RG/Certidão",
-        "Aprovação Cliente",
-        "Para Imprimir Pedigree",
-        "Imprimir Etiqueta",
-        "Imprimir RG + Certidão",
-        "Airtag",
-        "Envio Correio",
-        "Postado/Enviado Correio",
-        "Postado/Enviado Corr",
-        "Postado/ enviado loja",
-        "Pendência Cliente",
-        "Sem Matriz",
-    ]
-
-    MAP_STATUS_ACAO = {
-        "Fazer Pedigree venda": "Transferência",
-        "Fazer Pedigree s/ trans": "Sem transferência",
-        "Fazer RG/Certidão": "RG E CERTIDÃO",
-        "Pendências / Problemas": "Problemas",
-        "Aprovação Cliente": "Aprovação",
-        "Para Imprimir Pedigree": "Imprimir Pedigree",
-        "Imprimir Etiqueta": "Imprimir etiqueta",
-        "Imprimir RG + Certidão": "Imprimir RG e CERTIDÃO",
-        "Airtag": "Airtag",
-        "Envio Correio": "Enviar",
-        "Postado/Enviado Correio": "Enviado Cliente",
-        "Postado/Enviado Corr": "Enviado Cliente",
-        "Postado/ enviado loja": "Enviado Cliente",
-        "Pendência Cliente": "Problemas",
-        "Sem Matriz": "Problemas",
-    }
-
-    df_ped = load_pedigree_data().copy()
-
-    if not df_ped.empty:
-        df_ped["__row_number"] = df_ped.index + 2
-
-        for col in [
-            "Nome",
-            "Telefone",
-            "CPF",
-            "E-mail",
-            "Mês",
-            "Raça",
-            "Sexo",
-            "Cor",
-            "Endereço completo",
-            "Status Pedigree",
-            "Transferência",
-            "Observações Status",
-            "Nome Cachorro",
-            "Data Nascimento",
-            "Pelagem",
-            "Microchip",
-            "Observações gerais",
-        ]:
-            if col not in df_ped.columns:
-                df_ped[col] = ""
-
-        ped_col_mes = "Mês" if "Mês" in df_ped.columns else detect_col(df_ped, [["mês"], ["mes"]])
-        ped_col_data = detect_col(df_ped, [["data", "compra"], ["data"]])
-
-        df_ped["_mes_key"] = df_ped.apply(
-            lambda row: build_month_key(row, ped_col_mes, ped_col_data),
-            axis=1
-        )
-
-        def normalize_full_row(row):
-            values = []
-            for v in row:
-                if pd.isna(v):
-                    continue
-                values.append(normalize_search_text(v))
-            return " ".join(values)
-
-        df_ped["_search_all"] = df_ped.apply(normalize_full_row, axis=1)
-        df_ped["_tel_digits_ped"] = df_ped["Telefone"].apply(only_digits)
-        df_ped["ACAO"] = df_ped["Status Pedigree"].map(MAP_STATUS_ACAO).fillna("")
-    else:
-        df_ped = pd.DataFrame(columns=[
-            "Nome", "Telefone", "CPF", "E-mail", "Mês", "Raça", "Sexo", "Cor",
-            "Endereço completo", "Status Pedigree", "Transferência", "Observações Status",
-            "Nome Cachorro", "Data Nascimento", "Pelagem", "Microchip",
-            "Observações gerais", "__row_number", "_search_all",
-            "_tel_digits_ped", "ACAO", "_mes_key"
-        ])
-
-    ped_months_from_sheet = []
-    if not df_ped.empty and "_mes_key" in df_ped.columns:
-        ped_months_from_sheet = [m for m in df_ped["_mes_key"].dropna().unique().tolist()]
-
-    main_months_from_sheet = []
-    if not df.empty and "_mes_key" in df.columns:
-        main_months_from_sheet = [m for m in df["_mes_key"].dropna().unique().tolist()]
-
-    ped_month_options = sorted(
-        list(set(ped_months_from_sheet + main_months_from_sheet + future_months)),
-        key=lambda x: (x[0], x[1]),
-    )
-
-    if not ped_month_options:
-        ped_month_options = [(today.year, today.month)]
-
-    default_ped_month = (today.year, today.month) if (today.year, today.month) in ped_month_options else ped_month_options[-1]
-
-    filtro_mes_col, vazio_col = st.columns([1.2, 2.8])
-
-    with filtro_mes_col:
-        selected_ped_month = st.selectbox(
-            "Mês de referência",
-            options=ped_month_options,
-            index=ped_month_options.index(default_ped_month) if default_ped_month in ped_month_options else 0,
-            format_func=month_key_to_label,
-            key="mes_referencia_pedigree",
-        )
-
-    busca_ped = st.text_input(
-        "Buscar cliente no Pedigree",
-        placeholder="Cole o telefone copiado da Visão Geral ou busque por nome, código, status, raça...",
-    )
-
-    if busca_ped.strip():
-        q = normalize_search_text(busca_ped)
-        q_digits = re.sub(r"\D", "", busca_ped)
-
-        mask = df_ped["_search_all"].str.contains(q, na=False)
-
-        if q_digits:
-            clean_variants = [q_digits]
-
-            if q_digits.startswith("55") and len(q_digits) > 11:
-                clean_variants.append(q_digits[2:])
-
-            phone_mask = pd.Series(False, index=df_ped.index)
-
-            for variant in clean_variants:
-                phone_mask = phone_mask | df_ped["_tel_digits_ped"].str.contains(variant, na=False)
-
-            mask = mask | phone_mask
-
-        df_busca = df_ped[mask].copy()
-
-        if not df_busca.empty:
-            cols_ped = [
-                c for c in df_busca.columns
-                if not str(c).startswith("_") and c not in ["ACAO", "__row_number"]
-            ]
-            render_realtime_table(df_busca, cols_ped)
-        else:
-            st.warning("Nenhum cliente encontrado com essa busca.")
-
-    st.markdown('<div class="ped-btn-title">Ações do Pedigree</div>', unsafe_allow_html=True)
-
-    if "acao_ped" not in st.session_state:
-        st.session_state.acao_ped = None
-
-    def set_acao_ped(nome):
-        st.session_state.acao_ped = nome
-
-    linha1 = st.columns(4)
-    linha2 = st.columns(4)
-    linha3 = st.columns(4)
-
-    with linha1[0]:
-        st.button("Novo", use_container_width=True, on_click=set_acao_ped, args=("Novo",))
-    with linha1[1]:
-        st.button("Transferência", use_container_width=True, on_click=set_acao_ped, args=("Transferência",))
-    with linha1[2]:
-        st.button("Sem transferência", use_container_width=True, on_click=set_acao_ped, args=("Sem transferência",))
-    with linha1[3]:
-        st.button("RG E CERTIDÃO", use_container_width=True, on_click=set_acao_ped, args=("RG E CERTIDÃO",))
-
-    with linha2[0]:
-        st.button("Problemas", use_container_width=True, on_click=set_acao_ped, args=("Problemas",))
-    with linha2[1]:
-        st.button("Aprovação", use_container_width=True, on_click=set_acao_ped, args=("Aprovação",))
-    with linha2[2]:
-        st.button("Imprimir Pedigree", use_container_width=True, on_click=set_acao_ped, args=("Imprimir Pedigree",))
-    with linha2[3]:
-        st.button("Imprimir RG e CERTIDÃO", use_container_width=True, on_click=set_acao_ped, args=("Imprimir RG e CERTIDÃO",))
-
-    with linha3[0]:
-        st.button("Imprimir etiqueta", use_container_width=True, on_click=set_acao_ped, args=("Imprimir etiqueta",))
-    with linha3[1]:
-        st.button("Airtag", use_container_width=True, on_click=set_acao_ped, args=("Airtag",))
-    with linha3[2]:
-        st.button("Enviar", use_container_width=True, on_click=set_acao_ped, args=("Enviar",))
-    with linha3[3]:
-        st.button("Enviado Cliente", use_container_width=True, on_click=set_acao_ped, args=("Enviado Cliente",))
-
-    if st.session_state.acao_ped:
-        acao_atual = st.session_state.acao_ped
-
-        st.markdown(
-            f"""
-            <div class="ped-action-card">
-                <div class="ped-action-title">{html.escape(acao_atual)}</div>
-                <div class="ped-action-sub">
-                    Área aberta dentro da própria página Pedigree.
-                </div>
-            </div>
-            """,
-            unsafe_allow_html=True,
-        )
-
-        if acao_atual == "Novo":
-            st.markdown("### Formulário Pedigree")
-
-            with st.form("formulario_pedigree_novo"):
-                st.markdown("#### Informações Tutor")
-
-                col1, col2 = st.columns(2)
-
-                with col1:
-                    tutor_nome = st.text_input("Nome do tutor")
-                    tutor_telefone = st.text_input("Telefone")
-                    tutor_cpf = st.text_input("CPF")
-                    tutor_email = st.text_input("E-mail")
-                    tutor_endereco = st.text_input("Endereço completo")
-
-                with col2:
-                    status_cliente = st.selectbox("Status do Pedigree", status_opcoes)
-                    transferencia = st.radio("Houve pedido de transferência?", ["Sim", "Não"], horizontal=True)
-                    observacoes_status = st.text_area("Observações do status")
-
-                st.markdown("#### Informações Cão")
-
-                col3, col4 = st.columns(2)
-
-                with col3:
-                    cao_nome = st.text_input("Nome do cão")
-                    nascimento = st.date_input("Data de nascimento")
-                    pelagem = st.text_input("Pelagem")
-                    raca = st.text_input("Raça do pet")
-                    sexo = st.selectbox("Sexo", ["", "MACHO", "FÊMEA"])
-                    cor = st.text_input("Cor")
-                    microchip = st.text_input("Microchip")
-
-                with col4:
-                    foto_pet = st.file_uploader("Foto do pet", type=["png", "jpg", "jpeg"])
-                    if foto_pet:
-                        st.image(foto_pet, caption="Foto do pet", width=220)
-
-                observacoes = st.text_area("Observações gerais")
-
-                salvar = st.form_submit_button("Executar tudo")
-
-                if salvar:
-                    hoje = dt.date.today()
-
-                    dados_formulario = {
-                        "Nome": tutor_nome,
-                        "Telefone": tutor_telefone,
-                        "CPF": tutor_cpf,
-                        "E-mail": tutor_email,
-                        "Mês": hoje.strftime("%m/%Y"),
-                        "Raça": raca,
-                        "Sexo": sexo,
-                        "Cor": cor,
-                        "Endereço completo": tutor_endereco,
-                        "Status Pedigree": status_cliente,
-                        "Transferência": transferencia,
-                        "Observações Status": observacoes_status,
-                        "Nome Cachorro": cao_nome,
-                        "Data Nascimento": nascimento.strftime("%d/%m/%Y"),
-                        "Pelagem": pelagem,
-                        "Microchip": microchip,
-                        "Observações gerais": observacoes,
-                    }
-
-                    try:
-                        salvar_formulario_pedigree(dados_formulario)
-                        st.session_state["novo_pedigree_form"] = dados_formulario
-                        st.success("Formulário salvo/atualizado na planilha com sucesso.")
-                        st.rerun()
-                    except Exception as e:
-                        st.error(f"Erro ao salvar na planilha: {e}")
-
-        else:
-            df_acao = df_ped[df_ped["ACAO"] == acao_atual].copy()
-            total_acao = len(df_acao)
-
-            st.markdown(
-                f"""
-                <div class="ped-count-card">
-                    📂 {total_acao} formulário(s) em {html.escape(acao_atual)}
-                </div>
-                """,
-                unsafe_allow_html=True,
-            )
-
-            if total_acao > 0:
-                opcoes_clientes = []
-
-                for _, row in df_acao.iterrows():
-                    nome_row = normalize_text(row.get("Nome", ""))
-                    tel_row = format_phone_br(row.get("Telefone", ""))
-                    row_number = int(row.get("__row_number", 0))
-
-                    if nome_row:
-                        label = f"{nome_row} — {tel_row}"
-                    else:
-                        label = f"Sem nome — linha {row_number}"
-
-                    opcoes_clientes.append((label, row_number))
-
-                labels = [x[0] for x in opcoes_clientes]
-
-                nome_escolhido = st.selectbox(
-                    "Clique e selecione um nome para abrir a ficha",
-                    labels,
-                    key=f"select_{acao_atual}",
-                )
-
-                row_escolhida = dict(opcoes_clientes)[nome_escolhido]
-                cliente = df_acao[df_acao["__row_number"] == row_escolhida].iloc[0]
-
-                render_cliente_card(cliente, status_opcoes)
-            else:
-                st.info("Nenhum formulário nesta ação no momento.")
-
-    st.markdown("<br><br>", unsafe_allow_html=True)
-
-    df_ped_mes = df_ped[df_ped["_mes_key"] == selected_ped_month].copy() if "_mes_key" in df_ped.columns else pd.DataFrame()
-    df_caes_mes = df[df["_mes_key"] == selected_ped_month].copy() if not df.empty and "_mes_key" in df.columns else pd.DataFrame()
-
-    if not df_ped_mes.empty and "Status Pedigree" in df_ped_mes.columns:
-        total_pedigrees_vendidos = int(
-            df_ped_mes["Status Pedigree"].apply(is_status_pedigree_vendido).sum()
-        )
-    else:
-        total_pedigrees_vendidos = 0
-
-    if not df_caes_mes.empty and COL_NOME and COL_NOME in df_caes_mes.columns:
-        total_caes_vendidos = int(
-            (df_caes_mes[COL_NOME].astype(str).str.strip() != "").sum()
-        )
-    else:
-        total_caes_vendidos = 0
-
-    total_col1, total_col2 = st.columns(2)
-
-    with total_col1:
-        card_metric_big(
-            "Total de Pedigrees",
-            f"{total_pedigrees_vendidos}",
-            f"vendidos em {month_key_to_label(selected_ped_month)}",
-            "⚖️",
-            "#8E0E3F",
-        )
-
-    with total_col2:
-        card_metric_big(
-            "Cães vendidos",
-            f"{total_caes_vendidos}",
-            f"no mês de {month_key_to_label(selected_ped_month)}",
-            "🐶",
-            "#071B49",
-        )
-
-
-elif page == "Comissão":
-    render_placeholder_page("Comissão", "Aqui ficará a página exclusiva de Comissão.")
