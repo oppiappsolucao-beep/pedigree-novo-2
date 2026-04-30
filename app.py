@@ -21,7 +21,6 @@ st.set_page_config(
 )
 
 CACHE_TTL_SECONDS = 60
-
 SHEET_ID = "1Q0mLvOBxEGCojUITBLxCXRtpXVMAHE3ngvGsa2Cgf9Q"
 
 MAIN_WORKSHEET_NAME = "Clear"
@@ -239,6 +238,11 @@ def count_filled_matching_columns(df_month: pd.DataFrame, target: str) -> int:
         final_mask = final_mask | m
 
     return int(final_mask.sum())
+
+
+def is_status_pedigree_vendido(v) -> bool:
+    status = normalize_search_text(v)
+    return status.startswith("postado/enviado")
 
 
 def ensure_columns(worksheet, required_cols):
@@ -1164,6 +1168,7 @@ elif page == "Pedigree":
         "Imprimir RG + Certidão",
         "Airtag",
         "Envio Correio",
+        "Postado/Enviado Correio",
         "Postado/Enviado Corr",
         "Postado/ enviado loja",
         "Pendência Cliente",
@@ -1181,6 +1186,7 @@ elif page == "Pedigree":
         "Imprimir RG + Certidão": "Imprimir RG e CERTIDÃO",
         "Airtag": "Airtag",
         "Envio Correio": "Enviar",
+        "Postado/Enviado Correio": "Enviado Cliente",
         "Postado/Enviado Corr": "Enviado Cliente",
         "Postado/ enviado loja": "Enviado Cliente",
         "Pendência Cliente": "Problemas",
@@ -1480,9 +1486,9 @@ elif page == "Pedigree":
     df_ped_mes = df_ped[df_ped["_mes_key"] == selected_ped_month].copy() if "_mes_key" in df_ped.columns else pd.DataFrame()
     df_caes_mes = df[df["_mes_key"] == selected_ped_month].copy() if not df.empty and "_mes_key" in df.columns else pd.DataFrame()
 
-    if not df_ped_mes.empty and "Nome" in df_ped_mes.columns:
+    if not df_ped_mes.empty and "Status Pedigree" in df_ped_mes.columns:
         total_pedigrees_vendidos = int(
-            (df_ped_mes["Nome"].astype(str).str.strip() != "").sum()
+            df_ped_mes["Status Pedigree"].apply(is_status_pedigree_vendido).sum()
         )
     else:
         total_pedigrees_vendidos = 0
