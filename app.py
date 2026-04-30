@@ -1356,6 +1356,26 @@ elif page == "Pedigree":
             else:
                 st.info("Nenhum formulário nesta ação no momento.")
 
+    st.markdown("<br><br>", unsafe_allow_html=True)
+
+    if not df_ped.empty and "Nome" in df_ped.columns:
+        total_pedigrees_vendidos = int(
+            (df_ped["Nome"].astype(str).str.strip() != "").sum()
+        )
+    else:
+        total_pedigrees_vendidos = 0
+
+    total_col1, total_col2, total_col3, total_col4 = st.columns(4)
+
+    with total_col1:
+        card_metric(
+            "Total de Pedigrees",
+            f"{total_pedigrees_vendidos}",
+            "vendidos",
+            "⚖️",
+            "#8E0E3F",
+        )
+
 
 elif page == "Comissão":
     render_placeholder_page("Comissão", "Aqui ficará a página exclusiva de Comissão.")
