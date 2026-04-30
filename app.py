@@ -13,9 +13,6 @@ import gspread
 from google.oauth2.service_account import Credentials
 
 
-# =========================================================
-# CONFIG
-# =========================================================
 st.set_page_config(
     page_title="Dashboard Vendas Clear",
     page_icon="📋",
@@ -36,9 +33,6 @@ SCOPES = [
 ]
 
 
-# =========================================================
-# GOOGLE SHEETS
-# =========================================================
 @st.cache_resource
 def get_gsheet_client():
     creds = Credentials.from_service_account_info(
@@ -72,9 +66,6 @@ def load_pedigree_data() -> pd.DataFrame:
     return df
 
 
-# =========================================================
-# HELPERS
-# =========================================================
 def image_to_base64(path: str) -> str:
     file_path = Path(path)
     if not file_path.exists():
@@ -321,6 +312,22 @@ def salvar_formulario_pedigree(dados):
     st.cache_data.clear()
 
 
+def atualizar_status_pedigree(row_number: int, novo_status: str):
+    worksheet = get_worksheet(PED_WORKSHEET_NAME)
+
+    headers = worksheet.row_values(1)
+
+    if "Status Pedigree" not in headers:
+        headers.append("Status Pedigree")
+        worksheet.update("A1", [headers])
+
+    headers = worksheet.row_values(1)
+    col_number = headers.index("Status Pedigree") + 1
+
+    worksheet.update_cell(row_number, col_number, novo_status)
+    st.cache_data.clear()
+
+
 def card_metric(title: str, value: str, subtitle: str, emoji: str, color: str):
     st.markdown(
         f"""
@@ -492,13 +499,15 @@ def render_realtime_table(df_table: pd.DataFrame, cols_to_show: list[str]):
     components.html(table_html, height=590, scrolling=True)
 
 
-def render_cliente_card(cliente: pd.Series):
+def render_cliente_card(cliente: pd.Series, status_opcoes: list):
+    row_number = int(cliente.get("__row_number", 0))
+
     nome = normalize_text(cliente.get("Nome", ""))
     telefone = format_phone_br(cliente.get("Telefone", ""))
     cpf = normalize_text(cliente.get("CPF", ""))
     email = normalize_text(cliente.get("E-mail", ""))
     endereco = normalize_text(cliente.get("Endereço completo", ""))
-    status = normalize_text(cliente.get("Status Pedigree", ""))
+    status_atual = normalize_text(cliente.get("Status Pedigree", ""))
     transferencia = normalize_text(cliente.get("Transferência", ""))
     obs_status = normalize_text(cliente.get("Observações Status", ""))
     cao = normalize_text(cliente.get("Nome Cachorro", ""))
@@ -520,6 +529,31 @@ def render_cliente_card(cliente: pd.Series):
         unsafe_allow_html=True,
     )
 
+    if status_atual in status_opcoes:
+        status_index = status_opcoes.index(status_atual)
+    else:
+        status_index = 0
+
+    col_status_1, col_status_2 = st.columns([3, 1])
+
+    with col_status_1:
+        novo_status = st.selectbox(
+            "Status do Pedigree",
+            status_opcoes,
+            index=status_index,
+            key=f"status_pedigree_{row_number}",
+        )
+
+    with col_status_2:
+        st.markdown("<br>", unsafe_allow_html=True)
+        if st.button("Atualizar status", use_container_width=True, key=f"btn_status_{row_number}"):
+            try:
+                atualizar_status_pedigree(row_number, novo_status)
+                st.success("Status atualizado com sucesso.")
+                st.rerun()
+            except Exception as e:
+                st.error(f"Erro ao atualizar status: {e}")
+
     c1, c2 = st.columns(2)
 
     with c1:
@@ -529,7 +563,7 @@ def render_cliente_card(cliente: pd.Series):
         st.write("**CPF:**", cpf)
         st.write("**E-mail:**", email)
         st.write("**Endereço:**", endereco)
-        st.write("**Status Pedigree:**", status)
+        st.write("**Status Pedigree:**", status_atual)
         st.write("**Transferência:**", transferencia)
         st.write("**Observações Status:**", obs_status)
 
@@ -545,9 +579,6 @@ def render_cliente_card(cliente: pd.Series):
         st.write("**Observações gerais:**", obs)
 
 
-# =========================================================
-# CSS
-# =========================================================
 st.markdown(
     """
 <style>
@@ -864,9 +895,6 @@ st.markdown(
 )
 
 
-# =========================================================
-# SIDEBAR
-# =========================================================
 with st.sidebar:
     logo_b64 = image_to_base64("campmotors.png")
 
@@ -901,9 +929,6 @@ with st.sidebar:
         )
 
 
-# =========================================================
-# DADOS PRINCIPAIS
-# =========================================================
 df = load_main_data().copy()
 
 COL_NOME = "Nome" if "Nome" in df.columns else detect_col(df, [["nome"]])
@@ -940,9 +965,6 @@ else:
     all_months = [default_month]
 
 
-# =========================================================
-# VISÃO GERAL
-# =========================================================
 if page == "Visão Geral":
     header_left, header_right = st.columns([3.2, 1.2])
 
@@ -1045,15 +1067,29 @@ if page == "Visão Geral":
         render_realtime_table(filtered_df, cols_until_whatsapp)
 
 
-# =========================================================
-# PEDIGREE
-# =========================================================
 elif page == "Pedigree":
     st.markdown('<div class="page-title">Pedigree</div>', unsafe_allow_html=True)
     st.markdown(
         '<div class="page-subtitle">Consulta completa de clientes para análise de Pedigree.</div>',
         unsafe_allow_html=True,
     )
+
+    status_opcoes = [
+        "Pendências / Problemas",
+        "Fazer Pedigree venda",
+        "Fazer Pedigree s/ trans",
+        "Fazer RG/Certidão",
+        "Aprovação Cliente",
+        "Para Imprimir Pedigree",
+        "Imprimir Etiqueta",
+        "Imprimir RG + Certidão",
+        "Airtag",
+        "Envio Correio",
+        "Postado/Enviado Corr",
+        "Postado/ enviado loja",
+        "Pendência Cliente",
+        "Sem Matriz",
+    ]
 
     MAP_STATUS_ACAO = {
         "Fazer Pedigree venda": "Transferência",
@@ -1072,21 +1108,6 @@ elif page == "Pedigree":
         "Sem Matriz": "Problemas",
     }
 
-    ACOES = [
-        "Novo",
-        "Transferência",
-        "Sem transferência",
-        "RG E CERTIDÃO",
-        "Problemas",
-        "Aprovação",
-        "Imprimir Pedigree",
-        "Imprimir RG e CERTIDÃO",
-        "Imprimir etiqueta",
-        "Airtag",
-        "Enviar",
-        "Enviado Cliente",
-    ]
-
     busca_ped = st.text_input(
         "Buscar cliente no Pedigree",
         placeholder="Cole o telefone copiado da Visão Geral ou busque por nome, código, status, raça...",
@@ -1095,17 +1116,25 @@ elif page == "Pedigree":
     df_ped = load_pedigree_data().copy()
 
     if not df_ped.empty:
+        df_ped["__row_number"] = df_ped.index + 2
+
         for col in [
             "Nome",
             "Telefone",
             "CPF",
             "E-mail",
+            "Endereço completo",
             "Status Pedigree",
+            "Transferência",
+            "Observações Status",
             "Nome Cachorro",
+            "Data Nascimento",
+            "Pelagem",
             "Raça",
             "Sexo",
             "Cor",
             "Microchip",
+            "Observações gerais",
         ]:
             if col not in df_ped.columns:
                 df_ped[col] = ""
@@ -1127,7 +1156,7 @@ elif page == "Pedigree":
             "Status Pedigree", "Transferência", "Observações Status",
             "Nome Cachorro", "Data Nascimento", "Pelagem", "Raça",
             "Sexo", "Cor", "Microchip", "Observações gerais",
-            "_search_all", "_tel_digits_ped", "ACAO"
+            "__row_number", "_search_all", "_tel_digits_ped", "ACAO"
         ])
 
     if busca_ped.strip():
@@ -1154,7 +1183,7 @@ elif page == "Pedigree":
         if not df_busca.empty:
             cols_ped = [
                 c for c in df_busca.columns
-                if not str(c).startswith("_") and c != "ACAO"
+                if not str(c).startswith("_") and c not in ["ACAO", "__row_number"]
             ]
             render_realtime_table(df_busca, cols_ped)
         else:
@@ -1216,23 +1245,6 @@ elif page == "Pedigree":
 
         if acao_atual == "Novo":
             st.markdown("### Formulário Pedigree")
-
-            status_opcoes = [
-                "Pendências / Problemas",
-                "Fazer Pedigree venda",
-                "Fazer Pedigree s/ trans",
-                "Fazer RG/Certidão",
-                "Aprovação Cliente",
-                "Para Imprimir Pedigree",
-                "Imprimir Etiqueta",
-                "Imprimir RG + Certidão",
-                "Airtag",
-                "Envio Correio",
-                "Postado/Enviado Corr",
-                "Postado/ enviado loja",
-                "Pendência Cliente",
-                "Sem Matriz",
-            ]
 
             with st.form("formulario_pedigree_novo"):
                 st.markdown("#### Informações Tutor")
@@ -1297,6 +1309,7 @@ elif page == "Pedigree":
                         salvar_formulario_pedigree(dados_formulario)
                         st.session_state["novo_pedigree_form"] = dados_formulario
                         st.success("Formulário salvo/atualizado na planilha com sucesso.")
+                        st.rerun()
                     except Exception as e:
                         st.error(f"Erro ao salvar na planilha: {e}")
 
@@ -1314,19 +1327,32 @@ elif page == "Pedigree":
             )
 
             if total_acao > 0:
-                nomes = df_acao["Nome"].fillna("").astype(str).tolist()
-                nomes = [n if n.strip() else "Sem nome" for n in nomes]
+                opcoes_clientes = []
+
+                for _, row in df_acao.iterrows():
+                    nome_row = normalize_text(row.get("Nome", ""))
+                    tel_row = format_phone_br(row.get("Telefone", ""))
+                    row_number = int(row.get("__row_number", 0))
+
+                    if nome_row:
+                        label = f"{nome_row} — {tel_row}"
+                    else:
+                        label = f"Sem nome — linha {row_number}"
+
+                    opcoes_clientes.append((label, row_number))
+
+                labels = [x[0] for x in opcoes_clientes]
 
                 nome_escolhido = st.selectbox(
                     "Clique e selecione um nome para abrir a ficha",
-                    nomes,
+                    labels,
                     key=f"select_{acao_atual}",
                 )
 
-                idx_nome = nomes.index(nome_escolhido)
-                cliente = df_acao.iloc[idx_nome]
+                row_escolhida = dict(opcoes_clientes)[nome_escolhido]
+                cliente = df_acao[df_acao["__row_number"] == row_escolhida].iloc[0]
 
-                render_cliente_card(cliente)
+                render_cliente_card(cliente, status_opcoes)
             else:
                 st.info("Nenhum formulário nesta ação no momento.")
 
