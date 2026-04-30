@@ -120,7 +120,7 @@ def parse_date_any(v) -> Optional[dt.date]:
     if not s:
         return None
 
-    for fmt in ["%d/%m/%Y", "%d-%m-%Y", "%Y-%m-%d", "%d/%m/%y", "%d-%m-%y"]:
+    for fmt in ["%d/%m/%Y", "%d-%m-%Y", "%Y-%m-%d", "%Y/%m/%d", "%d/%m/%y", "%d-%m-%y"]:
         try:
             return dt.datetime.strptime(s, fmt).date()
         except Exception:
@@ -290,6 +290,8 @@ def salvar_formulario_pedigree(dados):
         "Cor",
         "Microchip",
         "Observações gerais",
+        "Data Compra",
+        "Mês",
     ]
 
     headers = ensure_columns(worksheet, required_cols)
@@ -338,6 +340,24 @@ def card_metric(title: str, value: str, subtitle: str, emoji: str, color: str):
                     <div class="metric-label">{title}</div>
                     <div class="metric-value">{value}</div>
                     <div class="metric-sub">{subtitle}</div>
+                </div>
+            </div>
+        </div>
+        """,
+        unsafe_allow_html=True,
+    )
+
+
+def card_metric_big(title: str, value: str, subtitle: str, emoji: str, color: str):
+    st.markdown(
+        f"""
+        <div class="metric-card-big">
+            <div class="metric-wrap-big">
+                <div class="metric-icon-big" style="background:{color};">{emoji}</div>
+                <div>
+                    <div class="metric-label-big">{title}</div>
+                    <div class="metric-value-big">{value}</div>
+                    <div class="metric-sub-big">{subtitle}</div>
                 </div>
             </div>
         </div>
@@ -771,6 +791,56 @@ st.markdown(
         margin-top: 0.15rem;
     }
 
+    .metric-card-big {
+        background: var(--card);
+        border: 1px solid var(--line);
+        border-radius: 24px;
+        padding: 1.4rem 1.6rem;
+        box-shadow: 0 12px 32px rgba(15, 23, 42, 0.06);
+        min-height: 165px;
+        display: flex;
+        align-items: center;
+    }
+
+    .metric-wrap-big {
+        display: flex;
+        gap: 20px;
+        align-items: center;
+    }
+
+    .metric-icon-big {
+        width: 72px;
+        height: 72px;
+        min-width: 72px;
+        border-radius: 22px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        color: white;
+        font-size: 31px;
+        font-weight: 900;
+    }
+
+    .metric-label-big {
+        color: #55627A;
+        font-size: 1.08rem;
+        font-weight: 700;
+        margin-bottom: 0.1rem;
+    }
+
+    .metric-value-big {
+        color: var(--text);
+        font-size: 2.55rem;
+        font-weight: 900;
+        line-height: 1.02;
+    }
+
+    .metric-sub-big {
+        color: var(--muted);
+        font-size: 1rem;
+        margin-top: 0.2rem;
+    }
+
     .live-card {
         background: var(--card);
         border: 1px solid var(--line);
@@ -957,10 +1027,19 @@ if not df.empty:
 else:
     all_months = []
 
+today = dt.date.today()
+future_months = []
+for i in range(0, 12):
+    month = today.month + i
+    year = today.year + (month - 1) // 12
+    month = ((month - 1) % 12) + 1
+    future_months.append((year, month))
+
+all_months = sorted(list(set(all_months + future_months)), key=lambda x: (x[0], x[1]))
+
 if all_months:
-    default_month = all_months[-1]
+    default_month = (today.year, today.month) if (today.year, today.month) in all_months else all_months[-1]
 else:
-    today = dt.date.today()
     default_month = (today.year, today.month)
     all_months = [default_month]
 
@@ -1108,11 +1187,6 @@ elif page == "Pedigree":
         "Sem Matriz": "Problemas",
     }
 
-    busca_ped = st.text_input(
-        "Buscar cliente no Pedigree",
-        placeholder="Cole o telefone copiado da Visão Geral ou busque por nome, código, status, raça...",
-    )
-
     df_ped = load_pedigree_data().copy()
 
     if not df_ped.empty:
@@ -1135,9 +1209,15 @@ elif page == "Pedigree":
             "Cor",
             "Microchip",
             "Observações gerais",
+            "Data Compra",
+            "Mês",
         ]:
             if col not in df_ped.columns:
                 df_ped[col] = ""
+
+        ped_col_data = "Data Compra" if "Data Compra" in df_ped.columns else None
+        ped_col_mes = "Mês" if "Mês" in df_ped.columns else None
+        df_ped["_mes_key"] = df_ped.apply(lambda row: build_month_key(row, ped_col_mes, ped_col_data), axis=1)
 
         def normalize_full_row(row):
             values = []
@@ -1156,8 +1236,43 @@ elif page == "Pedigree":
             "Status Pedigree", "Transferência", "Observações Status",
             "Nome Cachorro", "Data Nascimento", "Pelagem", "Raça",
             "Sexo", "Cor", "Microchip", "Observações gerais",
-            "__row_number", "_search_all", "_tel_digits_ped", "ACAO"
+            "Data Compra", "Mês", "__row_number", "_search_all",
+            "_tel_digits_ped", "ACAO", "_mes_key"
         ])
+
+    ped_months_from_sheet = []
+    if not df_ped.empty and "_mes_key" in df_ped.columns:
+        ped_months_from_sheet = [m for m in df_ped["_mes_key"].dropna().unique().tolist()]
+
+    main_months_from_sheet = []
+    if not df.empty and "_mes_key" in df.columns:
+        main_months_from_sheet = [m for m in df["_mes_key"].dropna().unique().tolist()]
+
+    ped_month_options = sorted(
+        list(set(ped_months_from_sheet + main_months_from_sheet + future_months)),
+        key=lambda x: (x[0], x[1]),
+    )
+
+    if not ped_month_options:
+        ped_month_options = [(today.year, today.month)]
+
+    default_ped_month = (today.year, today.month) if (today.year, today.month) in ped_month_options else ped_month_options[-1]
+
+    filtro_mes_col, vazio_col = st.columns([1.2, 2.8])
+
+    with filtro_mes_col:
+        selected_ped_month = st.selectbox(
+            "Mês de referência",
+            options=ped_month_options,
+            index=ped_month_options.index(default_ped_month) if default_ped_month in ped_month_options else 0,
+            format_func=month_key_to_label,
+            key="mes_referencia_pedigree",
+        )
+
+    busca_ped = st.text_input(
+        "Buscar cliente no Pedigree",
+        placeholder="Cole o telefone copiado da Visão Geral ou busque por nome, código, status, raça...",
+    )
 
     if busca_ped.strip():
         q = normalize_search_text(busca_ped)
@@ -1286,6 +1401,8 @@ elif page == "Pedigree":
                 salvar = st.form_submit_button("Executar tudo")
 
                 if salvar:
+                    hoje = dt.date.today()
+
                     dados_formulario = {
                         "Nome": tutor_nome,
                         "Telefone": tutor_telefone,
@@ -1303,6 +1420,8 @@ elif page == "Pedigree":
                         "Cor": cor,
                         "Microchip": microchip,
                         "Observações gerais": observacoes,
+                        "Data Compra": hoje.strftime("%d/%m/%Y"),
+                        "Mês": hoje.strftime("%m/%Y"),
                     }
 
                     try:
@@ -1358,22 +1477,41 @@ elif page == "Pedigree":
 
     st.markdown("<br><br>", unsafe_allow_html=True)
 
-    if not df_ped.empty and "Nome" in df_ped.columns:
+    df_ped_mes = df_ped[df_ped["_mes_key"] == selected_ped_month].copy() if "_mes_key" in df_ped.columns else pd.DataFrame()
+    df_caes_mes = df[df["_mes_key"] == selected_ped_month].copy() if not df.empty and "_mes_key" in df.columns else pd.DataFrame()
+
+    if not df_ped_mes.empty and "Nome" in df_ped_mes.columns:
         total_pedigrees_vendidos = int(
-            (df_ped["Nome"].astype(str).str.strip() != "").sum()
+            (df_ped_mes["Nome"].astype(str).str.strip() != "").sum()
         )
     else:
         total_pedigrees_vendidos = 0
 
-    total_col1, total_col2, total_col3, total_col4 = st.columns(4)
+    if not df_caes_mes.empty and COL_NOME and COL_NOME in df_caes_mes.columns:
+        total_caes_vendidos = int(
+            (df_caes_mes[COL_NOME].astype(str).str.strip() != "").sum()
+        )
+    else:
+        total_caes_vendidos = 0
+
+    total_col1, total_col2 = st.columns(2)
 
     with total_col1:
-        card_metric(
+        card_metric_big(
             "Total de Pedigrees",
             f"{total_pedigrees_vendidos}",
-            "vendidos",
+            f"vendidos em {month_key_to_label(selected_ped_month)}",
             "⚖️",
             "#8E0E3F",
+        )
+
+    with total_col2:
+        card_metric_big(
+            "Cães vendidos",
+            f"{total_caes_vendidos}",
+            f"no mês de {month_key_to_label(selected_ped_month)}",
+            "🐶",
+            "#071B49",
         )
 
 
