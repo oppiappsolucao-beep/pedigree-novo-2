@@ -155,18 +155,19 @@ def month_key_to_label(ym: Tuple[int, int]) -> str:
 def detect_col(df: pd.DataFrame, keywords: List[List[str]]) -> Optional[str]:
     for col in df.columns:
         lc = str(col).strip().lower()
+        lc_norm = normalize_search_text(lc)
         for group in keywords:
-            if all(k in lc for k in group):
+            if all(normalize_search_text(k) in lc_norm for k in group):
                 return col
     return None
 
 
-def build_month_key(row, col_mes, col_data) -> Optional[Tuple[int, int]]:
-    raw_mes = normalize_text(row[col_mes]) if col_mes and col_mes in row else ""
-    raw_data = normalize_text(row[col_data]) if col_data and col_data in row else ""
+def build_month_key_from_values(raw_mes="", raw_data="") -> Optional[Tuple[int, int]]:
+    raw_mes = normalize_text(raw_mes)
+    raw_data = normalize_text(raw_data)
 
     if raw_mes:
-        s = raw_mes.lower()
+        s = normalize_search_text(raw_mes)
 
         m1 = re.search(r"(\d{1,2})/(20\d{2})", s)
         if m1:
@@ -185,8 +186,8 @@ def build_month_key(row, col_mes, col_data) -> Optional[Tuple[int, int]]:
         nomes = {
             "janeiro": 1,
             "fevereiro": 2,
-            "março": 3,
             "marco": 3,
+            "março": 3,
             "abril": 4,
             "maio": 5,
             "junho": 6,
@@ -199,7 +200,7 @@ def build_month_key(row, col_mes, col_data) -> Optional[Tuple[int, int]]:
         }
 
         for nome, num in nomes.items():
-            if nome in s:
+            if normalize_search_text(nome) in s:
                 ano_match = re.search(r"(20\d{2})", s)
                 ano = int(ano_match.group(1)) if ano_match else dt.date.today().year
                 return ano, num
@@ -209,6 +210,12 @@ def build_month_key(row, col_mes, col_data) -> Optional[Tuple[int, int]]:
         return d.year, d.month
 
     return None
+
+
+def build_month_key(row, col_mes, col_data) -> Optional[Tuple[int, int]]:
+    raw_mes = row[col_mes] if col_mes and col_mes in row else ""
+    raw_data = row[col_data] if col_data and col_data in row else ""
+    return build_month_key_from_values(raw_mes, raw_data)
 
 
 def normalize_header_name(s: str) -> str:
@@ -282,6 +289,10 @@ def salvar_formulario_pedigree(dados):
         "Telefone",
         "CPF",
         "E-mail",
+        "Mês",
+        "Raça",
+        "Sexo",
+        "Cor",
         "Endereço completo",
         "Status Pedigree",
         "Transferência",
@@ -289,13 +300,8 @@ def salvar_formulario_pedigree(dados):
         "Nome Cachorro",
         "Data Nascimento",
         "Pelagem",
-        "Raça",
-        "Sexo",
-        "Cor",
         "Microchip",
         "Observações gerais",
-        "Data Compra",
-        "Mês",
     ]
 
     headers = ensure_columns(worksheet, required_cols)
@@ -1203,6 +1209,10 @@ elif page == "Pedigree":
             "Telefone",
             "CPF",
             "E-mail",
+            "Mês",
+            "Raça",
+            "Sexo",
+            "Cor",
             "Endereço completo",
             "Status Pedigree",
             "Transferência",
@@ -1210,20 +1220,19 @@ elif page == "Pedigree":
             "Nome Cachorro",
             "Data Nascimento",
             "Pelagem",
-            "Raça",
-            "Sexo",
-            "Cor",
             "Microchip",
             "Observações gerais",
-            "Data Compra",
-            "Mês",
         ]:
             if col not in df_ped.columns:
                 df_ped[col] = ""
 
-        ped_col_data = "Data Compra" if "Data Compra" in df_ped.columns else None
-        ped_col_mes = "Mês" if "Mês" in df_ped.columns else None
-        df_ped["_mes_key"] = df_ped.apply(lambda row: build_month_key(row, ped_col_mes, ped_col_data), axis=1)
+        ped_col_mes = "Mês" if "Mês" in df_ped.columns else detect_col(df_ped, [["mês"], ["mes"]])
+        ped_col_data = detect_col(df_ped, [["data", "compra"], ["data"]])
+
+        df_ped["_mes_key"] = df_ped.apply(
+            lambda row: build_month_key(row, ped_col_mes, ped_col_data),
+            axis=1
+        )
 
         def normalize_full_row(row):
             values = []
@@ -1238,11 +1247,10 @@ elif page == "Pedigree":
         df_ped["ACAO"] = df_ped["Status Pedigree"].map(MAP_STATUS_ACAO).fillna("")
     else:
         df_ped = pd.DataFrame(columns=[
-            "Nome", "Telefone", "CPF", "E-mail", "Endereço completo",
-            "Status Pedigree", "Transferência", "Observações Status",
-            "Nome Cachorro", "Data Nascimento", "Pelagem", "Raça",
-            "Sexo", "Cor", "Microchip", "Observações gerais",
-            "Data Compra", "Mês", "__row_number", "_search_all",
+            "Nome", "Telefone", "CPF", "E-mail", "Mês", "Raça", "Sexo", "Cor",
+            "Endereço completo", "Status Pedigree", "Transferência", "Observações Status",
+            "Nome Cachorro", "Data Nascimento", "Pelagem", "Microchip",
+            "Observações gerais", "__row_number", "_search_all",
             "_tel_digits_ped", "ACAO", "_mes_key"
         ])
 
@@ -1414,6 +1422,10 @@ elif page == "Pedigree":
                         "Telefone": tutor_telefone,
                         "CPF": tutor_cpf,
                         "E-mail": tutor_email,
+                        "Mês": hoje.strftime("%m/%Y"),
+                        "Raça": raca,
+                        "Sexo": sexo,
+                        "Cor": cor,
                         "Endereço completo": tutor_endereco,
                         "Status Pedigree": status_cliente,
                         "Transferência": transferencia,
@@ -1421,13 +1433,8 @@ elif page == "Pedigree":
                         "Nome Cachorro": cao_nome,
                         "Data Nascimento": nascimento.strftime("%d/%m/%Y"),
                         "Pelagem": pelagem,
-                        "Raça": raca,
-                        "Sexo": sexo,
-                        "Cor": cor,
                         "Microchip": microchip,
                         "Observações gerais": observacoes,
-                        "Data Compra": hoje.strftime("%d/%m/%Y"),
-                        "Mês": hoje.strftime("%m/%Y"),
                     }
 
                     try:
