@@ -376,5 +376,6 @@ elif page == "Comissão":
                 render_realtime_table(df_com_filtrado, cols_show, height=430)
             else:
                 st.info("Nenhuma venda encontrada com os filtros selecionados.")
+
     else:
         st.warning("A aba Pedigree Comissão Ju está vazia ou não foi encontrada.")
