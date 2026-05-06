@@ -14,6 +14,9 @@ import gspread
 from google.oauth2.service_account import Credentials
 
 
+# =========================================================
+# CONFIG
+# =========================================================
 st.set_page_config(
     page_title="Dashboard Vendas Clear",
     page_icon="📋",
@@ -26,6 +29,7 @@ SHEET_ID = "1Q0mLvOBxEGCojUITBLxCXRtpXVMAHE3ngvGsa2Cgf9Q"
 
 MAIN_WORKSHEET_NAME = "Clear"
 PED_WORKSHEET_NAME = "Planilha Dash Valéria sem mayra"
+COMM_WORKSHEET_NAME = "Pedigree Comissão Ju"
 
 SCOPES = [
     "https://www.googleapis.com/auth/spreadsheets",
@@ -33,6 +37,9 @@ SCOPES = [
 ]
 
 
+# =========================================================
+# GOOGLE SHEETS
+# =========================================================
 @st.cache_resource
 def get_gsheet_client():
     creds = Credentials.from_service_account_info(
@@ -66,6 +73,18 @@ def load_pedigree_data() -> pd.DataFrame:
     return df
 
 
+@st.cache_data(show_spinner=False, ttl=CACHE_TTL_SECONDS)
+def load_commission_data() -> pd.DataFrame:
+    worksheet = get_worksheet(COMM_WORKSHEET_NAME)
+    records = worksheet.get_all_records()
+    df = pd.DataFrame(records)
+    df.columns = [str(c).strip() for c in df.columns]
+    return df
+
+
+# =========================================================
+# HELPERS
+# =========================================================
 def image_to_base64(path: str) -> str:
     file_path = Path(path)
     if not file_path.exists():
@@ -112,6 +131,36 @@ def format_phone_br(v) -> str:
     return digits
 
 
+def parse_money(v) -> float:
+    if pd.isna(v):
+        return 0.0
+
+    s = str(v).strip()
+    if not s:
+        return 0.0
+
+    s = s.replace("R$", "").replace(" ", "")
+
+    if "," in s:
+        s = s.replace(".", "").replace(",", ".")
+    else:
+        s = s.replace(",", "")
+
+    try:
+        return float(s)
+    except Exception:
+        return 0.0
+
+
+def format_money(v) -> str:
+    try:
+        n = float(v)
+    except Exception:
+        n = 0.0
+
+    return f"R$ {n:,.2f}".replace(",", "X").replace(".", ",").replace("X", ".")
+
+
 def parse_date_any(v) -> Optional[dt.date]:
     if pd.isna(v):
         return None
@@ -120,13 +169,21 @@ def parse_date_any(v) -> Optional[dt.date]:
     if not s:
         return None
 
-    for fmt in ["%d/%m/%Y", "%d-%m-%Y", "%Y-%m-%d", "%Y/%m/%d", "%d/%m/%y", "%d-%m-%y"]:
+    for fmt in [
+        "%d/%m/%Y",
+        "%d-%m-%Y",
+        "%Y-%m-%d",
+        "%Y/%m/%d",
+        "%d/%m/%y",
+        "%d-%m-%y",
+    ]:
         try:
             return dt.datetime.strptime(s, fmt).date()
         except Exception:
             pass
 
     d = pd.to_datetime(s, dayfirst=True, errors="coerce")
+
     if pd.isna(d):
         return None
 
@@ -135,16 +192,30 @@ def parse_date_any(v) -> Optional[dt.date]:
 
 def format_date(v) -> str:
     d = parse_date_any(v)
+
     if d:
         return d.strftime("%d/%m/%Y")
+
     return normalize_text(v)
 
 
 def month_name_pt(m: int) -> str:
     meses = [
-        "", "Janeiro", "Fevereiro", "Março", "Abril", "Maio", "Junho",
-        "Julho", "Agosto", "Setembro", "Outubro", "Novembro", "Dezembro",
+        "",
+        "Janeiro",
+        "Fevereiro",
+        "Março",
+        "Abril",
+        "Maio",
+        "Junho",
+        "Julho",
+        "Agosto",
+        "Setembro",
+        "Outubro",
+        "Novembro",
+        "Dezembro",
     ]
+
     return meses[m] if 1 <= m <= 12 else ""
 
 
@@ -156,9 +227,11 @@ def month_key_to_label(ym: Tuple[int, int]) -> str:
 def detect_col(df: pd.DataFrame, keywords: List[List[str]]) -> Optional[str]:
     for col in df.columns:
         lc_norm = normalize_search_text(str(col).strip().lower())
+
         for group in keywords:
             if all(normalize_search_text(k) in lc_norm for k in group):
                 return col
+
     return None
 
 
@@ -170,16 +243,20 @@ def build_month_key_from_values(raw_mes="", raw_data="") -> Optional[Tuple[int, 
         s = normalize_search_text(raw_mes)
 
         m1 = re.search(r"(\d{1,2})/(20\d{2})", s)
+
         if m1:
             mm = int(m1.group(1))
             yy = int(m1.group(2))
+
             if 1 <= mm <= 12:
                 return yy, mm
 
         m2 = re.search(r"(20\d{2})[-/](\d{1,2})", s)
+
         if m2:
             yy = int(m2.group(1))
             mm = int(m2.group(2))
+
             if 1 <= mm <= 12:
                 return yy, mm
 
@@ -206,6 +283,7 @@ def build_month_key_from_values(raw_mes="", raw_data="") -> Optional[Tuple[int, 
                 return ano, num
 
     d = parse_date_any(raw_data)
+
     if d:
         return d.year, d.month
 
@@ -232,15 +310,18 @@ def find_matching_columns(df: pd.DataFrame, target: str) -> list[str]:
 
 def count_filled_matching_columns(df_month: pd.DataFrame, target: str) -> int:
     matching_cols = find_matching_columns(df_month, target)
+
     if not matching_cols:
         return 0
 
     masks = []
+
     for col in matching_cols:
         s = df_month[col]
         masks.append((~s.isna()) & (s.astype(str).str.strip() != ""))
 
     final_mask = masks[0].copy()
+
     for m in masks[1:]:
         final_mask = final_mask | m
 
@@ -312,9 +393,7 @@ def salvar_formulario_pedigree(dados):
         dados.get("CPF", ""),
     )
 
-    row_values = []
-    for header in headers:
-        row_values.append(dados.get(header, ""))
+    row_values = [dados.get(header, "") for header in headers]
 
     if row_number:
         worksheet.update(f"A{row_number}", [row_values], value_input_option="USER_ENTERED")
@@ -337,6 +416,7 @@ def atualizar_status_pedigree(row_number: int, novo_status: str):
     col_number = headers.index("Status Pedigree") + 1
 
     worksheet.update_cell(row_number, col_number, novo_status)
+
     st.cache_data.clear()
 
 
@@ -379,6 +459,7 @@ def card_metric_big(title: str, value: str, subtitle: str, emoji: str, color: st
 def render_placeholder_page(title: str, subtitle: str):
     st.markdown(f'<div class="page-title">{title}</div>', unsafe_allow_html=True)
     st.markdown(f'<div class="page-subtitle">{subtitle}</div>', unsafe_allow_html=True)
+
     st.markdown(
         f"""
         <div class="empty-page-card">
@@ -390,7 +471,7 @@ def render_placeholder_page(title: str, subtitle: str):
     )
 
 
-def render_realtime_table(df_table: pd.DataFrame, cols_to_show: list[str]):
+def render_realtime_table(df_table: pd.DataFrame, cols_to_show: list[str], height: int = 590):
     safe_rows = []
 
     for _, row in df_table.iterrows():
@@ -440,19 +521,22 @@ def render_realtime_table(df_table: pd.DataFrame, cols_to_show: list[str]):
                 font-family: Arial, sans-serif;
                 background: transparent;
             }}
+
             .table-wrap {{
                 border: 1px solid #E7EAF3;
                 border-radius: 18px;
                 overflow: auto;
                 background: white;
-                max-height: 560px;
+                max-height: {height - 30}px;
             }}
+
             table {{
                 border-collapse: collapse;
                 width: 100%;
                 min-width: 1100px;
                 font-size: 13px;
             }}
+
             thead th {{
                 position: sticky;
                 top: 0;
@@ -463,20 +547,24 @@ def render_realtime_table(df_table: pd.DataFrame, cols_to_show: list[str]):
                 z-index: 2;
                 white-space: nowrap;
             }}
+
             tbody td {{
                 border-bottom: 1px solid #EEF1F7;
                 padding: 10px;
                 color: #17213A;
                 white-space: nowrap;
             }}
+
             tbody tr:hover {{
                 background: #F8FAFF;
             }}
+
             .phone-cell {{
                 display: flex;
                 align-items: center;
                 gap: 8px;
             }}
+
             .copy-btn {{
                 border: none;
                 border-radius: 999px;
@@ -487,11 +575,9 @@ def render_realtime_table(df_table: pd.DataFrame, cols_to_show: list[str]):
                 color: white;
                 cursor: pointer;
             }}
-            .copy-btn:hover {{
-                filter: brightness(0.95);
-            }}
         </style>
     </head>
+
     <body>
         <div class="table-wrap">
             <table>
@@ -517,7 +603,7 @@ def render_realtime_table(df_table: pd.DataFrame, cols_to_show: list[str]):
     </html>
     """
 
-    components.html(table_html, height=590, scrolling=True)
+    components.html(table_html, height=height, scrolling=True)
 
 
 def render_cliente_card(cliente: pd.Series, status_opcoes: list):
@@ -564,6 +650,7 @@ def render_cliente_card(cliente: pd.Series, status_opcoes: list):
 
     with col_status_2:
         st.markdown("<br>", unsafe_allow_html=True)
+
         if st.button("Atualizar status", use_container_width=True, key=f"btn_status_{row_number}"):
             try:
                 atualizar_status_pedigree(row_number, novo_status)
@@ -597,6 +684,9 @@ def render_cliente_card(cliente: pd.Series, status_opcoes: list):
         st.write("**Observações gerais:**", obs)
 
 
+# =========================================================
+# CSS
+# =========================================================
 st.markdown(
     """
 <style>
@@ -941,6 +1031,27 @@ st.markdown(
         margin-top: 0.2rem;
     }
 
+    .commission-table-wrap {
+        background: white;
+        border: 1px solid var(--line);
+        border-radius: 22px;
+        padding: 1rem;
+        box-shadow: 0 10px 28px rgba(15, 23, 42, 0.05);
+        margin-top: 1rem;
+    }
+
+    .commission-chip {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        border-radius: 999px;
+        padding: 4px 10px;
+        background: #EAF2FF;
+        color: #073B7A;
+        font-size: 12px;
+        font-weight: 800;
+    }
+
     div.stButton > button {
         border-radius: 999px !important;
         border: 1px solid #D8DDEA !important;
@@ -963,6 +1074,9 @@ st.markdown(
 )
 
 
+# =========================================================
+# SIDEBAR
+# =========================================================
 with st.sidebar:
     logo_b64 = image_to_base64("campmotors.png")
 
@@ -997,6 +1111,9 @@ with st.sidebar:
         )
 
 
+# =========================================================
+# DADOS PRINCIPAIS
+# =========================================================
 df = load_main_data().copy()
 
 COL_NOME = "Nome" if "Nome" in df.columns else detect_col(df, [["nome"]])
@@ -1027,6 +1144,7 @@ else:
 
 today = dt.date.today()
 future_months = []
+
 for i in range(0, 12):
     month = today.month + i
     year = today.year + (month - 1) // 12
@@ -1042,6 +1160,9 @@ else:
     all_months = [default_month]
 
 
+# =========================================================
+# VISÃO GERAL
+# =========================================================
 if page == "Visão Geral":
     header_left, header_right = st.columns([3.2, 1.2])
 
@@ -1063,8 +1184,15 @@ if page == "Visão Geral":
     month_df = df[df["_mes_key"] == selected_month].copy() if not df.empty and "_mes_key" in df.columns else pd.DataFrame()
 
     races = ["Todas"]
+
     if not month_df.empty and COL_RACA and COL_RACA in month_df.columns:
-        race_vals = sorted([r for r in month_df[COL_RACA].dropna().astype(str).str.strip().unique() if r])
+        race_vals = sorted(
+            [
+                r
+                for r in month_df[COL_RACA].dropna().astype(str).str.strip().unique()
+                if r
+            ]
+        )
         races += race_vals
 
     filter_col1, filter_col2 = st.columns([1.2, 1.2])
@@ -1079,7 +1207,9 @@ if page == "Visão Geral":
 
     if not filtered_df.empty:
         if selected_race != "Todas" and COL_RACA and COL_RACA in filtered_df.columns:
-            filtered_df = filtered_df[filtered_df[COL_RACA].astype(str).str.strip() == selected_race].copy()
+            filtered_df = filtered_df[
+                filtered_df[COL_RACA].astype(str).str.strip() == selected_race
+            ].copy()
 
         if search_top.strip():
             q = normalize_search_text(search_top)
@@ -1133,8 +1263,10 @@ if page == "Visão Geral":
     if not filtered_df.empty:
         if COL_WHATSAPP and COL_WHATSAPP in df.columns:
             end_idx = list(df.columns).index(COL_WHATSAPP)
+
             cols_until_whatsapp = [
-                c for c in df.columns[: end_idx + 1]
+                c
+                for c in df.columns[: end_idx + 1]
                 if not str(c).startswith("_") and not str(c).lower().startswith("unnamed")
             ]
         else:
@@ -1144,6 +1276,9 @@ if page == "Visão Geral":
         render_realtime_table(filtered_df, cols_until_whatsapp)
 
 
+# =========================================================
+# PEDIGREE
+# =========================================================
 elif page == "Pedigree":
     st.markdown('<div class="page-title">Pedigree</div>', unsafe_allow_html=True)
     st.markdown(
@@ -1219,34 +1354,58 @@ elif page == "Pedigree":
 
         df_ped["_mes_key"] = df_ped.apply(
             lambda row: build_month_key(row, ped_col_mes, ped_col_data),
-            axis=1
+            axis=1,
         )
 
         def normalize_full_row(row):
             values = []
+
             for v in row:
                 if pd.isna(v):
                     continue
+
                 values.append(normalize_search_text(v))
+
             return " ".join(values)
 
         df_ped["_search_all"] = df_ped.apply(normalize_full_row, axis=1)
         df_ped["_tel_digits_ped"] = df_ped["Telefone"].apply(only_digits)
         df_ped["ACAO"] = df_ped["Status Pedigree"].map(MAP_STATUS_ACAO).fillna("")
     else:
-        df_ped = pd.DataFrame(columns=[
-            "Nome", "Telefone", "CPF", "E-mail", "Mês", "Raça", "Sexo", "Cor",
-            "Endereço completo", "Status Pedigree", "Transferência", "Observações Status",
-            "Nome Cachorro", "Data Nascimento", "Pelagem", "Microchip",
-            "Observações gerais", "__row_number", "_search_all",
-            "_tel_digits_ped", "ACAO", "_mes_key"
-        ])
+        df_ped = pd.DataFrame(
+            columns=[
+                "Nome",
+                "Telefone",
+                "CPF",
+                "E-mail",
+                "Mês",
+                "Raça",
+                "Sexo",
+                "Cor",
+                "Endereço completo",
+                "Status Pedigree",
+                "Transferência",
+                "Observações Status",
+                "Nome Cachorro",
+                "Data Nascimento",
+                "Pelagem",
+                "Microchip",
+                "Observações gerais",
+                "__row_number",
+                "_search_all",
+                "_tel_digits_ped",
+                "ACAO",
+                "_mes_key",
+            ]
+        )
 
     ped_months_from_sheet = []
+
     if not df_ped.empty and "_mes_key" in df_ped.columns:
         ped_months_from_sheet = [m for m in df_ped["_mes_key"].dropna().unique().tolist()]
 
     main_months_from_sheet = []
+
     if not df.empty and "_mes_key" in df.columns:
         main_months_from_sheet = [m for m in df["_mes_key"].dropna().unique().tolist()]
 
@@ -1258,7 +1417,11 @@ elif page == "Pedigree":
     if not ped_month_options:
         ped_month_options = [(today.year, today.month)]
 
-    default_ped_month = (today.year, today.month) if (today.year, today.month) in ped_month_options else ped_month_options[-1]
+    default_ped_month = (
+        (today.year, today.month)
+        if (today.year, today.month) in ped_month_options
+        else ped_month_options[-1]
+    )
 
     filtro_mes_col, vazio_col = st.columns([1.2, 2.8])
 
@@ -1266,7 +1429,9 @@ elif page == "Pedigree":
         selected_ped_month = st.selectbox(
             "Mês de referência",
             options=ped_month_options,
-            index=ped_month_options.index(default_ped_month) if default_ped_month in ped_month_options else 0,
+            index=ped_month_options.index(default_ped_month)
+            if default_ped_month in ped_month_options
+            else 0,
             format_func=month_key_to_label,
             key="mes_referencia_pedigree",
         )
@@ -1299,9 +1464,11 @@ elif page == "Pedigree":
 
         if not df_busca.empty:
             cols_ped = [
-                c for c in df_busca.columns
+                c
+                for c in df_busca.columns
                 if not str(c).startswith("_") and c not in ["ACAO", "__row_number"]
             ]
+
             render_realtime_table(df_busca, cols_ped)
         else:
             st.warning("Nenhum cliente encontrado com essa busca.")
@@ -1352,9 +1519,7 @@ elif page == "Pedigree":
             f"""
             <div class="ped-action-card">
                 <div class="ped-action-title">{html.escape(acao_atual)}</div>
-                <div class="ped-action-sub">
-                    Área aberta dentro da própria página Pedigree.
-                </div>
+                <div class="ped-action-sub">Área aberta dentro da própria página Pedigree.</div>
             </div>
             """,
             unsafe_allow_html=True,
@@ -1395,6 +1560,7 @@ elif page == "Pedigree":
 
                 with col4:
                     foto_pet = st.file_uploader("Foto do pet", type=["png", "jpg", "jpeg"])
+
                     if foto_pet:
                         st.image(foto_pet, caption="Foto do pet", width=220)
 
@@ -1478,8 +1644,16 @@ elif page == "Pedigree":
 
     st.markdown("<br><br>", unsafe_allow_html=True)
 
-    df_ped_mes = df_ped[df_ped["_mes_key"] == selected_ped_month].copy() if "_mes_key" in df_ped.columns else pd.DataFrame()
-    df_caes_mes = df[df["_mes_key"] == selected_ped_month].copy() if not df.empty and "_mes_key" in df.columns else pd.DataFrame()
+    df_ped_mes = (
+        df_ped[df_ped["_mes_key"] == selected_ped_month].copy()
+        if "_mes_key" in df_ped.columns
+        else pd.DataFrame()
+    )
+    df_caes_mes = (
+        df[df["_mes_key"] == selected_ped_month].copy()
+        if not df.empty and "_mes_key" in df.columns
+        else pd.DataFrame()
+    )
 
     if not df_ped_mes.empty and "Status Pedigree" in df_ped_mes.columns:
         total_pedigrees_vendidos = int(
@@ -1489,9 +1663,7 @@ elif page == "Pedigree":
         total_pedigrees_vendidos = 0
 
     if not df_caes_mes.empty and COL_NOME and COL_NOME in df_caes_mes.columns:
-        total_caes_vendidos = int(
-            (df_caes_mes[COL_NOME].astype(str).str.strip() != "").sum()
-        )
+        total_caes_vendidos = int((df_caes_mes[COL_NOME].astype(str).str.strip() != "").sum())
     else:
         total_caes_vendidos = 0
 
@@ -1519,14 +1691,25 @@ elif page == "Pedigree":
 
     ano_selecionado = selected_ped_month[0]
 
-    meses_base = pd.DataFrame({
-        "_mes_num": list(range(1, 13)),
-        "Mês": [
-            "Janeiro", "Fevereiro", "Março", "Abril",
-            "Maio", "Junho", "Julho", "Agosto",
-            "Setembro", "Outubro", "Novembro", "Dezembro"
-        ]
-    })
+    meses_base = pd.DataFrame(
+        {
+            "_mes_num": list(range(1, 13)),
+            "Mês": [
+                "Janeiro",
+                "Fevereiro",
+                "Março",
+                "Abril",
+                "Maio",
+                "Junho",
+                "Julho",
+                "Agosto",
+                "Setembro",
+                "Outubro",
+                "Novembro",
+                "Dezembro",
+            ],
+        }
+    )
 
     if not df_ped.empty and "_mes_key" in df_ped.columns and "Status Pedigree" in df_ped.columns:
         df_grafico_ped = df_ped.copy()
@@ -1539,24 +1722,17 @@ elif page == "Pedigree":
             lambda x: x[1] if isinstance(x, tuple) and len(x) == 2 else None
         )
 
-        df_grafico_ped["_vendido_pedigree"] = df_grafico_ped["Status Pedigree"].apply(
-            is_status_pedigree_vendido
-        )
+        df_grafico_ped["_vendido_pedigree"] = df_grafico_ped["Status Pedigree"].apply(is_status_pedigree_vendido)
 
         df_grafico_ped = df_grafico_ped[
             (df_grafico_ped["_ano"] == ano_selecionado)
             & (df_grafico_ped["_vendido_pedigree"] == True)
         ].copy()
 
-        resumo_mensal = (
-            df_grafico_ped.groupby("_mes_num")
-            .size()
-            .reset_index(name="Pedigrees vendidos")
-        )
+        resumo_mensal = df_grafico_ped.groupby("_mes_num").size().reset_index(name="Pedigrees vendidos")
 
         resumo_mensal = meses_base.merge(resumo_mensal, on="_mes_num", how="left")
         resumo_mensal["Pedigrees vendidos"] = resumo_mensal["Pedigrees vendidos"].fillna(0).astype(int)
-
     else:
         resumo_mensal = meses_base.copy()
         resumo_mensal["Pedigrees vendidos"] = 0
@@ -1607,26 +1783,273 @@ elif page == "Pedigree":
         plot_bgcolor="white",
         paper_bgcolor="white",
         margin=dict(l=20, r=20, t=30, b=80),
-        xaxis=dict(
-            title="",
-            tickangle=-35,
-            showgrid=False,
-            tickfont=dict(size=12, color="#34405A"),
-        ),
-        yaxis=dict(
-            title="",
-            rangemode="tozero",
-            gridcolor="#E7EAF3",
-            tickfont=dict(size=12, color="#34405A"),
-        ),
-        font=dict(
-            family="Arial",
-            color="#18243D",
-        ),
+        xaxis=dict(title="", tickangle=-35, showgrid=False, tickfont=dict(size=12, color="#34405A")),
+        yaxis=dict(title="", rangemode="tozero", gridcolor="#E7EAF3", tickfont=dict(size=12, color="#34405A")),
+        font=dict(family="Arial", color="#18243D"),
     )
 
     st.plotly_chart(fig_ped_ano, use_container_width=True)
 
 
+# =========================================================
+# COMISSÃO
+# =========================================================
 elif page == "Comissão":
-    render_placeholder_page("Comissão", "Aqui ficará a página exclusiva de Comissão.")
+    st.markdown('<div class="page-title">Comissão</div>', unsafe_allow_html=True)
+    st.markdown(
+        '<div class="page-subtitle">Painel de acompanhamento da aba Pedigree Comissão Ju.</div>',
+        unsafe_allow_html=True,
+    )
+
+    df_com = load_commission_data().copy()
+
+    if not df_com.empty:
+        col_data_venda = "Data da Venda" if "Data da Venda" in df_com.columns else detect_col(df_com, [["data", "venda"]])
+        col_mes_venda = "Mês da Venda" if "Mês da Venda" in df_com.columns else detect_col(df_com, [["mês", "venda"], ["mes", "venda"]])
+        col_cliente = "Cliente" if "Cliente" in df_com.columns else detect_col(df_com, [["cliente"]])
+        col_produtos = "Produtos" if "Produtos" in df_com.columns else detect_col(df_com, [["produto"]])
+        col_mes_compra_cliente = (
+            "Mês da Compra do Cliente"
+            if "Mês da Compra do Cliente" in df_com.columns
+            else detect_col(df_com, [["compra", "cliente"]])
+        )
+        col_valor = "Valor" if "Valor" in df_com.columns else detect_col(df_com, [["valor"]])
+        col_vendedor = "Vendedor" if "Vendedor" in df_com.columns else detect_col(df_com, [["vendedor"]])
+        col_silimario = "Silimario" if "Silimario" in df_com.columns else detect_col(df_com, [["silimario"]])
+
+        df_com["_data_venda"] = df_com[col_data_venda].apply(parse_date_any) if col_data_venda else None
+        df_com["_mes_key"] = df_com.apply(lambda row: build_month_key(row, col_mes_venda, col_data_venda), axis=1)
+        df_com["_valor_num"] = df_com[col_valor].apply(parse_money) if col_valor else 0.0
+        df_com["_silimario_num"] = df_com[col_silimario].apply(parse_money) if col_silimario else 0.0
+
+        comm_months = sorted([m for m in df_com["_mes_key"].dropna().unique().tolist()], key=lambda x: (x[0], x[1]))
+
+        if not comm_months:
+            comm_months = [(today.year, today.month)]
+
+        default_comm_month = comm_months[-1]
+
+        topo1, topo2, topo3 = st.columns([1.2, 1.2, 2.4])
+
+        with topo1:
+            selected_comm_month = st.selectbox(
+                "Mês da venda",
+                options=comm_months,
+                index=comm_months.index(default_comm_month),
+                format_func=month_key_to_label,
+                key="mes_comissao",
+            )
+
+        with topo2:
+            vendedores = ["Todos"]
+
+            if col_vendedor and col_vendedor in df_com.columns:
+                vendedores += sorted(
+                    [
+                        v
+                        for v in df_com[col_vendedor].dropna().astype(str).str.strip().unique().tolist()
+                        if v
+                    ]
+                )
+
+            selected_vendedor = st.selectbox("Vendedor", vendedores, key="vendedor_comissao")
+
+        with topo3:
+            busca_comissao = st.text_input(
+                "Busca rápida",
+                placeholder="Buscar por cliente, produto, vendedor...",
+            )
+
+        df_com_filtrado = df_com[df_com["_mes_key"] == selected_comm_month].copy()
+
+        if selected_vendedor != "Todos" and col_vendedor and col_vendedor in df_com_filtrado.columns:
+            df_com_filtrado = df_com_filtrado[
+                df_com_filtrado[col_vendedor].astype(str).str.strip() == selected_vendedor
+            ].copy()
+
+        if busca_comissao.strip():
+            q = normalize_search_text(busca_comissao)
+
+            busca_cols = [
+                c
+                for c in [col_cliente, col_produtos, col_vendedor, col_mes_compra_cliente]
+                if c and c in df_com_filtrado.columns
+            ]
+
+            if busca_cols:
+                mask_busca = pd.Series(False, index=df_com_filtrado.index)
+
+                for c in busca_cols:
+                    mask_busca = mask_busca | df_com_filtrado[c].apply(normalize_search_text).str.contains(q, na=False)
+
+                df_com_filtrado = df_com_filtrado[mask_busca].copy()
+
+        total_vendas = len(df_com_filtrado)
+        valor_total = float(df_com_filtrado["_valor_num"].sum()) if not df_com_filtrado.empty else 0.0
+        silimario_total = float(df_com_filtrado["_silimario_num"].sum()) if not df_com_filtrado.empty else 0.0
+        ticket_medio = valor_total / total_vendas if total_vendas else 0.0
+
+        if not df_com_filtrado.empty and col_produtos and col_produtos in df_com_filtrado.columns:
+            produtos_unicos = df_com_filtrado[col_produtos].astype(str).str.strip().replace("", pd.NA).dropna().nunique()
+        else:
+            produtos_unicos = 0
+
+        k1, k2, k3, k4, k5 = st.columns(5)
+
+        with k1:
+            card_metric("Total de vendas", str(total_vendas), month_key_to_label(selected_comm_month), "📋", "#071B49")
+
+        with k2:
+            card_metric("Valor total", format_money(valor_total), "somatório vendido", "💰", "#8E0E3F")
+
+        with k3:
+            card_metric("Silimario", format_money(silimario_total), "total calculado", "⚖️", "#D39A33")
+
+        with k4:
+            card_metric("Ticket médio", format_money(ticket_medio), "valor médio", "📊", "#071B49")
+
+        with k5:
+            card_metric("Produtos", str(produtos_unicos), "tipos vendidos", "🧾", "#8E0E3F")
+
+        graf1, graf2 = st.columns([1.25, 1])
+
+        with graf1:
+            st.markdown(
+                """
+                <div class="live-card">
+                    <div class="live-title">📊 Vendas por dia</div>
+                    <div class="live-sub">Quantidade de registros por data da venda no mês selecionado.</div>
+                </div>
+                """,
+                unsafe_allow_html=True,
+            )
+
+            if not df_com_filtrado.empty and col_data_venda:
+                df_dia = df_com_filtrado.copy()
+                df_dia["_dia_label"] = df_dia["_data_venda"].apply(
+                    lambda x: x.strftime("%d/%m") if isinstance(x, dt.date) else "Sem data"
+                )
+
+                resumo_dia = df_dia.groupby("_dia_label").size().reset_index(name="Vendas")
+
+                fig_dia = px.bar(
+                    resumo_dia,
+                    x="_dia_label",
+                    y="Vendas",
+                    text="Vendas",
+                    color="_dia_label",
+                    color_discrete_sequence=[
+                        "#071B49",
+                        "#8E0E3F",
+                        "#2E3192",
+                        "#C00040",
+                        "#45546B",
+                        "#95A3B8",
+                        "#1B1D6D",
+                        "#9B0033",
+                    ],
+                )
+
+                fig_dia.update_traces(textposition="outside", marker_line_width=0)
+
+                fig_dia.update_layout(
+                    height=360,
+                    showlegend=False,
+                    plot_bgcolor="white",
+                    paper_bgcolor="white",
+                    margin=dict(l=20, r=20, t=30, b=60),
+                    xaxis=dict(title="", tickangle=-35, showgrid=False),
+                    yaxis=dict(title="", rangemode="tozero", gridcolor="#E7EAF3"),
+                )
+
+                st.plotly_chart(fig_dia, use_container_width=True)
+            else:
+                st.info("Sem dados para montar o gráfico por dia.")
+
+        with graf2:
+            st.markdown(
+                """
+                <div class="live-card">
+                    <div class="live-title">🧾 Produtos vendidos</div>
+                    <div class="live-sub">Distribuição por tipo de produto.</div>
+                </div>
+                """,
+                unsafe_allow_html=True,
+            )
+
+            if not df_com_filtrado.empty and col_produtos and col_produtos in df_com_filtrado.columns:
+                resumo_prod = (
+                    df_com_filtrado[col_produtos]
+                    .astype(str)
+                    .str.strip()
+                    .replace("", "Não informado")
+                    .value_counts()
+                    .reset_index()
+                )
+
+                resumo_prod.columns = ["Produto", "Quantidade"]
+
+                fig_prod = px.pie(
+                    resumo_prod,
+                    names="Produto",
+                    values="Quantidade",
+                    hole=0.55,
+                    color_discrete_sequence=[
+                        "#071B49",
+                        "#8E0E3F",
+                        "#D39A33",
+                        "#2E3192",
+                        "#C00040",
+                        "#64748B",
+                        "#95A3B8",
+                    ],
+                )
+
+                fig_prod.update_traces(
+                    textinfo="percent+label",
+                    hovertemplate="<b>%{label}</b><br>Quantidade: %{value}<extra></extra>",
+                )
+
+                fig_prod.update_layout(
+                    height=360,
+                    showlegend=True,
+                    plot_bgcolor="white",
+                    paper_bgcolor="white",
+                    margin=dict(l=10, r=10, t=30, b=20),
+                )
+
+                st.plotly_chart(fig_prod, use_container_width=True)
+            else:
+                st.info("Sem dados para montar o gráfico por produto.")
+
+        st.markdown(
+            """
+            <div class="live-card">
+                <div class="live-title">📄 Lista de vendas da comissão</div>
+                <div class="live-sub">Base filtrada da aba Pedigree Comissão Ju.</div>
+            </div>
+            """,
+            unsafe_allow_html=True,
+        )
+
+        cols_show = [
+            c
+            for c in [
+                col_data_venda,
+                col_mes_venda,
+                col_cliente,
+                col_produtos,
+                col_mes_compra_cliente,
+                col_valor,
+                col_vendedor,
+                col_silimario,
+            ]
+            if c and c in df_com_filtrado.columns
+        ]
+
+        if not df_com_filtrado.empty and cols_show:
+            render_realtime_table(df_com_filtrado, cols_show, height=430)
+        else:
+            st.info("Nenhuma venda encontrada com os filtros selecionados.")
+    else:
+        st.warning("A aba Pedigree Comissão Ju está vazia ou não foi encontrada.")
