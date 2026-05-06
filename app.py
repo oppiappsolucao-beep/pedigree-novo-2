@@ -110,33 +110,26 @@ def only_digits(v) -> str:
 
 def format_phone_br(v) -> str:
     digits = only_digits(v)
-
     if len(digits) == 13 and digits.startswith("55"):
         digits = digits[2:]
-
     if len(digits) == 11:
         return f"({digits[:2]}) {digits[2:7]}-{digits[7:]}"
     if len(digits) == 10:
         return f"({digits[:2]}) {digits[2:6]}-{digits[6:]}"
-
     return digits
 
 
 def parse_money(v) -> float:
     if pd.isna(v):
         return 0.0
-
     s = str(v).strip()
     if not s:
         return 0.0
-
     s = s.replace("R$", "").replace(" ", "")
-
     if "," in s:
         s = s.replace(".", "").replace(",", ".")
     else:
         s = s.replace(",", "")
-
     try:
         return float(s)
     except Exception:
@@ -148,45 +141,30 @@ def format_money(v) -> str:
         n = float(v)
     except Exception:
         n = 0.0
-
     return f"R$ {n:,.2f}".replace(",", "X").replace(".", ",").replace("X", ".")
 
 
 def parse_date_any(v) -> Optional[dt.date]:
     if pd.isna(v):
         return None
-
     s = str(v).strip()
     if not s:
         return None
-
-    for fmt in [
-        "%d/%m/%Y",
-        "%d-%m-%Y",
-        "%Y-%m-%d",
-        "%Y/%m/%d",
-        "%d/%m/%y",
-        "%d-%m-%y",
-    ]:
+    for fmt in ["%d/%m/%Y", "%d-%m-%Y", "%Y-%m-%d", "%Y/%m/%d", "%d/%m/%y", "%d-%m-%y"]:
         try:
             return dt.datetime.strptime(s, fmt).date()
         except Exception:
             pass
-
     d = pd.to_datetime(s, dayfirst=True, errors="coerce")
-
     if pd.isna(d):
         return None
-
     return d.date()
 
 
 def format_date(v) -> str:
     d = parse_date_any(v)
-
     if d:
         return d.strftime("%d/%m/%Y")
-
     return normalize_text(v)
 
 
@@ -206,7 +184,6 @@ def month_name_pt(m: int) -> str:
         "Novembro",
         "Dezembro",
     ]
-
     return meses[m] if 1 <= m <= 12 else ""
 
 
@@ -218,11 +195,9 @@ def month_key_to_label(ym: Tuple[int, int]) -> str:
 def detect_col(df: pd.DataFrame, keywords: List[List[str]]) -> Optional[str]:
     for col in df.columns:
         lc_norm = normalize_search_text(str(col).strip().lower())
-
         for group in keywords:
             if all(normalize_search_text(k) in lc_norm for k in group):
                 return col
-
     return None
 
 
@@ -234,20 +209,16 @@ def build_month_key_from_values(raw_mes="", raw_data="") -> Optional[Tuple[int, 
         s = normalize_search_text(raw_mes)
 
         m1 = re.search(r"(\d{1,2})/(20\d{2})", s)
-
         if m1:
             mm = int(m1.group(1))
             yy = int(m1.group(2))
-
             if 1 <= mm <= 12:
                 return yy, mm
 
         m2 = re.search(r"(20\d{2})[-/](\d{1,2})", s)
-
         if m2:
             yy = int(m2.group(1))
             mm = int(m2.group(2))
-
             if 1 <= mm <= 12:
                 return yy, mm
 
@@ -274,10 +245,8 @@ def build_month_key_from_values(raw_mes="", raw_data="") -> Optional[Tuple[int, 
                 return ano, num
 
     d = parse_date_any(raw_data)
-
     if d:
         return d.year, d.month
-
     return None
 
 
@@ -301,18 +270,15 @@ def find_matching_columns(df: pd.DataFrame, target: str) -> list[str]:
 
 def count_filled_matching_columns(df_month: pd.DataFrame, target: str) -> int:
     matching_cols = find_matching_columns(df_month, target)
-
     if not matching_cols:
         return 0
 
     masks = []
-
     for col in matching_cols:
         s = df_month[col]
         masks.append((~s.isna()) & (s.astype(str).str.strip() != ""))
 
     final_mask = masks[0].copy()
-
     for m in masks[1:]:
         final_mask = final_mask | m
 
@@ -326,11 +292,9 @@ def is_status_pedigree_vendido(v) -> bool:
 
 def ensure_columns(worksheet, required_cols):
     headers = worksheet.row_values(1)
-
     for col in required_cols:
         if col not in headers:
             headers.append(col)
-
     worksheet.update("A1", [headers])
     return headers
 
@@ -346,7 +310,6 @@ def find_row_by_phone_or_cpf(worksheet, telefone, cpf):
 
         if tel_digits and row_tel == tel_digits:
             return idx
-
         if cpf_digits and row_cpf == cpf_digits:
             return idx
 
@@ -396,7 +359,6 @@ def salvar_formulario_pedigree(dados):
 
 def atualizar_status_pedigree(row_number: int, novo_status: str):
     worksheet = get_worksheet(PED_WORKSHEET_NAME)
-
     headers = worksheet.row_values(1)
 
     if "Status Pedigree" not in headers:
@@ -407,7 +369,6 @@ def atualizar_status_pedigree(row_number: int, novo_status: str):
     col_number = headers.index("Status Pedigree") + 1
 
     worksheet.update_cell(row_number, col_number, novo_status)
-
     st.cache_data.clear()
 
 
@@ -1109,13 +1070,7 @@ if page == "Visão Geral":
     races = ["Todas"]
 
     if not month_df.empty and COL_RACA and COL_RACA in month_df.columns:
-        race_vals = sorted(
-            [
-                r
-                for r in month_df[COL_RACA].dropna().astype(str).str.strip().unique()
-                if r
-            ]
-        )
+        race_vals = sorted([r for r in month_df[COL_RACA].dropna().astype(str).str.strip().unique() if r])
         races += race_vals
 
     filter_col1, filter_col2 = st.columns([1.2, 1.2])
@@ -1130,9 +1085,7 @@ if page == "Visão Geral":
 
     if not filtered_df.empty:
         if selected_race != "Todas" and COL_RACA and COL_RACA in filtered_df.columns:
-            filtered_df = filtered_df[
-                filtered_df[COL_RACA].astype(str).str.strip() == selected_race
-            ].copy()
+            filtered_df = filtered_df[filtered_df[COL_RACA].astype(str).str.strip() == selected_race].copy()
 
         if search_top.strip():
             q = normalize_search_text(search_top)
@@ -1279,13 +1232,10 @@ elif page == "Pedigree":
 
         def normalize_full_row(row):
             values = []
-
             for v in row:
                 if pd.isna(v):
                     continue
-
                 values.append(normalize_search_text(v))
-
             return " ".join(values)
 
         df_ped["_search_all"] = df_ped.apply(normalize_full_row, axis=1)
@@ -1784,25 +1734,6 @@ elif page == "Comissão":
             with pag_col2:
                 data_pag_ate = st.date_input("Pagamento até", value=None, key="pagamento_ate_comissao")
 
-            mes_valor_cliente = st.selectbox(
-                "Valor clientes no mês",
-                options=comm_months,
-                index=comm_months.index(default_comm_month),
-                format_func=month_key_to_label,
-                key="valor_clientes_mes_comissao",
-            )
-
-            df_mes_valor = df_com[df_com["_mes_key"] == mes_valor_cliente].copy()
-            valor_clientes_mes = float(df_mes_valor["_valor_num"].sum()) if not df_mes_valor.empty else 0.0
-
-            card_metric(
-                "Valor clientes no mês",
-                format_money(valor_clientes_mes),
-                month_key_to_label(mes_valor_cliente),
-                "💰",
-                "#8E0E3F",
-            )
-
             st.markdown(
                 """
                 <div class="live-card">
@@ -1873,6 +1804,25 @@ elif page == "Comissão":
                 </div>
                 """,
                 unsafe_allow_html=True,
+            )
+
+            mes_valor_cliente = st.selectbox(
+                "Valor clientes no mês",
+                options=comm_months,
+                index=comm_months.index(default_comm_month),
+                format_func=month_key_to_label,
+                key="valor_clientes_mes_comissao",
+            )
+
+            df_mes_valor = df_com[df_com["_mes_key"] == mes_valor_cliente].copy()
+            valor_clientes_mes = float(df_mes_valor["_valor_num"].sum()) if not df_mes_valor.empty else 0.0
+
+            card_metric(
+                "Valor clientes no mês",
+                format_money(valor_clientes_mes),
+                month_key_to_label(mes_valor_cliente),
+                "💰",
+                "#8E0E3F",
             )
 
         with right_col:
@@ -2091,5 +2041,6 @@ elif page == "Comissão":
                 render_realtime_table(df_com_filtrado, cols_show, height=430)
             else:
                 st.info("Nenhuma venda encontrada com os filtros selecionados.")
+
     else:
         st.warning("A aba Pedigree Comissão Ju está vazia ou não foi encontrada.")
