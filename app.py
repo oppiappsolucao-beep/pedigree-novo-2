@@ -447,21 +447,6 @@ def card_metric_big(title: str, value: str, subtitle: str, emoji: str, color: st
     )
 
 
-def render_placeholder_page(title: str, subtitle: str):
-    st.markdown(f'<div class="page-title">{title}</div>', unsafe_allow_html=True)
-    st.markdown(f'<div class="page-subtitle">{subtitle}</div>', unsafe_allow_html=True)
-
-    st.markdown(
-        f"""
-        <div class="empty-page-card">
-            <div class="empty-page-title">{title}</div>
-            <div class="empty-page-sub">{subtitle}</div>
-        </div>
-        """,
-        unsafe_allow_html=True,
-    )
-
-
 def render_realtime_table(df_table: pd.DataFrame, cols_to_show: list[str], height: int = 590):
     safe_rows = []
 
@@ -937,26 +922,6 @@ st.markdown(
         color: var(--muted);
         font-size: 0.9rem;
         margin-bottom: 0.8rem;
-    }
-
-    .empty-page-card {
-        background: white;
-        border: 1px solid var(--line);
-        border-radius: 22px;
-        padding: 1.4rem;
-        box-shadow: 0 10px 28px rgba(15, 23, 42, 0.05);
-        color: var(--text);
-    }
-
-    .empty-page-title {
-        font-size: 1.35rem;
-        font-weight: 800;
-        margin-bottom: 0.35rem;
-    }
-
-    .empty-page-sub {
-        color: var(--muted);
-        font-size: 0.98rem;
     }
 
     .ped-btn-title {
@@ -1848,7 +1813,8 @@ elif page == "Comissão":
                 unsafe_allow_html=True,
             )
 
-            produto = df_com["_produto_norm"]
+            df_produtos_mes = df_com[df_com["_mes_key"] == data_referencia].copy()
+            produto = df_produtos_mes["_produto_norm"]
 
             qtd_pedigree_trans = int(
                 (
