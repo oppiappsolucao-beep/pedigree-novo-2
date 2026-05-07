@@ -144,6 +144,82 @@ def format_money(v) -> str:
     return f"R$ {n:,.2f}".replace(",", "X").replace(".", ",").replace("X", ".")
 
 
+def is_produto_sem_transferencia(v) -> bool:
+    texto = normalize_search_text(v)
+    padroes = [
+        "sem transferencia",
+        "s/ transferencia",
+        "s/ trans",
+        "s/ troca",
+        "sem trans",
+        "sem transf",
+    ]
+    return any(p in texto for p in padroes)
+
+
+def calcular_comissao_jullia(df_mes: pd.DataFrame, col_produtos: Optional[str], col_valor: Optional[str], col_vendedor: Optional[str]) -> dict:
+    if df_mes is None or df_mes.empty:
+        return {
+            "total_vendas_validas_mes": 0,
+            "qtd_vendas_jullia_validas": 0,
+            "valor_vendas_jullia_validas": 0.0,
+            "percentual_jullia": 0.0,
+            "comissao_jullia": 0.0,
+            "faixa": "Sem vendas",
+        }
+
+    df_calc = df_mes.copy()
+
+    if col_produtos and col_produtos in df_calc.columns:
+        df_calc["_sem_transferencia_calc"] = df_calc[col_produtos].apply(is_produto_sem_transferencia)
+    else:
+        df_calc["_sem_transferencia_calc"] = False
+
+    df_validas_mes = df_calc[~df_calc["_sem_transferencia_calc"]].copy()
+    total_vendas_validas_mes = int(len(df_validas_mes))
+
+    if col_vendedor and col_vendedor in df_validas_mes.columns:
+        mask_jullia = df_validas_mes[col_vendedor].apply(normalize_search_text).str.contains("jullia", na=False)
+        df_jullia = df_validas_mes[mask_jullia].copy()
+    else:
+        df_jullia = pd.DataFrame()
+
+    qtd_vendas_jullia_validas = int(len(df_jullia))
+
+    if not df_jullia.empty and col_valor and col_valor in df_jullia.columns:
+        valor_vendas_jullia_validas = float(df_jullia[col_valor].apply(parse_money).sum())
+    else:
+        valor_vendas_jullia_validas = 0.0
+
+    percentual_jullia = (
+        qtd_vendas_jullia_validas / total_vendas_validas_mes
+        if total_vendas_validas_mes > 0
+        else 0.0
+    )
+
+    if qtd_vendas_jullia_validas <= 0:
+        comissao_jullia = 0.0
+        faixa = "Sem vendas válidas"
+    elif percentual_jullia <= 0.50:
+        comissao_jullia = valor_vendas_jullia_validas * 0.05
+        faixa = "5% sobre vendas válidas"
+    elif percentual_jullia <= 0.74:
+        comissao_jullia = qtd_vendas_jullia_validas * 3.50
+        faixa = "R$ 3,50 por venda válida"
+    else:
+        comissao_jullia = qtd_vendas_jullia_validas * 5.00
+        faixa = "R$ 5,00 por venda válida"
+
+    return {
+        "total_vendas_validas_mes": total_vendas_validas_mes,
+        "qtd_vendas_jullia_validas": qtd_vendas_jullia_validas,
+        "valor_vendas_jullia_validas": valor_vendas_jullia_validas,
+        "percentual_jullia": percentual_jullia,
+        "comissao_jullia": float(comissao_jullia),
+        "faixa": faixa,
+    }
+
+
 def parse_date_any(v) -> Optional[dt.date]:
     if pd.isna(v):
         return None
@@ -1884,6 +1960,19 @@ elif page == "Comissão":
             else:
                 produtos_unicos = 0
 
+            dados_jullia = calcular_comissao_jullia(
+                df_com_filtrado,
+                col_produtos,
+                col_valor,
+                col_vendedor,
+            )
+
+            comissao_jullia = dados_jullia["comissao_jullia"]
+            percentual_jullia = dados_jullia["percentual_jullia"]
+            qtd_jullia_validas = dados_jullia["qtd_vendas_jullia_validas"]
+            total_validas_mes = dados_jullia["total_vendas_validas_mes"]
+            faixa_jullia = dados_jullia["faixa"]
+
             st.markdown(
                 f"""
                 <div class="metric-card" style="min-height:126px; display:flex; align-items:center;">
@@ -1891,9 +1980,21 @@ elif page == "Comissão":
                         <div class="metric-icon" style="background:#8E0E3F;">💰</div>
                         <div>
                             <div class="metric-label">Comissão Jullia</div>
-                            <div class="metric-value">{format_money(silimario_total)}</div>
-                            <div class="metric-sub">{month_key_to_label(selected_comm_month)}</div>
+                            <div class="metric-value">{format_money(comissao_jullia)}</div>
+                            <div class="metric-sub">{qtd_jullia_validas} de {total_validas_mes} vendas válidas • {percentual_jullia:.1%}</div>
                         </div>
+                    </div>
+                </div>
+                """,
+                unsafe_allow_html=True,
+            )
+
+            st.markdown(
+                f"""
+                <div class="live-card" style="margin-top:1rem;">
+                    <div class="live-title">Regra aplicada</div>
+                    <div class="live-sub">
+                        {faixa_jullia}. Pedigree sem transferência foi ignorado apenas para o cálculo da Jullia.
                     </div>
                 </div>
                 """,
