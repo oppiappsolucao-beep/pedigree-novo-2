@@ -2221,32 +2221,11 @@ elif page == "Comissão":
                 """,
                 unsafe_allow_html=True,
             )
-
             if not df_com_filtrado.empty and col_cliente and col_cliente in df_com_filtrado.columns:
-                opcoes_obs = []
 
-                for _, row_obs in df_com_filtrado.iterrows():
-                    nome_obs = normalize_text(row_obs.get(col_cliente, ""))
-                    produto_obs = normalize_text(row_obs.get(col_produtos, "")) if col_produtos else ""
-                    row_number_obs = int(row_obs.get("__row_number", 0))
+                linha_obs = df_com_filtrado.iloc[0]
+                row_number_obs = int(linha_obs.get("__row_number", 0))
 
-                    if nome_obs:
-                        label_obs = f"{nome_obs} — {produto_obs} — linha {row_number_obs}"
-                    else:
-                        label_obs = f"Sem cliente — {produto_obs} — linha {row_number_obs}"
-
-                    opcoes_obs.append((label_obs, row_number_obs))
-
-                labels_obs = [x[0] for x in opcoes_obs]
-
-                cliente_obs_label = st.selectbox(
-                    "Cliente para observação",
-                    labels_obs,
-                    key="cliente_observacao_jullia",
-                )
-
-                row_number_obs = dict(opcoes_obs)[cliente_obs_label]
-                linha_obs = df_com_filtrado[df_com_filtrado["__row_number"] == row_number_obs].iloc[0]
 
                 valor_original_obs = parse_money(linha_obs.get(col_valor, "")) if col_valor else 0.0
                 obs_atual = normalize_text(linha_obs.get(col_obs_jullia, "")) if col_obs_jullia else ""
