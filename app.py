@@ -1826,155 +1826,61 @@ elif page == "Comissão":
             )
 
         with right_col:
-            selected_comm_month = data_referencia
-
-            vendedores = ["Todos"]
-
-            if col_vendedor and col_vendedor in df_com.columns:
-                vendedores += sorted(
-                    [
-                        v
-                        for v in df_com[col_vendedor].dropna().astype(str).str.strip().unique().tolist()
-                        if v
-                    ]
-                )
-
-            filtro1, filtro2 = st.columns([1.2, 2.4])
-
-            with filtro1:
-                selected_vendedor = st.selectbox("Vendedor", vendedores, key="vendedor_comissao")
-
-            with filtro2:
-                busca_comissao = st.text_input(
-                    "Busca rápida",
-                    placeholder="Buscar por cliente, produto, vendedor...",
-                )
-
-            df_com_filtrado = df_com[df_com["_mes_key"] == selected_comm_month].copy()
-
-            if selected_vendedor != "Todos" and col_vendedor and col_vendedor in df_com_filtrado.columns:
-                df_com_filtrado = df_com_filtrado[
-                    df_com_filtrado[col_vendedor].astype(str).str.strip() == selected_vendedor
-                ].copy()
-
-            if busca_comissao.strip():
-                q = normalize_search_text(busca_comissao)
-
-                busca_cols = [
-                    c
-                    for c in [col_cliente, col_produtos, col_vendedor, col_mes_compra_cliente]
-                    if c and c in df_com_filtrado.columns
-                ]
-
-                if busca_cols:
-                    mask_busca = pd.Series(False, index=df_com_filtrado.index)
-
-                    for c in busca_cols:
-                        mask_busca = mask_busca | df_com_filtrado[c].apply(normalize_search_text).str.contains(q, na=False)
-
-                    df_com_filtrado = df_com_filtrado[mask_busca].copy()
-
-            total_vendas = len(df_com_filtrado)
-            valor_total = float(df_com_filtrado["_valor_num"].sum()) if not df_com_filtrado.empty else 0.0
-            silimario_total = float(df_com_filtrado["_silimario_num"].sum()) if not df_com_filtrado.empty else 0.0
-            ticket_medio = valor_total / total_vendas if total_vendas else 0.0
-
-            if not df_com_filtrado.empty and col_produtos and col_produtos in df_com_filtrado.columns:
-                produtos_unicos = df_com_filtrado[col_produtos].astype(str).str.strip().replace("", pd.NA).dropna().nunique()
-            else:
-                produtos_unicos = 0
-
-            
             st.markdown(
                 """
-                <div style="
-                    width:100%;
-                    min-height:420px;
-                    background:white;
-                    border-radius:24px;
-                    border:1px solid #E7EAF3;
-                    padding:40px 30px;
-                    margin-top:6px;
-                    margin-bottom:25px;
-                    display:flex;
-                    align-items:center;
-                    justify-content:center;
-                    box-shadow:0 10px 28px rgba(15,23,42,0.05);
-                ">
+<div style="
+    width:100%;
+    min-height:420px;
+    background:white;
+    border-radius:24px;
+    border:1px solid #E7EAF3;
+    padding:48px 36px;
+    margin-top:38px;
+    margin-bottom:25px;
+    display:flex;
+    align-items:center;
+    justify-content:center;
+    box-shadow:0 10px 28px rgba(15,23,42,0.05);
+">
+    <div style="text-align:center; width:100%;">
+        <div style="
+            width:100px;
+            height:100px;
+            border-radius:28px;
+            background:#8E0E3F;
+            display:flex;
+            align-items:center;
+            justify-content:center;
+            margin:0 auto 28px auto;
+            font-size:44px;
+            color:white;
+            font-weight:900;
+        ">
+            💰
+        </div>
 
-                    <div style="text-align:center; width:100%;">
+        <div style="
+            font-size:54px;
+            font-weight:900;
+            color:#071B49;
+            line-height:1;
+        ">
+            Comissão Jullia
+        </div>
 
-                        <div style="
-                            width:100px;
-                            height:100px;
-                            border-radius:28px;
-                            background:#8E0E3F;
-                            display:flex;
-                            align-items:center;
-                            justify-content:center;
-                            margin:0 auto 28px auto;
-                            font-size:44px;
-                            color:white;
-                            font-weight:900;
-                        ">
-                            💰
-                        </div>
-
-                        <div style="
-                            font-size:54px;
-                            font-weight:900;
-                            color:#071B49;
-                            line-height:1;
-                        ">
-                            Comissão Jullia
-                        </div>
-
-                        <div style="
-                            margin-top:18px;
-                            font-size:18px;
-                            color:#6B7280;
-                            font-weight:500;
-                        ">
-                            Cálculos serão configurados na próxima etapa.
-                        </div>
-
-                    </div>
-
-                </div>
+        <div style="
+            margin-top:18px;
+            font-size:18px;
+            color:#6B7280;
+            font-weight:500;
+        ">
+            Cálculos serão configurados na próxima etapa.
+        </div>
+    </div>
+</div>
                 """,
                 unsafe_allow_html=True,
             )
-
-
-            st.markdown(
-                """
-                <div class="live-card">
-                    <div class="live-title">📄 Lista de vendas da comissão</div>
-                    <div class="live-sub">Base filtrada da aba Pedigree Comissão Ju.</div>
-                </div>
-                """,
-                unsafe_allow_html=True,
-            )
-
-            cols_show = [
-                c
-                for c in [
-                    col_data_venda,
-                    col_mes_venda,
-                    col_cliente,
-                    col_produtos,
-                    col_mes_compra_cliente,
-                    col_valor,
-                    col_vendedor,
-                    col_silimario,
-                ]
-                if c and c in df_com_filtrado.columns
-            ]
-
-            if not df_com_filtrado.empty and cols_show:
-                render_realtime_table(df_com_filtrado, cols_show, height=430)
-            else:
-                st.info("Nenhuma venda encontrada com os filtros selecionados.")
 
     else:
         st.warning("A aba Pedigree Comissão Ju está vazia ou não foi encontrada.")
