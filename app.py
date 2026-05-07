@@ -179,14 +179,22 @@ def calcular_comissao_jullia(df_mes: pd.DataFrame, col_produtos: Optional[str], 
     total_vendas_validas_mes = int(len(df_validas_mes))
 
     if col_vendedor and col_vendedor in df_validas_mes.columns:
-        mask_jullia = df_validas_mes[col_vendedor].apply(normalize_search_text).str.contains("jullia", na=False)
+        mask_jullia = df_validas_mes[col_vendedor].apply(normalize_search_text).str.contains(r"jul+ia", na=False, regex=True)
         df_jullia = df_validas_mes[mask_jullia].copy()
     else:
         df_jullia = pd.DataFrame()
 
     qtd_vendas_jullia_validas = int(len(df_jullia))
 
+    
+    if (not col_valor or col_valor not in df_jullia.columns):
+        for tentativa in ["Valor", "valor", "VALOR"]:
+            if tentativa in df_jullia.columns:
+                col_valor = tentativa
+                break
+
     if not df_jullia.empty and col_valor and col_valor in df_jullia.columns:
+
         valor_vendas_jullia_validas = float(df_jullia[col_valor].apply(parse_money).sum())
     else:
         valor_vendas_jullia_validas = 0.0
