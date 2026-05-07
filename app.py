@@ -1884,133 +1884,67 @@ elif page == "Comissão":
             else:
                 produtos_unicos = 0
 
-            k1, k2, k3, k4, k5 = st.columns(5)
+            
+            st.markdown(
+                """
+                <div style="
+                    width:100%;
+                    min-height:420px;
+                    background:white;
+                    border-radius:24px;
+                    border:1px solid #E7EAF3;
+                    padding:40px 30px;
+                    margin-top:6px;
+                    margin-bottom:25px;
+                    display:flex;
+                    align-items:center;
+                    justify-content:center;
+                    box-shadow:0 10px 28px rgba(15,23,42,0.05);
+                ">
 
-            with k1:
-                card_metric("Total de vendas", str(total_vendas), month_key_to_label(selected_comm_month), "📋", "#071B49")
+                    <div style="text-align:center; width:100%;">
 
-            with k2:
-                card_metric("Valor total", format_money(valor_total), "somatório vendido", "💰", "#8E0E3F")
+                        <div style="
+                            width:100px;
+                            height:100px;
+                            border-radius:28px;
+                            background:#8E0E3F;
+                            display:flex;
+                            align-items:center;
+                            justify-content:center;
+                            margin:0 auto 28px auto;
+                            font-size:44px;
+                            color:white;
+                            font-weight:900;
+                        ">
+                            💰
+                        </div>
 
-            with k3:
-                card_metric("Silimario", format_money(silimario_total), "total calculado", "⚖️", "#D39A33")
+                        <div style="
+                            font-size:54px;
+                            font-weight:900;
+                            color:#071B49;
+                            line-height:1;
+                        ">
+                            Comissão Jullia
+                        </div>
 
-            with k4:
-                card_metric("Ticket médio", format_money(ticket_medio), "valor médio", "📊", "#071B49")
+                        <div style="
+                            margin-top:18px;
+                            font-size:18px;
+                            color:#6B7280;
+                            font-weight:500;
+                        ">
+                            Cálculos serão configurados na próxima etapa.
+                        </div>
 
-            with k5:
-                card_metric("Produtos", str(produtos_unicos), "tipos vendidos", "🧾", "#8E0E3F")
-
-            graf1, graf2 = st.columns([1.25, 1])
-
-            with graf1:
-                st.markdown(
-                    """
-                    <div class="live-card">
-                        <div class="live-title">📊 Vendas por dia</div>
-                        <div class="live-sub">Quantidade de registros por data da venda no mês selecionado.</div>
                     </div>
-                    """,
-                    unsafe_allow_html=True,
-                )
 
-                if not df_com_filtrado.empty and col_data_venda:
-                    df_dia = df_com_filtrado.copy()
-                    df_dia["_dia_label"] = df_dia["_data_venda"].apply(
-                        lambda x: x.strftime("%d/%m") if isinstance(x, dt.date) else "Sem data"
-                    )
+                </div>
+                """,
+                unsafe_allow_html=True,
+            )
 
-                    resumo_dia = df_dia.groupby("_dia_label").size().reset_index(name="Vendas")
-
-                    fig_dia = px.bar(
-                        resumo_dia,
-                        x="_dia_label",
-                        y="Vendas",
-                        text="Vendas",
-                        color="_dia_label",
-                        color_discrete_sequence=[
-                            "#071B49",
-                            "#8E0E3F",
-                            "#2E3192",
-                            "#C00040",
-                            "#45546B",
-                            "#95A3B8",
-                            "#1B1D6D",
-                            "#9B0033",
-                        ],
-                    )
-
-                    fig_dia.update_traces(textposition="outside", marker_line_width=0)
-
-                    fig_dia.update_layout(
-                        height=360,
-                        showlegend=False,
-                        plot_bgcolor="white",
-                        paper_bgcolor="white",
-                        margin=dict(l=20, r=20, t=30, b=60),
-                        xaxis=dict(title="", tickangle=-35, showgrid=False),
-                        yaxis=dict(title="", rangemode="tozero", gridcolor="#E7EAF3"),
-                    )
-
-                    st.plotly_chart(fig_dia, use_container_width=True)
-                else:
-                    st.info("Sem dados para montar o gráfico por dia.")
-
-            with graf2:
-                st.markdown(
-                    """
-                    <div class="live-card">
-                        <div class="live-title">🧾 Produtos vendidos</div>
-                        <div class="live-sub">Distribuição por tipo de produto.</div>
-                    </div>
-                    """,
-                    unsafe_allow_html=True,
-                )
-
-                if not df_com_filtrado.empty and col_produtos and col_produtos in df_com_filtrado.columns:
-                    resumo_prod = (
-                        df_com_filtrado[col_produtos]
-                        .astype(str)
-                        .str.strip()
-                        .replace("", "Não informado")
-                        .value_counts()
-                        .reset_index()
-                    )
-
-                    resumo_prod.columns = ["Produto", "Quantidade"]
-
-                    fig_prod = px.pie(
-                        resumo_prod,
-                        names="Produto",
-                        values="Quantidade",
-                        hole=0.55,
-                        color_discrete_sequence=[
-                            "#071B49",
-                            "#8E0E3F",
-                            "#D39A33",
-                            "#2E3192",
-                            "#C00040",
-                            "#64748B",
-                            "#95A3B8",
-                        ],
-                    )
-
-                    fig_prod.update_traces(
-                        textinfo="percent+label",
-                        hovertemplate="<b>%{label}</b><br>Quantidade: %{value}<extra></extra>",
-                    )
-
-                    fig_prod.update_layout(
-                        height=360,
-                        showlegend=True,
-                        plot_bgcolor="white",
-                        paper_bgcolor="white",
-                        margin=dict(l=10, r=10, t=30, b=20),
-                    )
-
-                    st.plotly_chart(fig_prod, use_container_width=True)
-                else:
-                    st.info("Sem dados para montar o gráfico por produto.")
 
             st.markdown(
                 """
