@@ -1885,12 +1885,15 @@ elif page == "Comissão":
                 produtos_unicos = 0
 
             st.markdown(
-                """
-                <div style='width:100%;min-height:420px;background:#FFFFFF;border-radius:24px;border:1px solid #E7EAF3;padding:40px 30px;margin-top:6px;margin-bottom:25px;display:flex;align-items:center;justify-content:center;box-shadow:0 10px 28px rgba(15,23,42,0.05);'>
-                    <div style='text-align:center;width:100%;'>
-                        <div style='width:100px;height:100px;border-radius:28px;background:#8E0E3F;display:flex;align-items:center;justify-content:center;margin:0 auto 28px auto;font-size:44px;color:white;font-weight:900;'>💰</div>
-                        <div style='font-size:54px;font-weight:900;color:#071B49;line-height:1;'>Comissão Jullia</div>
-                        <div style='margin-top:18px;font-size:18px;color:#6B7280;font-weight:500;'>Cálculos serão configurados na próxima etapa.</div>
+                f"""
+                <div class="metric-card" style="min-height:126px; display:flex; align-items:center;">
+                    <div class="metric-wrap">
+                        <div class="metric-icon" style="background:#8E0E3F;">💰</div>
+                        <div>
+                            <div class="metric-label">Comissão Jullia</div>
+                            <div class="metric-value">{format_money(silimario_total)}</div>
+                            <div class="metric-sub">{month_key_to_label(selected_comm_month)}</div>
+                        </div>
                     </div>
                 </div>
                 """,
