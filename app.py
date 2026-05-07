@@ -331,50 +331,34 @@ def calcular_valor_jullia_linha(row, col_valor, col_valor_ajustado=None, col_des
 
 def ensure_commission_extra_columns():
     worksheet = get_worksheet(COMM_WORKSHEET_NAME)
-    headers = worksheet.row_values(1)
-    headers = [str(h).strip() for h in headers]
+    headers = [str(h).strip() for h in worksheet.row_values(1)]
 
     missing = [c for c in COMM_EXTRA_COLS if c not in headers]
 
     if missing:
-        try:
-            if "Jullia" in headers:
-                insert_col = headers.index("Jullia") + 2
-            elif "Julia" in headers:
-                insert_col = headers.index("Julia") + 2
-            else:
-                insert_col = len(headers) + 1
+        raise Exception(
+            "As colunas necessárias não foram encontradas na aba Pedigree Comissão Ju: "
+            + ", ".join(missing)
+            + ". Não criei novas colunas automaticamente para não bagunçar a planilha."
+        )
 
-            for col_name in reversed(missing):
-                worksheet.insert_cols([[col_name]], col=insert_col, value_input_option="USER_ENTERED")
-
-        except Exception:
-            headers = worksheet.row_values(1)
-            for col_name in missing:
-                if col_name not in headers:
-                    headers.append(col_name)
-            worksheet.update("A1", [headers], value_input_option="USER_ENTERED")
-
-    st.cache_data.clear()
-    return worksheet.row_values(1)
+    return headers
 
 
 def atualizar_observacao_comissao(row_number: int, observacao: str, plano: str, desconto: float, valor_ajustado: float):
     worksheet = get_worksheet(COMM_WORKSHEET_NAME)
     headers = ensure_commission_extra_columns()
 
-    def update_by_header(header_name, value):
-        headers_now = worksheet.row_values(1)
-        if header_name not in headers_now:
-            headers_now = ensure_commission_extra_columns()
+    updates = {
+        "Observação Jullia": observacao,
+        "Plano Jullia": plano,
+        "Desconto Jullia": format_money(desconto),
+        "Valor Ajustado Jullia": format_money(valor_ajustado),
+    }
 
-        col_number = headers_now.index(header_name) + 1
+    for header_name, value in updates.items():
+        col_number = headers.index(header_name) + 1
         worksheet.update_cell(row_number, col_number, value)
-
-    update_by_header("Observação Jullia", observacao)
-    update_by_header("Plano Jullia", plano)
-    update_by_header("Desconto Jullia", format_money(desconto))
-    update_by_header("Valor Ajustado Jullia", format_money(valor_ajustado))
 
     st.cache_data.clear()
 
@@ -2214,8 +2198,8 @@ elif page == "Comissão":
                 <div class="live-card" style="margin-top:1rem;">
                     <div class="live-title">📝 Observação da Comissão Jullia</div>
                     <div class="live-sub">
-                        Se houver desconto, plano escolhido ou alteração no pedido, preencha aqui. 
-                        O dashboard salva direto na aba Pedigree Comissão Ju e usa no cálculo da Jullia.
+                        Busque o cliente na busca rápida acima. A observação será salva diretamente na linha desse cliente,
+                        nas colunas Observação Jullia, Plano Jullia, Desconto Jullia e Valor Ajustado Jullia.
                     </div>
                 </div>
                 """,
@@ -2225,7 +2209,21 @@ elif page == "Comissão":
 
                 linha_obs = df_com_filtrado.iloc[0]
                 row_number_obs = int(linha_obs.get("__row_number", 0))
+                cliente_nome_obs = normalize_text(linha_obs.get(col_cliente, "")) if col_cliente else ""
+                produto_nome_obs = normalize_text(linha_obs.get(col_produtos, "")) if col_produtos else ""
 
+                st.markdown(
+                    f"""
+                    <div class="live-card" style="margin-top:0.75rem;">
+                        <div class="live-sub">
+                            <b>Cliente selecionado:</b> {html.escape(cliente_nome_obs)}<br>
+                            <b>Produto:</b> {html.escape(produto_nome_obs)}<br>
+                            <b>Linha da planilha:</b> {row_number_obs}
+                        </div>
+                    </div>
+                    """,
+                    unsafe_allow_html=True,
+                )
 
                 valor_original_obs = parse_money(linha_obs.get(col_valor, "")) if col_valor else 0.0
                 obs_atual = normalize_text(linha_obs.get(col_obs_jullia, "")) if col_obs_jullia else ""
@@ -2310,7 +2308,7 @@ elif page == "Comissão":
                         except Exception as e:
                             st.error(f"Erro ao salvar observação: {e}")
             else:
-                st.info("Nenhum cliente disponível para observação neste filtro.")
+                st.info("Use a busca rápida para localizar o cliente antes de salvar uma observação.")
 
     else:
         st.warning("A aba Pedigree Comissão Ju está vazia ou não foi encontrada.")
