@@ -1884,69 +1884,69 @@ elif page == "Comissão":
             else:
                 produtos_unicos = 0
 
-            
-st.markdown(
-    """
-    <div style="
-        width:100%;
-        background:white;
-        border-radius:24px;
-        border:1px solid #E7EAF3;
-        padding:70px 30px;
-        margin-top:10px;
-        margin-bottom:25px;
-        display:flex;
-        align-items:center;
-        justify-content:center;
-        box-shadow:0 10px 28px rgba(15,23,42,0.05);
-    ">
+            k1, k2, k3, k4, k5 = st.columns(5)
 
-        <div style="text-align:center;">
+with k1:
+    st.markdown(
+        """
+        <div style="
+            width:100%;
+            background:white;
+            border-radius:24px;
+            border:1px solid #E7EAF3;
+            padding:70px 30px;
+            margin-top:10px;
+            margin-bottom:25px;
+            display:flex;
+            align-items:center;
+            justify-content:center;
+            box-shadow:0 10px 28px rgba(15,23,42,0.05);
+        ">
 
-            <div style="
-                width:90px;
-                height:90px;
-                border-radius:24px;
-                background:#8E0E3F;
-                display:flex;
-                align-items:center;
-                justify-content:center;
-                margin:0 auto 24px auto;
-                font-size:40px;
-                color:white;
-                font-weight:900;
-            ">
-                💰
-            </div>
+            <div style="text-align:center; width:100%;">
 
-            <div style="
-                font-size:52px;
-                font-weight:900;
-                color:#071B49;
-                line-height:1;
-            ">
-                Comissão Jullia
-            </div>
+                <div style="
+                    width:90px;
+                    height:90px;
+                    border-radius:24px;
+                    background:#8E0E3F;
+                    display:flex;
+                    align-items:center;
+                    justify-content:center;
+                    margin:0 auto 24px auto;
+                    font-size:40px;
+                    color:white;
+                    font-weight:900;
+                ">
+                    💰
+                </div>
 
-            <div style="
-                margin-top:14px;
-                font-size:17px;
-                color:#6B7280;
-                font-weight:500;
-            ">
-                Cálculos serão configurados na próxima etapa.
+                <div style="
+                    font-size:52px;
+                    font-weight:900;
+                    color:#071B49;
+                    line-height:1;
+                ">
+                    Comissão Jullia
+                </div>
+
+                <div style="
+                    margin-top:14px;
+                    font-size:17px;
+                    color:#6B7280;
+                    font-weight:500;
+                ">
+                    Cálculos serão configurados na próxima etapa.
+                </div>
+
             </div>
 
         </div>
-
-    </div>
-    """,
-    unsafe_allow_html=True,
-)
+        """,
+        unsafe_allow_html=True,
+    )
 
 st.stop()
-
-graf1, graf2 = st.columns([1.25, 1])
 
 with graf1:
 
