@@ -472,6 +472,19 @@ def checks_por_produto(produto: str) -> dict:
     }
 
 
+def checkbox_marcado(v) -> bool:
+    try:
+        if pd.isna(v):
+            return False
+    except Exception:
+        pass
+
+    if isinstance(v, bool):
+        return v
+
+    return str(v).strip().lower() in ["true", "1", "sim", "s", "yes"]
+
+
 def parse_date_any(v) -> Optional[dt.date]:
     if pd.isna(v):
         return None
@@ -2344,17 +2357,23 @@ elif page == "Comissão":
                     key=f"editor_checks_comissao_{selected_comm_month}_{selected_vendedor}_{busca_comissao}",
                 )
 
-                # Prévia ao vivo: quando marcar/desmarcar os produtos, a caixa da comissão já reflete a nova conta.
+                # Prévia ao vivo da comissão:
+                # monta uma base nova com o que está marcado no editor, sem depender da planilha salvar primeiro.
                 df_com_mes_preview = df_com_mes_calculo_jullia.copy()
 
                 if "__row_number" not in df_com_mes_preview.columns:
                     df_com_mes_preview["__row_number"] = df_com_mes_preview.index + 2
 
+                linhas_editadas_preview = []
+
                 for _, row_edit_preview in edited_df.iterrows():
                     row_number_preview = int(row_edit_preview.get("Linha", 0))
 
-                    ped_trans_preview = bool(row_edit_preview.get("Pedigree Transferência", False))
-                    ped_sem_preview = bool(row_edit_preview.get("Sem Transferência", False))
+                    ped_trans_preview = checkbox_marcado(row_edit_preview.get("Pedigree Transferência", False))
+                    ped_sem_preview = checkbox_marcado(row_edit_preview.get("Sem Transferência", False))
+                    rg_preview = checkbox_marcado(row_edit_preview.get("RG", False))
+                    certidao_preview = checkbox_marcado(row_edit_preview.get("Certidão", False))
+                    airtag_preview = checkbox_marcado(row_edit_preview.get("Airtag", False))
 
                     if ped_sem_preview:
                         ped_trans_preview = False
@@ -2362,21 +2381,27 @@ elif page == "Comissão":
                     produto_preview = montar_produto_por_checks(
                         ped_trans_preview,
                         ped_sem_preview,
-                        bool(row_edit_preview.get("RG", False)),
-                        bool(row_edit_preview.get("Certidão", False)),
-                        bool(row_edit_preview.get("Airtag", False)),
+                        rg_preview,
+                        certidao_preview,
+                        airtag_preview,
                     )
 
                     valor_preview = calcular_valor_produtos_comissao(produto_preview)
 
                     if row_number_preview > 0:
+                        linhas_editadas_preview.append(row_number_preview)
+
                         mask_preview = df_com_mes_preview["__row_number"].astype(int) == row_number_preview
 
-                        if col_produtos and col_produtos in df_com_mes_preview.columns:
-                            df_com_mes_preview.loc[mask_preview, col_produtos] = produto_preview
+                        if mask_preview.any():
+                            if col_produtos and col_produtos in df_com_mes_preview.columns:
+                                df_com_mes_preview.loc[mask_preview, col_produtos] = produto_preview
 
-                        if col_valor and col_valor in df_com_mes_preview.columns:
-                            df_com_mes_preview.loc[mask_preview, col_valor] = format_money(valor_preview)
+                            if col_valor and col_valor in df_com_mes_preview.columns:
+                                df_com_mes_preview.loc[mask_preview, col_valor] = format_money(valor_preview)
+
+                            if col_vendedor and col_vendedor in df_com_mes_preview.columns:
+                                df_com_mes_preview.loc[mask_preview, col_vendedor] = normalize_text(row_edit_preview.get("Vendedor", "Jullia"))
 
                 render_card_comissao_jullia(df_com_mes_preview)
 
@@ -2396,8 +2421,11 @@ elif page == "Comissão":
                         for _, row_edit in edited_df.iterrows():
                             row_number_edit = int(row_edit.get("Linha", 0))
 
-                            ped_trans = bool(row_edit.get("Pedigree Transferência", False))
-                            ped_sem = bool(row_edit.get("Sem Transferência", False))
+                            ped_trans = checkbox_marcado(row_edit.get("Pedigree Transferência", False))
+                            ped_sem = checkbox_marcado(row_edit.get("Sem Transferência", False))
+                            rg_marcado = checkbox_marcado(row_edit.get("RG", False))
+                            certidao_marcado = checkbox_marcado(row_edit.get("Certidão", False))
+                            airtag_marcado = checkbox_marcado(row_edit.get("Airtag", False))
 
                             # Se marcou os dois, prioriza Sem Transferência para evitar duplicidade.
                             if ped_sem:
@@ -2406,9 +2434,9 @@ elif page == "Comissão":
                             produto_novo = montar_produto_por_checks(
                                 ped_trans,
                                 ped_sem,
-                                bool(row_edit.get("RG", False)),
-                                bool(row_edit.get("Certidão", False)),
-                                bool(row_edit.get("Airtag", False)),
+                                rg_marcado,
+                                certidao_marcado,
+                                airtag_marcado,
                             )
 
                             if row_number_edit <= 0:
