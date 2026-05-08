@@ -28,10 +28,6 @@ MAIN_WORKSHEET_NAME = "Clear"
 PED_WORKSHEET_NAME = "Planilha Dash Valéria sem mayra"
 COMM_WORKSHEET_NAME = "Pedigree Comissão Ju"
 
-# DESTINOS DOS SALVAMENTOS:
-# - salvar_formulario_pedigree() grava/atualiza na aba: Planilha Dash Valéria sem mayra
-# - salvar_pedigree_na_comissao() grava/atualiza na aba: Pedigree Comissão Ju
-
 SCOPES = [
     "https://www.googleapis.com/auth/spreadsheets",
     "https://www.googleapis.com/auth/drive",
@@ -719,45 +715,6 @@ def atualizar_status_pedigree(row_number: int, novo_status: str):
     st.cache_data.clear()
 
 
-def find_commission_row_by_cliente_name(cliente_nome: str):
-    worksheet = get_worksheet(COMM_WORKSHEET_NAME)
-    headers = [str(h).strip() for h in worksheet.row_values(1)]
-
-    if "Cliente" not in headers:
-        return None
-
-    col_cliente = headers.index("Cliente") + 1
-    cliente_norm = normalize_search_text(cliente_nome)
-
-    if not cliente_norm:
-        return None
-
-    values = worksheet.col_values(col_cliente)
-
-    for idx, value in enumerate(values[1:], start=2):
-        if normalize_search_text(value) == cliente_norm:
-            return idx
-
-    return None
-
-
-def excluir_ficha_pedigree(row_number: int, cliente_nome: str):
-    ped_worksheet = get_worksheet(PED_WORKSHEET_NAME)
-
-    if row_number and row_number >= 2:
-        ped_worksheet.delete_rows(row_number)
-
-    try:
-        comm_row = find_commission_row_by_cliente_name(cliente_nome)
-        if comm_row and comm_row >= 2:
-            comm_worksheet = get_worksheet(COMM_WORKSHEET_NAME)
-            comm_worksheet.delete_rows(comm_row)
-    except Exception:
-        pass
-
-    st.cache_data.clear()
-
-
 def card_metric(title: str, value: str, subtitle: str, emoji: str, color: str):
     st.markdown(
         f"""
@@ -863,7 +820,7 @@ def render_realtime_table(df_table: pd.DataFrame, cols_to_show: list[str], heigh
             thead th {{
                 position: sticky;
                 top: 0;
-                background:#032450;
+                background: #071B49;
                 color: white;
                 padding: 12px 10px;
                 text-align: left;
@@ -894,14 +851,19 @@ def render_realtime_table(df_table: pd.DataFrame, cols_to_show: list[str], heigh
                 padding: 5px 10px;
                 font-size: 11px;
                 font-weight: 700;
-                background: #2e6cbf;
+                background: #D39A33;
                 color: white;
                 cursor: pointer;
             }}
         
-    /* PALETA CLEAR - SIDEBAR */
+    /* PALETA CLEAR - SIDEBAR FINAL */
     [data-testid="stSidebar"] {
-        background: linear-gradient(180deg, #032450 0%, #032450 72%, #2e6cbf 155%) !important;
+        background: linear-gradient(180deg, #032450 0%, #032450 58%, #2e6cbf 155%) !important;
+        border-right: 1px solid rgba(255,255,255,0.18) !important;
+    }
+
+    [data-testid="stSidebar"] * {
+        color: #ffffff !important;
     }
 
     [data-testid="stSidebar"] .brand-title,
@@ -914,7 +876,13 @@ def render_realtime_table(df_table: pd.DataFrame, cols_to_show: list[str], heigh
     [data-testid="stSidebar"] .brand-user,
     [data-testid="stSidebar"] .sidebar-logo-circle {
         border-color: #2e6cbf !important;
-        color: #2e6cbf !important;
+        color: #ffffff !important;
+    }
+
+    [data-testid="stSidebar"] .brand-logo *,
+    [data-testid="stSidebar"] .brand-user * {
+        color: #ffffff !important;
+        fill: #ffffff !important;
     }
 
     [data-testid="stSidebar"] .brand-box {
@@ -925,22 +893,9 @@ def render_realtime_table(df_table: pd.DataFrame, cols_to_show: list[str], heigh
         background: rgba(46,108,191,0.22) !important;
     }
 
-    [data-testid="stSidebar"] div[role="radiogroup"] [data-testid="stMarkdownContainer"] p {
-        color: #ffffff !important;
-    }
-
-
-    /* Ícone usuário branco */
-    [data-testid="stSidebar"] .brand-user,
-    [data-testid="stSidebar"] .brand-user * {
-        color: #ffffff !important;
-        fill: #ffffff !important;
-    }
-
-    /* Títulos da sidebar em branco */
-    [data-testid="stSidebar"] .brand-title,
-    [data-testid="stSidebar"] .brand-sub {
-        color: #ffffff !important;
+    [data-testid="stSidebar"] .sidebar-logo-circle {
+        background: #2e6cbf !important;
+        box-shadow: 0 12px 30px rgba(46,108,191,0.20) !important;
     }
 
 </style>
@@ -1006,7 +961,7 @@ def render_cliente_card(cliente: pd.Series, status_opcoes: list):
 
     status_index = status_opcoes.index(status_atual) if status_atual in status_opcoes else 0
 
-    col_status_1, col_status_2, col_status_3 = st.columns([3, 1, 1])
+    col_status_1, col_status_2 = st.columns([3, 1])
 
     with col_status_1:
         novo_status = st.selectbox(
@@ -1026,32 +981,6 @@ def render_cliente_card(cliente: pd.Series, status_opcoes: list):
                 st.rerun()
             except Exception as e:
                 st.error(f"Erro ao atualizar status: {e}")
-
-    with col_status_3:
-        st.markdown("<br>", unsafe_allow_html=True)
-
-        if st.button("🗑️ Excluir ficha", use_container_width=True, key=f"btn_excluir_ficha_{row_number}"):
-            st.session_state[f"confirmar_exclusao_{row_number}"] = True
-
-    if st.session_state.get(f"confirmar_exclusao_{row_number}", False):
-        st.warning(f"Tem certeza que deseja excluir a ficha de {nome}? Essa ação remove da aba Pedigree e também da Comissão.")
-
-        col_confirma_1, col_confirma_2 = st.columns(2)
-
-        with col_confirma_1:
-            if st.button("Sim, excluir", use_container_width=True, key=f"confirmar_excluir_{row_number}"):
-                try:
-                    excluir_ficha_pedigree(row_number, nome)
-                    st.session_state[f"confirmar_exclusao_{row_number}"] = False
-                    st.success("Ficha excluída com sucesso.")
-                    st.rerun()
-                except Exception as e:
-                    st.error(f"Erro ao excluir ficha: {e}")
-
-        with col_confirma_2:
-            if st.button("Cancelar", use_container_width=True, key=f"cancelar_excluir_{row_number}"):
-                st.session_state[f"confirmar_exclusao_{row_number}"] = False
-                st.rerun()
 
     c1, c2 = st.columns(2)
 
@@ -1097,8 +1026,8 @@ st.markdown(
     #MainMenu, footer { visibility: hidden; }
 
     [data-testid="stSidebar"] {
-        background: linear-gradient(180deg, #032450 0%, #2e6cbf 135%);
-        border-right: 1px solid rgba(255,255,255,0.16);
+        background: linear-gradient(180deg, var(--navy) 0%, #051535 100%);
+        border-right: 1px solid rgba(255,255,255,0.08);
     }
 
     [data-testid="stSidebar"] > div:first-child { padding-top: 0rem !important; }
@@ -1152,7 +1081,7 @@ st.markdown(
     }
 
     .brand-title {
-        color: #2e6cbf;
+        color: #F6D089;
         font-size: 1.08rem;
         font-weight: 800;
         line-height: 1.1;
@@ -1161,7 +1090,7 @@ st.markdown(
     }
 
     .brand-sub {
-        color: #2e6cbf;
+        color: #E7C27A;
         font-size: 0.72rem;
         letter-spacing: 0.18em;
         text-transform: uppercase;
@@ -1406,7 +1335,7 @@ st.markdown(
         border-radius: 999px !important;
         border: 1px solid #D8DDEA !important;
         background: #FFFFFF !important;
-        color: #032450 !important;
+        color: #071B49 !important;
         font-weight: 700 !important;
         font-size: 0.82rem !important;
         padding: 0.45rem 0.6rem !important;
@@ -1415,8 +1344,8 @@ st.markdown(
     }
 
     div.stButton > button:hover {
-        border-color: #2e6cbf !important;
-        color: #2e6cbf !important;
+        border-color: #D39A33 !important;
+        color: #D39A33 !important;
     }
 </style>
 """,
@@ -1573,13 +1502,13 @@ if page == "Visão Geral":
         card_metric("Primeiro contato", f"{primeiro_contato}", "no mês", "📞", "#8E0E3F")
 
     with m2:
-        card_metric("Segundo contato", f"{segundo_contato}", "no mês", "📋", "#032450")
+        card_metric("Segundo contato", f"{segundo_contato}", "no mês", "📋", "#071B49")
 
     with m3:
-        card_metric("Terceiro contato", f"{terceiro_contato}", "no mês", "🗂", "#2e6cbf")
+        card_metric("Terceiro contato", f"{terceiro_contato}", "no mês", "🗂", "#D39A33")
 
     with m4:
-        card_metric("Total de contratos", f"{total_contratos}", month_key_to_label(selected_month), "📄", "#032450")
+        card_metric("Total de contratos", f"{total_contratos}", month_key_to_label(selected_month), "📄", "#071B49")
 
     st.markdown(
         f"""
@@ -2011,7 +1940,7 @@ elif page == "Pedigree":
             f"{total_caes_vendidos}",
             f"no mês de {month_key_to_label(selected_ped_month)}",
             "🐶",
-            "#032450",
+            "#071B49",
         )
 
     st.markdown("<br>", unsafe_allow_html=True)
@@ -2083,16 +2012,16 @@ elif page == "Pedigree":
         text="Pedigrees vendidos",
         color="Mês",
         color_discrete_sequence=[
-            "#032450",
+            "#071B49",
             "#8E0E3F",
             "#2E3192",
             "#C00040",
             "#45546B",
             "#95A3B8",
-            "#032450",
+            "#1B1D6D",
             "#9B0033",
             "#3949AB",
-            "#2e6cbf",
+            "#D39A33",
             "#64748B",
             "#0F172A",
         ],
@@ -2365,7 +2294,7 @@ elif page == "Comissão":
                     f"""
                     <div class="metric-card" style="min-height:126px; display:flex; align-items:center;">
                         <div class="metric-wrap">
-                            <div class="metric-icon" style="background:#2e6cbf;">💰</div>
+                            <div class="metric-icon" style="background:#8E0E3F;">💰</div>
                             <div>
                                 <div class="metric-label">Comissão Jullia</div>
                                 <div class="metric-value">{format_money(comissao_jullia_render)}</div>
