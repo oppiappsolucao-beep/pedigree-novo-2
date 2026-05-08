@@ -283,9 +283,10 @@ def sync_pedigrees_para_comissao():
     Garante que todo nome existente na aba 'Planilha Dash Valéria sem mayra'
     também exista na aba 'Pedigree Comissão Ju'.
 
-    Não duplica cliente.
-    Não sobrescreve Produto/Valor já escolhidos na comissão.
-    Apenas cria os nomes que ainda não estão na comissão.
+    IMPORTANTE:
+    - Não duplica cliente.
+    - Não sobrescreve Produto/Valor já escolhidos na comissão.
+    - Usa append_rows em lote para não estourar quota do Google Sheets.
     """
     ped_ws = get_worksheet(PED_WORKSHEET_NAME)
     comm_ws = get_worksheet(COMM_WORKSHEET_NAME)
@@ -321,7 +322,7 @@ def sync_pedigrees_para_comissao():
             pass
 
     hoje = dt.date.today()
-    adicionados = 0
+    linhas_para_adicionar = []
 
     for row in ped_rows:
         try:
@@ -363,16 +364,14 @@ def sync_pedigrees_para_comissao():
             "Jullia": format_money(0),
         }
 
-        row_values = [row_data.get(header, "") for header in comm_headers_now]
-        comm_ws.append_row(row_values, value_input_option="USER_ENTERED")
-
+        linhas_para_adicionar.append([row_data.get(header, "") for header in comm_headers_now])
         clientes_existentes.add(nome_norm)
-        adicionados += 1
 
-    if adicionados > 0:
+    if linhas_para_adicionar:
+        comm_ws.append_rows(linhas_para_adicionar, value_input_option="USER_ENTERED")
         st.cache_data.clear()
 
-    return adicionados
+    return len(linhas_para_adicionar)
 
 
 def is_produto_sem_transferencia(v) -> bool:
@@ -2257,12 +2256,25 @@ elif page == "Comissão":
         unsafe_allow_html=True,
     )
 
-    try:
-        novos_sync = sync_pedigrees_para_comissao()
-        if novos_sync:
-            st.success(f"{novos_sync} novo(s) pedigree(s) enviado(s) para a aba de Comissão.")
-    except Exception as e:
-        st.warning(f"Não foi possível sincronizar Pedigree com Comissão: {e}")
+    if "sync_pedigree_comissao_feito" not in st.session_state:
+        st.session_state["sync_pedigree_comissao_feito"] = False
+
+    sync_col1, sync_col2 = st.columns([1, 4])
+
+    with sync_col1:
+        sincronizar_agora = st.button("Sincronizar", use_container_width=True, key="btn_sync_pedigree_comissao")
+
+    deve_sincronizar = sincronizar_agora or not st.session_state["sync_pedigree_comissao_feito"]
+
+    if deve_sincronizar:
+        try:
+            novos_sync = sync_pedigrees_para_comissao()
+            st.session_state["sync_pedigree_comissao_feito"] = True
+
+            if novos_sync:
+                st.success(f"{novos_sync} novo(s) pedigree(s) enviado(s) para a aba de Comissão.")
+        except Exception as e:
+            st.warning(f"Não foi possível sincronizar Pedigree com Comissão: {e}")
 
     df_com = load_commission_data().copy()
 
