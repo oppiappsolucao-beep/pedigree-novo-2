@@ -863,7 +863,7 @@ def render_realtime_table(df_table: pd.DataFrame, cols_to_show: list[str], heigh
             thead th {{
                 position: sticky;
                 top: 0;
-                background: #071B49;
+                background: #032450;
                 color: white;
                 padding: 12px 10px;
                 text-align: left;
@@ -1037,7 +1037,7 @@ st.markdown(
     """
 <style>
     :root{
-        --navy:#071B49;
+        --navy:#032450;
         --wine:#8E0E3F;
         --gold:#D39A33;
         --bg:#F4F6FB;
@@ -1361,7 +1361,7 @@ st.markdown(
         border-radius: 999px !important;
         border: 1px solid #D8DDEA !important;
         background: #FFFFFF !important;
-        color: #071B49 !important;
+        color: #032450 !important;
         font-weight: 700 !important;
         font-size: 0.82rem !important;
         padding: 0.45rem 0.6rem !important;
@@ -1528,13 +1528,13 @@ if page == "Visão Geral":
         card_metric("Primeiro contato", f"{primeiro_contato}", "no mês", "📞", "#8E0E3F")
 
     with m2:
-        card_metric("Segundo contato", f"{segundo_contato}", "no mês", "📋", "#071B49")
+        card_metric("Segundo contato", f"{segundo_contato}", "no mês", "📋", "#032450")
 
     with m3:
         card_metric("Terceiro contato", f"{terceiro_contato}", "no mês", "🗂", "#D39A33")
 
     with m4:
-        card_metric("Total de contratos", f"{total_contratos}", month_key_to_label(selected_month), "📄", "#071B49")
+        card_metric("Total de contratos", f"{total_contratos}", month_key_to_label(selected_month), "📄", "#032450")
 
     st.markdown(
         f"""
@@ -1966,7 +1966,7 @@ elif page == "Pedigree":
             f"{total_caes_vendidos}",
             f"no mês de {month_key_to_label(selected_ped_month)}",
             "🐶",
-            "#071B49",
+            "#032450",
         )
 
     st.markdown("<br>", unsafe_allow_html=True)
@@ -2038,13 +2038,13 @@ elif page == "Pedigree":
         text="Pedigrees vendidos",
         color="Mês",
         color_discrete_sequence=[
-            "#071B49",
+            "#032450",
             "#8E0E3F",
             "#2E3192",
             "#C00040",
             "#45546B",
             "#95A3B8",
-            "#1B1D6D",
+            "#032450",
             "#9B0033",
             "#3949AB",
             "#D39A33",
