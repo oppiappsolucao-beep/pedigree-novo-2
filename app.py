@@ -855,49 +855,6 @@ def render_realtime_table(df_table: pd.DataFrame, cols_to_show: list[str], heigh
                 color: white;
                 cursor: pointer;
             }}
-        
-    /* PALETA CLEAR - SIDEBAR FINAL */
-    [data-testid="stSidebar"] {
-        background: linear-gradient(180deg, #032450 0%, #032450 58%, #2e6cbf 155%) !important;
-        border-right: 1px solid rgba(255,255,255,0.18) !important;
-    }
-
-    [data-testid="stSidebar"] * {
-        color: #ffffff !important;
-    }
-
-    [data-testid="stSidebar"] .brand-title,
-    [data-testid="stSidebar"] .brand-sub,
-    [data-testid="stSidebar"] label p {
-        color: #ffffff !important;
-    }
-
-    [data-testid="stSidebar"] .brand-logo,
-    [data-testid="stSidebar"] .brand-user,
-    [data-testid="stSidebar"] .sidebar-logo-circle {
-        border-color: #2e6cbf !important;
-        color: #ffffff !important;
-    }
-
-    [data-testid="stSidebar"] .brand-logo *,
-    [data-testid="stSidebar"] .brand-user * {
-        color: #ffffff !important;
-        fill: #ffffff !important;
-    }
-
-    [data-testid="stSidebar"] .brand-box {
-        border-bottom: 1px solid rgba(255,255,255,0.22) !important;
-    }
-
-    [data-testid="stSidebar"] div[role="radiogroup"] > label:hover {
-        background: rgba(46,108,191,0.22) !important;
-    }
-
-    [data-testid="stSidebar"] .sidebar-logo-circle {
-        background: #2e6cbf !important;
-        box-shadow: 0 12px 30px rgba(46,108,191,0.20) !important;
-    }
-
 </style>
     </head>
 
@@ -1347,6 +1304,49 @@ st.markdown(
         border-color: #D39A33 !important;
         color: #D39A33 !important;
     }
+
+    /* PALETA CLEAR - SIDEBAR FINAL */
+    [data-testid="stSidebar"] {
+        background: linear-gradient(180deg, #032450 0%, #032450 58%, #2e6cbf 155%) !important;
+        border-right: 1px solid rgba(255,255,255,0.18) !important;
+    }
+
+    [data-testid="stSidebar"] * {
+        color: #ffffff !important;
+    }
+
+    [data-testid="stSidebar"] .brand-title,
+    [data-testid="stSidebar"] .brand-sub,
+    [data-testid="stSidebar"] label p {
+        color: #ffffff !important;
+    }
+
+    [data-testid="stSidebar"] .brand-logo,
+    [data-testid="stSidebar"] .brand-user,
+    [data-testid="stSidebar"] .sidebar-logo-circle {
+        border-color: #2e6cbf !important;
+        color: #ffffff !important;
+    }
+
+    [data-testid="stSidebar"] .brand-logo *,
+    [data-testid="stSidebar"] .brand-user * {
+        color: #ffffff !important;
+        fill: #ffffff !important;
+    }
+
+    [data-testid="stSidebar"] .brand-box {
+        border-bottom: 1px solid rgba(255,255,255,0.22) !important;
+    }
+
+    [data-testid="stSidebar"] div[role="radiogroup"] > label:hover {
+        background: rgba(46,108,191,0.22) !important;
+    }
+
+    [data-testid="stSidebar"] .sidebar-logo-circle {
+        background: #2e6cbf !important;
+        box-shadow: 0 12px 30px rgba(46,108,191,0.20) !important;
+    }
+
 </style>
 """,
     unsafe_allow_html=True,
