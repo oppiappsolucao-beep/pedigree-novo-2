@@ -263,6 +263,7 @@ def is_produto_sem_transferencia(v) -> bool:
         "s/ troca",
         "sem trans",
         "sem transf",
+        "pedigree sem",
     ]
     return any(p in texto for p in padroes)
 
@@ -280,26 +281,45 @@ def calcular_comissao_jullia(df_mes: pd.DataFrame, col_produtos: Optional[str], 
 
     df_calc = df_mes.copy()
 
+    # Garante coluna de valor numérico vinda da planilha.
+    if col_valor and col_valor in df_calc.columns:
+        df_calc["_valor_calculo_jullia"] = df_calc[col_valor].apply(parse_money)
+    else:
+        df_calc["_valor_calculo_jullia"] = 0.0
+
+    # Identifica Pedigree sem transferência pelo texto do produto.
     if col_produtos and col_produtos in df_calc.columns:
         df_calc["_sem_transferencia_calc"] = df_calc[col_produtos].apply(is_produto_sem_transferencia)
     else:
         df_calc["_sem_transferencia_calc"] = False
 
+    # Segurança: quando o produto vier escrito errado/vazio, valores próximos do frete/sem transferência também são ignorados para a Jullia.
+    df_calc["_sem_transferencia_calc"] = (
+        df_calc["_sem_transferencia_calc"]
+        | df_calc["_valor_calculo_jullia"].between(34.50, 36.50)
+    )
+
+    # BASE DO PERCENTUAL:
+    # todas as vendas do mês MENOS os pedidos sem transferência.
     df_validas_mes = df_calc[~df_calc["_sem_transferencia_calc"]].copy()
     total_vendas_validas_mes = int(len(df_validas_mes))
 
     if col_vendedor and col_vendedor in df_validas_mes.columns:
-        mask_jullia = df_validas_mes[col_vendedor].apply(normalize_search_text).str.contains(r"jul+ia", na=False, regex=True)
+        mask_jullia = df_validas_mes[col_vendedor].apply(normalize_search_text).str.contains(
+            r"jul+ia",
+            na=False,
+            regex=True,
+        )
         df_jullia = df_validas_mes[mask_jullia].copy()
     else:
         df_jullia = pd.DataFrame()
 
     qtd_vendas_jullia_validas = int(len(df_jullia))
-
-    if not df_jullia.empty and col_valor and col_valor in df_jullia.columns:
-        valor_vendas_jullia_validas = float(df_jullia[col_valor].apply(parse_money).sum())
-    else:
-        valor_vendas_jullia_validas = 0.0
+    valor_vendas_jullia_validas = (
+        float(df_jullia["_valor_calculo_jullia"].sum())
+        if not df_jullia.empty and "_valor_calculo_jullia" in df_jullia.columns
+        else 0.0
+    )
 
     percentual_jullia = (
         qtd_vendas_jullia_validas / total_vendas_validas_mes
@@ -2072,8 +2092,12 @@ elif page == "Comissão":
             else:
                 produtos_unicos = 0
 
+            # A comissão da Jullia é calculada sempre pela base inteira do mês selecionado,
+            # sem ser afetada pelo filtro de vendedor ou busca rápida da tela.
+            df_com_mes_calculo_jullia = df_com[df_com["_mes_key"] == selected_comm_month].copy()
+
             dados_jullia = calcular_comissao_jullia(
-                df_com_filtrado,
+                df_com_mes_calculo_jullia,
                 col_produtos,
                 col_valor,
                 col_vendedor,
@@ -2106,7 +2130,7 @@ elif page == "Comissão":
                 <div class="live-card" style="margin-top:1rem;">
                     <div class="live-title">Regra aplicada</div>
                     <div class="live-sub">
-                        {faixa_jullia}. Pedigree sem transferência foi ignorado apenas para o cálculo da Jullia.
+                        {faixa_jullia}. Base: todas as vendas do mês, menos Pedigree sem transferência. Sem transferência continua na planilha, mas não entra na comissão da Jullia.
                     </div>
                 </div>
                 """,
