@@ -894,11 +894,42 @@ def render_realtime_table(df_table: pd.DataFrame, cols_to_show: list[str], heigh
                 padding: 5px 10px;
                 font-size: 11px;
                 font-weight: 700;
-                background: #D39A33;
+                background: #2e6cbf;
                 color: white;
                 cursor: pointer;
             }}
-        </style>
+        
+    /* PALETA CLEAR - SIDEBAR */
+    [data-testid="stSidebar"] {
+        background: linear-gradient(180deg, #032450 0%, #032450 72%, #2e6cbf 155%) !important;
+    }
+
+    [data-testid="stSidebar"] .brand-title,
+    [data-testid="stSidebar"] .brand-sub,
+    [data-testid="stSidebar"] label p {
+        color: #ffffff !important;
+    }
+
+    [data-testid="stSidebar"] .brand-logo,
+    [data-testid="stSidebar"] .brand-user,
+    [data-testid="stSidebar"] .sidebar-logo-circle {
+        border-color: #2e6cbf !important;
+        color: #2e6cbf !important;
+    }
+
+    [data-testid="stSidebar"] .brand-box {
+        border-bottom: 1px solid rgba(255,255,255,0.22) !important;
+    }
+
+    [data-testid="stSidebar"] div[role="radiogroup"] > label:hover {
+        background: rgba(46,108,191,0.22) !important;
+    }
+
+    [data-testid="stSidebar"] div[role="radiogroup"] [data-testid="stMarkdownContainer"] p {
+        color: #ffffff !important;
+    }
+
+</style>
     </head>
 
     <body>
@@ -1039,7 +1070,7 @@ st.markdown(
     :root{
         --navy:#032450;
         --wine:#8E0E3F;
-        --gold:#D39A33;
+        --gold:#2e6cbf;
         --bg:#F4F6FB;
         --card:#FFFFFF;
         --line:#E7EAF3;
@@ -1052,8 +1083,8 @@ st.markdown(
     #MainMenu, footer { visibility: hidden; }
 
     [data-testid="stSidebar"] {
-        background: linear-gradient(180deg, var(--navy) 0%, #051535 100%);
-        border-right: 1px solid rgba(255,255,255,0.08);
+        background: linear-gradient(180deg, #032450 0%, #2e6cbf 135%);
+        border-right: 1px solid rgba(255,255,255,0.16);
     }
 
     [data-testid="stSidebar"] > div:first-child { padding-top: 0rem !important; }
@@ -1107,7 +1138,7 @@ st.markdown(
     }
 
     .brand-title {
-        color: #F6D089;
+        color: #2e6cbf;
         font-size: 1.08rem;
         font-weight: 800;
         line-height: 1.1;
@@ -1116,7 +1147,7 @@ st.markdown(
     }
 
     .brand-sub {
-        color: #E7C27A;
+        color: #2e6cbf;
         font-size: 0.72rem;
         letter-spacing: 0.18em;
         text-transform: uppercase;
@@ -1370,8 +1401,8 @@ st.markdown(
     }
 
     div.stButton > button:hover {
-        border-color: #D39A33 !important;
-        color: #D39A33 !important;
+        border-color: #2e6cbf !important;
+        color: #2e6cbf !important;
     }
 </style>
 """,
@@ -1531,7 +1562,7 @@ if page == "Visão Geral":
         card_metric("Segundo contato", f"{segundo_contato}", "no mês", "📋", "#032450")
 
     with m3:
-        card_metric("Terceiro contato", f"{terceiro_contato}", "no mês", "🗂", "#D39A33")
+        card_metric("Terceiro contato", f"{terceiro_contato}", "no mês", "🗂", "#2e6cbf")
 
     with m4:
         card_metric("Total de contratos", f"{total_contratos}", month_key_to_label(selected_month), "📄", "#032450")
@@ -2047,7 +2078,7 @@ elif page == "Pedigree":
             "#032450",
             "#9B0033",
             "#3949AB",
-            "#D39A33",
+            "#2e6cbf",
             "#64748B",
             "#0F172A",
         ],
