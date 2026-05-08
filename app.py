@@ -278,6 +278,103 @@ def salvar_pedigree_na_comissao(dados):
     st.cache_data.clear()
 
 
+def sync_pedigrees_para_comissao():
+    """
+    Garante que todo nome existente na aba 'Planilha Dash Valéria sem mayra'
+    também exista na aba 'Pedigree Comissão Ju'.
+
+    Não duplica cliente.
+    Não sobrescreve Produto/Valor já escolhidos na comissão.
+    Apenas cria os nomes que ainda não estão na comissão.
+    """
+    ped_ws = get_worksheet(PED_WORKSHEET_NAME)
+    comm_ws = get_worksheet(COMM_WORKSHEET_NAME)
+
+    ped_values = ped_ws.get_all_values()
+    if not ped_values:
+        return 0
+
+    ped_headers = [str(h).strip() for h in ped_values[0]]
+    ped_rows = ped_values[1:]
+
+    if "Nome" not in ped_headers:
+        return 0
+
+    ped_nome_idx = ped_headers.index("Nome")
+    ped_mes_idx = ped_headers.index("Mês") if "Mês" in ped_headers else None
+
+    comm_headers = ensure_commission_base_headers()
+
+    comm_values = comm_ws.get_all_values()
+    comm_headers_now = [str(h).strip() for h in comm_values[0]] if comm_values else comm_headers
+
+    if "Cliente" not in comm_headers_now:
+        return 0
+
+    comm_cliente_idx = comm_headers_now.index("Cliente")
+
+    clientes_existentes = set()
+    for row in comm_values[1:]:
+        try:
+            clientes_existentes.add(normalize_search_text(row[comm_cliente_idx]))
+        except Exception:
+            pass
+
+    hoje = dt.date.today()
+    adicionados = 0
+
+    for row in ped_rows:
+        try:
+            nome = normalize_text(row[ped_nome_idx])
+        except Exception:
+            nome = ""
+
+        if not nome:
+            continue
+
+        nome_norm = normalize_search_text(nome)
+
+        if not nome_norm or nome_norm in clientes_existentes:
+            continue
+
+        raw_mes = ""
+        if ped_mes_idx is not None and ped_mes_idx < len(row):
+            raw_mes = normalize_text(row[ped_mes_idx])
+
+        mes_key = build_month_key_from_values(raw_mes, "")
+        if mes_key:
+            ano_ref, mes_ref = mes_key
+            data_venda = f"01/{mes_ref:02d}/{ano_ref}"
+            mes_venda = month_name_pt(mes_ref)
+        else:
+            data_venda = hoje.strftime("%d/%m/%Y")
+            mes_venda = month_name_pt(hoje.month)
+
+        row_data = {
+            "Data da Venda": data_venda,
+            "Mês da Venda": mes_venda,
+            "Cliente": nome,
+            "Produtos": "",
+            "Mês da Compra do Cliente": mes_venda,
+            "Valor": "",
+            "Vendedor": "Jullia",
+            "Silmário": format_money(0),
+            "Correio": format_money(0),
+            "Jullia": format_money(0),
+        }
+
+        row_values = [row_data.get(header, "") for header in comm_headers_now]
+        comm_ws.append_row(row_values, value_input_option="USER_ENTERED")
+
+        clientes_existentes.add(nome_norm)
+        adicionados += 1
+
+    if adicionados > 0:
+        st.cache_data.clear()
+
+    return adicionados
+
+
 def is_produto_sem_transferencia(v) -> bool:
     texto = normalize_search_text(v)
     padroes = [
@@ -2159,6 +2256,13 @@ elif page == "Comissão":
         '<div class="page-subtitle">Painel de acompanhamento da aba Pedigree Comissão Ju.</div>',
         unsafe_allow_html=True,
     )
+
+    try:
+        novos_sync = sync_pedigrees_para_comissao()
+        if novos_sync:
+            st.success(f"{novos_sync} novo(s) pedigree(s) enviado(s) para a aba de Comissão.")
+    except Exception as e:
+        st.warning(f"Não foi possível sincronizar Pedigree com Comissão: {e}")
 
     df_com = load_commission_data().copy()
 
