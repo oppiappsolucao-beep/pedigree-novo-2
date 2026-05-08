@@ -1911,10 +1911,16 @@ elif page == "Pedigree":
         else pd.DataFrame()
     )
 
-    if not df_ped_mes.empty and "Status Pedigree" in df_ped_mes.columns:
+    # Total de Pedigrees feitos:
+    # conta todos os registros da aba "Planilha Dash Valéria sem mayra"
+    # no mês selecionado, mesmo que tenham sido adicionados manualmente
+    # e mesmo que o status ainda não esteja como Postado/Enviado.
+    if not df_ped_mes.empty and "Nome" in df_ped_mes.columns:
         total_pedigrees_vendidos = int(
-            df_ped_mes["Status Pedigree"].apply(is_status_pedigree_vendido).sum()
+            (df_ped_mes["Nome"].astype(str).str.strip() != "").sum()
         )
+    elif not df_ped_mes.empty:
+        total_pedigrees_vendidos = int(len(df_ped_mes))
     else:
         total_pedigrees_vendidos = 0
 
@@ -1929,7 +1935,7 @@ elif page == "Pedigree":
         card_metric_big(
             "Total de Pedigrees",
             f"{total_pedigrees_vendidos}",
-            f"vendidos em {month_key_to_label(selected_ped_month)}",
+            f"feitos em {month_key_to_label(selected_ped_month)}",
             "⚖️",
             "#8E0E3F",
         )
