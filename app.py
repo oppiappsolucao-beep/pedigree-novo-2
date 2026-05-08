@@ -70,34 +70,9 @@ def load_pedigree_data() -> pd.DataFrame:
 @st.cache_data(show_spinner=False, ttl=CACHE_TTL_SECONDS)
 def load_commission_data() -> pd.DataFrame:
     worksheet = get_worksheet(COMM_WORKSHEET_NAME)
-    values = worksheet.get_all_values()
-
-    if not values:
-        return pd.DataFrame()
-
-    headers = [str(c).strip() for c in values[0]]
-    rows = values[1:]
-
-    clean_headers = []
-    seen = {}
-
-    for i, header in enumerate(headers):
-        if not header:
-            header = f"Coluna {i + 1}"
-
-        if header in seen:
-            seen[header] += 1
-            header = f"{header}_{seen[header]}"
-        else:
-            seen[header] = 1
-
-        clean_headers.append(header)
-
-    df = pd.DataFrame(rows, columns=clean_headers)
-
-    for col in df.columns:
-        df[col] = df[col].astype(str).str.strip()
-
+    records = worksheet.get_all_records()
+    df = pd.DataFrame(records)
+    df.columns = [str(c).strip() for c in df.columns]
     return df
 
 
@@ -169,6 +144,116 @@ def format_money(v) -> str:
     return f"R$ {n:,.2f}".replace(",", "X").replace(".", ",").replace("X", ".")
 
 
+VALOR_PEDIGREE_TRANSFERENCIA = 249.90
+VALOR_PEDIGREE_SEM_TRANSFERENCIA = 35.80
+VALOR_CORREIO = 35.80
+
+
+def is_transferencia_sim(v) -> bool:
+    texto = normalize_search_text(v)
+    return texto in ["sim", "s", "yes", "true", "1"]
+
+
+def produto_pedigree_por_transferencia(v) -> str:
+    return "Pedigree" if is_transferencia_sim(v) else "Pedigree s/ troca"
+
+
+def valor_pedigree_por_transferencia(v) -> float:
+    return VALOR_PEDIGREE_TRANSFERENCIA if is_transferencia_sim(v) else VALOR_PEDIGREE_SEM_TRANSFERENCIA
+
+
+def mes_nome_from_date(d: dt.date) -> str:
+    return month_name_pt(d.month)
+
+
+def find_commission_row_by_cliente(worksheet, cliente_nome: str):
+    headers = [str(h).strip() for h in worksheet.row_values(1)]
+    if "Cliente" not in headers:
+        return None
+
+    col_cliente = headers.index("Cliente") + 1
+    cliente_norm = normalize_search_text(cliente_nome)
+
+    if not cliente_norm:
+        return None
+
+    values = worksheet.col_values(col_cliente)
+
+    for idx, value in enumerate(values[1:], start=2):
+        if normalize_search_text(value) == cliente_norm:
+            return idx
+
+    return None
+
+
+def ensure_commission_base_headers():
+    worksheet = get_worksheet(COMM_WORKSHEET_NAME)
+    headers = [str(h).strip() for h in worksheet.row_values(1)]
+
+    required = [
+        "Data da Venda",
+        "Mês da Venda",
+        "Cliente",
+        "Produtos",
+        "Mês da Compra do Cliente",
+        "Valor",
+        "Vendedor",
+        "Silmário",
+        "Correio",
+        "Jullia",
+    ]
+
+    if not headers:
+        worksheet.update("A1", [required], value_input_option="USER_ENTERED")
+        return required
+
+    changed = False
+    for col in required:
+        if col not in headers:
+            headers.append(col)
+            changed = True
+
+    if changed:
+        worksheet.update("A1", [headers], value_input_option="USER_ENTERED")
+
+    return headers
+
+
+def salvar_pedigree_na_comissao(dados):
+    worksheet = get_worksheet(COMM_WORKSHEET_NAME)
+    headers = ensure_commission_base_headers()
+
+    hoje = dt.date.today()
+    cliente = normalize_text(dados.get("Nome", ""))
+    transferencia = normalize_text(dados.get("Transferência", "Sim"))
+
+    produto = produto_pedigree_por_transferencia(transferencia)
+    valor = valor_pedigree_por_transferencia(transferencia)
+
+    row_data = {
+        "Data da Venda": hoje.strftime("%d/%m/%Y"),
+        "Mês da Venda": mes_nome_from_date(hoje),
+        "Cliente": cliente,
+        "Produtos": produto,
+        "Mês da Compra do Cliente": month_name_pt(hoje.month),
+        "Valor": format_money(valor),
+        "Vendedor": "Jullia",
+        "Silmário": format_money(0),
+        "Correio": format_money(VALOR_CORREIO),
+        "Jullia": format_money(0),
+    }
+
+    row_values = [row_data.get(header, "") for header in headers]
+    existing_row = find_commission_row_by_cliente(worksheet, cliente)
+
+    if existing_row:
+        worksheet.update(f"A{existing_row}", [row_values], value_input_option="USER_ENTERED")
+    else:
+        worksheet.append_row(row_values, value_input_option="USER_ENTERED")
+
+    st.cache_data.clear()
+
+
 def is_produto_sem_transferencia(v) -> bool:
     texto = normalize_search_text(v)
     padroes = [
@@ -182,7 +267,7 @@ def is_produto_sem_transferencia(v) -> bool:
     return any(p in texto for p in padroes)
 
 
-def calcular_comissao_jullia(df_mes: pd.DataFrame, col_produtos: Optional[str], col_valor: Optional[str], col_vendedor: Optional[str], col_valor_ajustado: Optional[str] = None, col_desconto: Optional[str] = None, col_obs: Optional[str] = None) -> dict:
+def calcular_comissao_jullia(df_mes: pd.DataFrame, col_produtos: Optional[str], col_valor: Optional[str], col_vendedor: Optional[str]) -> dict:
     if df_mes is None or df_mes.empty:
         return {
             "total_vendas_validas_mes": 0,
@@ -211,26 +296,8 @@ def calcular_comissao_jullia(df_mes: pd.DataFrame, col_produtos: Optional[str], 
 
     qtd_vendas_jullia_validas = int(len(df_jullia))
 
-    
-    if (not col_valor or col_valor not in df_jullia.columns):
-        for tentativa in ["Valor", "valor", "VALOR"]:
-            if tentativa in df_jullia.columns:
-                col_valor = tentativa
-                break
-
-    if not df_jullia.empty:
-        valor_vendas_jullia_validas = float(
-            df_jullia.apply(
-                lambda row: calcular_valor_jullia_linha(
-                    row,
-                    col_valor,
-                    col_valor_ajustado,
-                    col_desconto,
-                    col_obs,
-                ),
-                axis=1,
-            ).sum()
-        )
+    if not df_jullia.empty and col_valor and col_valor in df_jullia.columns:
+        valor_vendas_jullia_validas = float(df_jullia[col_valor].apply(parse_money).sum())
     else:
         valor_vendas_jullia_validas = 0.0
 
@@ -245,7 +312,7 @@ def calcular_comissao_jullia(df_mes: pd.DataFrame, col_produtos: Optional[str], 
         faixa = "Sem vendas válidas"
     elif percentual_jullia <= 0.50:
         comissao_jullia = valor_vendas_jullia_validas * 0.05
-        faixa = "5% sobre vendas válidas"
+        faixa = "5% sobre o valor final das vendas válidas"
     elif percentual_jullia <= 0.74:
         comissao_jullia = qtd_vendas_jullia_validas * 3.50
         faixa = "R$ 3,50 por venda válida"
@@ -261,113 +328,6 @@ def calcular_comissao_jullia(df_mes: pd.DataFrame, col_produtos: Optional[str], 
         "comissao_jullia": float(comissao_jullia),
         "faixa": faixa,
     }
-
-
-PLANOS_JULLIA = {
-    "Sem plano / sem ajuste": {
-        "valor": 0.0,
-        "desconto": 0.0,
-    },
-    "Plano 1": {
-        "valor": 285.70,
-        "desconto": 39.87,
-    },
-    "Plano 2": {
-        "valor": 345.70,
-        "desconto": 48.32,
-    },
-    "Plano 3": {
-        "valor": 475.70,
-        "desconto": 67.03,
-    },
-    "Manual": {
-        "valor": 0.0,
-        "desconto": 0.0,
-    },
-}
-
-COMM_EXTRA_COLS = [
-    "Observação Jullia",
-    "Plano Jullia",
-    "Desconto Jullia",
-    "Valor Ajustado Jullia",
-]
-
-
-def extrair_desconto_da_observacao(v) -> float:
-    texto = normalize_text(v)
-    if not texto:
-        return 0.0
-
-    texto_norm = normalize_search_text(texto)
-    if "desconto" not in texto_norm:
-        return 0.0
-
-    valores = re.findall(r"(\d{1,3}(?:\.\d{3})*,\d{2}|\d+,\d{2}|\d+\.\d{2})", texto)
-    if not valores:
-        return 0.0
-
-    return parse_money(valores[-1])
-
-
-def calcular_valor_jullia_linha(row, col_valor, col_valor_ajustado=None, col_desconto=None, col_obs=None) -> float:
-    valor_base = parse_money(row.get(col_valor, "")) if col_valor else 0.0
-
-    if col_valor_ajustado and col_valor_ajustado in row:
-        valor_ajustado = parse_money(row.get(col_valor_ajustado, ""))
-        if valor_ajustado > 0:
-            return valor_ajustado
-
-    desconto = 0.0
-
-    if col_desconto and col_desconto in row:
-        desconto = parse_money(row.get(col_desconto, ""))
-
-    if desconto <= 0 and col_obs and col_obs in row:
-        desconto = extrair_desconto_da_observacao(row.get(col_obs, ""))
-
-    return max(valor_base - desconto, 0.0)
-
-
-def ensure_commission_extra_columns():
-    worksheet = get_worksheet(COMM_WORKSHEET_NAME)
-    headers = [str(h).strip() for h in worksheet.row_values(1)]
-
-    missing = [c for c in COMM_EXTRA_COLS if c not in headers]
-
-    if missing:
-        raise Exception(
-            "As colunas necessárias não foram encontradas na aba Pedigree Comissão Ju: "
-            + ", ".join(missing)
-            + ". Não criei novas colunas automaticamente para não bagunçar a planilha."
-        )
-
-    return headers
-
-
-def atualizar_observacao_comissao(row_number: int, observacao: str, plano: str, desconto: float, valor_ajustado: float):
-    worksheet = get_worksheet(COMM_WORKSHEET_NAME)
-    headers = ensure_commission_extra_columns()
-
-    updates = {
-        "Observação Jullia": observacao,
-        "Plano Jullia": plano,
-        "Desconto Jullia": format_money(desconto),
-        "Valor Ajustado Jullia": format_money(valor_ajustado),
-    }
-
-    for header_name, value in updates.items():
-        col_number = headers.index(header_name) + 1
-        worksheet.update_cell(row_number, col_number, value)
-
-    st.cache_data.clear()
-
-
-def format_money_input_value(v) -> str:
-    n = parse_money(v)
-    if n <= 0:
-        return ""
-    return format_money(n)
 
 
 def parse_date_any(v) -> Optional[dt.date]:
@@ -579,6 +539,8 @@ def salvar_formulario_pedigree(dados):
         worksheet.update(f"A{row_number}", [row_values], value_input_option="USER_ENTERED")
     else:
         worksheet.append_row(row_values, value_input_option="USER_ENTERED")
+
+    salvar_pedigree_na_comissao(dados)
 
     st.cache_data.clear()
 
@@ -1897,7 +1859,6 @@ elif page == "Comissão":
     df_com = load_commission_data().copy()
 
     if not df_com.empty:
-        df_com["__row_number"] = df_com.index + 2
         col_data_venda = "Data da Venda" if "Data da Venda" in df_com.columns else detect_col(df_com, [["data", "venda"]])
         col_mes_venda = "Mês da Venda" if "Mês da Venda" in df_com.columns else detect_col(df_com, [["mês", "venda"], ["mes", "venda"]])
         col_cliente = "Cliente" if "Cliente" in df_com.columns else detect_col(df_com, [["cliente"]])
@@ -1909,11 +1870,7 @@ elif page == "Comissão":
         )
         col_valor = "Valor" if "Valor" in df_com.columns else detect_col(df_com, [["valor"]])
         col_vendedor = "Vendedor" if "Vendedor" in df_com.columns else detect_col(df_com, [["vendedor"]])
-        col_silimario = "Silimario" if "Silimario" in df_com.columns else detect_col(df_com, [["silimario"]])
-        col_obs_jullia = "Observação Jullia" if "Observação Jullia" in df_com.columns else detect_col(df_com, [["observacao", "jullia"], ["observação", "jullia"]])
-        col_plano_jullia = "Plano Jullia" if "Plano Jullia" in df_com.columns else detect_col(df_com, [["plano", "jullia"]])
-        col_desconto_jullia = "Desconto Jullia" if "Desconto Jullia" in df_com.columns else detect_col(df_com, [["desconto", "jullia"]])
-        col_valor_ajustado_jullia = "Valor Ajustado Jullia" if "Valor Ajustado Jullia" in df_com.columns else detect_col(df_com, [["valor", "ajustado", "jullia"]])
+        col_silimario = "Silmário" if "Silmário" in df_com.columns else ("Silimario" if "Silimario" in df_com.columns else detect_col(df_com, [["silmario"], ["silimario"]]))
 
         df_com["_data_venda"] = df_com[col_data_venda].apply(parse_date_any) if col_data_venda else None
         df_com["_mes_key"] = df_com.apply(lambda row: build_month_key(row, col_mes_venda, col_data_venda), axis=1)
@@ -2120,9 +2077,6 @@ elif page == "Comissão":
                 col_produtos,
                 col_valor,
                 col_vendedor,
-                col_valor_ajustado_jullia,
-                col_desconto_jullia,
-                col_obs_jullia,
             )
 
             comissao_jullia = dados_jullia["comissao_jullia"]
@@ -2180,10 +2134,6 @@ elif page == "Comissão":
                     col_valor,
                     col_vendedor,
                     col_silimario,
-                    col_plano_jullia,
-                    col_desconto_jullia,
-                    col_valor_ajustado_jullia,
-                    col_obs_jullia,
                 ]
                 if c and c in df_com_filtrado.columns
             ]
@@ -2192,123 +2142,6 @@ elif page == "Comissão":
                 render_realtime_table(df_com_filtrado, cols_show, height=430)
             else:
                 st.info("Nenhuma venda encontrada com os filtros selecionados.")
-
-            st.markdown(
-                """
-                <div class="live-card" style="margin-top:1rem;">
-                    <div class="live-title">📝 Observação da Comissão Jullia</div>
-                    <div class="live-sub">
-                        Busque o cliente na busca rápida acima. A observação será salva diretamente na linha desse cliente,
-                        nas colunas Observação Jullia, Plano Jullia, Desconto Jullia e Valor Ajustado Jullia.
-                    </div>
-                </div>
-                """,
-                unsafe_allow_html=True,
-            )
-            if not df_com_filtrado.empty and col_cliente and col_cliente in df_com_filtrado.columns:
-
-                linha_obs = df_com_filtrado.iloc[0]
-                row_number_obs = int(linha_obs.get("__row_number", 0))
-                cliente_nome_obs = normalize_text(linha_obs.get(col_cliente, "")) if col_cliente else ""
-                produto_nome_obs = normalize_text(linha_obs.get(col_produtos, "")) if col_produtos else ""
-
-                st.markdown(
-                    f"""
-                    <div class="live-card" style="margin-top:0.75rem;">
-                        <div class="live-sub">
-                            <b>Cliente selecionado:</b> {html.escape(cliente_nome_obs)}<br>
-                            <b>Produto:</b> {html.escape(produto_nome_obs)}<br>
-                            <b>Linha da planilha:</b> {row_number_obs}
-                        </div>
-                    </div>
-                    """,
-                    unsafe_allow_html=True,
-                )
-
-                valor_original_obs = parse_money(linha_obs.get(col_valor, "")) if col_valor else 0.0
-                obs_atual = normalize_text(linha_obs.get(col_obs_jullia, "")) if col_obs_jullia else ""
-                plano_atual = normalize_text(linha_obs.get(col_plano_jullia, "")) if col_plano_jullia else "Sem plano / sem ajuste"
-
-                if plano_atual not in PLANOS_JULLIA:
-                    plano_atual = "Sem plano / sem ajuste"
-
-                desconto_atual = parse_money(linha_obs.get(col_desconto_jullia, "")) if col_desconto_jullia else 0.0
-                valor_ajustado_atual = parse_money(linha_obs.get(col_valor_ajustado_jullia, "")) if col_valor_ajustado_jullia else 0.0
-
-                with st.form("form_observacao_comissao_jullia"):
-                    col_obs_1, col_obs_2 = st.columns([1.1, 1])
-
-                    with col_obs_1:
-                        plano_escolhido = st.selectbox(
-                            "Plano escolhido",
-                            list(PLANOS_JULLIA.keys()),
-                            index=list(PLANOS_JULLIA.keys()).index(plano_atual),
-                            key="plano_escolhido_jullia",
-                        )
-
-                        aplicou_desconto = st.checkbox(
-                            "Cliente usou condição especial / desconto",
-                            value=desconto_atual > 0,
-                            key="aplicou_desconto_jullia",
-                        )
-
-                    with col_obs_2:
-                        valor_base_plano = PLANOS_JULLIA[plano_escolhido]["valor"]
-
-                        if valor_base_plano > 0:
-                            valor_base_calculo = valor_base_plano
-                        else:
-                            valor_base_calculo = valor_original_obs
-
-                        desconto_sugerido = PLANOS_JULLIA[plano_escolhido]["desconto"] if aplicou_desconto else 0.0
-
-                        if desconto_atual > 0:
-                            desconto_sugerido = desconto_atual
-
-                        desconto_digitado = st.number_input(
-                            "Desconto aplicado",
-                            min_value=0.0,
-                            value=float(desconto_sugerido),
-                            step=0.01,
-                            format="%.2f",
-                            key="desconto_digitado_jullia",
-                        )
-
-                        valor_ajustado_sugerido = max(valor_base_calculo - desconto_digitado, 0.0)
-
-                        valor_ajustado_digitado = st.number_input(
-                            "Valor final para cálculo",
-                            min_value=0.0,
-                            value=float(valor_ajustado_atual if valor_ajustado_atual > 0 else valor_ajustado_sugerido),
-                            step=0.01,
-                            format="%.2f",
-                            key="valor_ajustado_digitado_jullia",
-                        )
-
-                    observacao_digitada = st.text_area(
-                        "Observação",
-                        value=obs_atual,
-                        placeholder="Ex.: Cliente escolheu Plano 2 e fechou com condição especial à vista.",
-                        key="observacao_digitada_jullia",
-                    )
-
-                    salvar_obs = st.form_submit_button("Salvar observação e recalcular comissão", use_container_width=True)
-
-                    if salvar_obs:
-                        try:
-                            atualizar_observacao_comissao(
-                                row_number_obs,
-                                observacao_digitada,
-                                plano_escolhido,
-                                float(desconto_digitado),
-                                float(valor_ajustado_digitado),
-                            )
-                            st.success("Observação salva na planilha e cálculo atualizado.")
-                            st.rerun()
-                        except Exception as e:
-                            st.error(f"Erro ao salvar observação: {e}")
-            else:
-                st.info("Use a busca rápida para localizar o cliente antes de salvar uma observação.")
 
     else:
         st.warning("A aba Pedigree Comissão Ju está vazia ou não foi encontrada.")
