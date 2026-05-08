@@ -1973,7 +1973,10 @@ elif page == "Pedigree":
         }
     )
 
-    if not df_ped.empty and "_mes_key" in df_ped.columns and "Status Pedigree" in df_ped.columns:
+    # Gráfico anual de Pedigrees feitos:
+    # conta todos os nomes registrados na aba "Planilha Dash Valéria sem mayra",
+    # sem depender do status Postado/Enviado.
+    if not df_ped.empty and "_mes_key" in df_ped.columns:
         df_grafico_ped = df_ped.copy()
 
         df_grafico_ped["_ano"] = df_grafico_ped["_mes_key"].apply(
@@ -1984,27 +1987,30 @@ elif page == "Pedigree":
             lambda x: x[1] if isinstance(x, tuple) and len(x) == 2 else None
         )
 
-        df_grafico_ped["_vendido_pedigree"] = df_grafico_ped["Status Pedigree"].apply(is_status_pedigree_vendido)
+        if "Nome" in df_grafico_ped.columns:
+            df_grafico_ped = df_grafico_ped[
+                (df_grafico_ped["_ano"] == ano_selecionado)
+                & (df_grafico_ped["Nome"].astype(str).str.strip() != "")
+            ].copy()
+        else:
+            df_grafico_ped = df_grafico_ped[
+                df_grafico_ped["_ano"] == ano_selecionado
+            ].copy()
 
-        df_grafico_ped = df_grafico_ped[
-            (df_grafico_ped["_ano"] == ano_selecionado)
-            & (df_grafico_ped["_vendido_pedigree"] == True)
-        ].copy()
-
-        resumo_mensal = df_grafico_ped.groupby("_mes_num").size().reset_index(name="Pedigrees vendidos")
+        resumo_mensal = df_grafico_ped.groupby("_mes_num").size().reset_index(name="Pedigrees feitos")
 
         resumo_mensal = meses_base.merge(resumo_mensal, on="_mes_num", how="left")
-        resumo_mensal["Pedigrees vendidos"] = resumo_mensal["Pedigrees vendidos"].fillna(0).astype(int)
+        resumo_mensal["Pedigrees feitos"] = resumo_mensal["Pedigrees feitos"].fillna(0).astype(int)
     else:
         resumo_mensal = meses_base.copy()
-        resumo_mensal["Pedigrees vendidos"] = 0
+        resumo_mensal["Pedigrees feitos"] = 0
 
     st.markdown(
         f"""
         <div class="live-card">
-            <div class="live-title">⚖️ Pedigrees vendidos no ano</div>
+            <div class="live-title">⚖️ Pedigrees feitos no ano</div>
             <div class="live-sub">
-                Total mensal de pedigrees vendidos em {ano_selecionado}, considerando apenas status Postado/Enviado.
+                Total mensal de pedigrees feitos em {ano_selecionado}, considerando todos os nomes da aba Planilha Dash Valéria sem mayra.
             </div>
         </div>
         """,
@@ -2014,8 +2020,8 @@ elif page == "Pedigree":
     fig_ped_ano = px.bar(
         resumo_mensal,
         x="Mês",
-        y="Pedigrees vendidos",
-        text="Pedigrees vendidos",
+        y="Pedigrees feitos",
+        text="Pedigrees feitos",
         color="Mês",
         color_discrete_sequence=[
             "#071B49",
@@ -2036,7 +2042,7 @@ elif page == "Pedigree":
     fig_ped_ano.update_traces(
         textposition="outside",
         marker_line_width=0,
-        hovertemplate="<b>%{x}</b><br>Pedigrees vendidos: %{y}<extra></extra>",
+        hovertemplate="<b>%{x}</b><br>Pedigrees feitos: %{y}<extra></extra>",
     )
 
     fig_ped_ano.update_layout(
