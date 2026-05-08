@@ -437,6 +437,38 @@ def atualizar_produtos_comissao(row_number: int, produto: str):
     st.cache_data.clear()
 
 
+def montar_produto_por_checks(ped_trans: bool, ped_sem: bool, rg: bool, certidao: bool, airtag: bool) -> str:
+    partes = []
+
+    if ped_trans:
+        partes.append("Pedigree Transferência")
+    elif ped_sem:
+        partes.append("Pedigree Sem Transferência")
+
+    extras = []
+    if rg:
+        extras.append("RG")
+    if certidao:
+        extras.append("Certidão")
+    if airtag:
+        extras.append("Airtag")
+
+    partes.extend(extras)
+    return " + ".join(partes)
+
+
+def checks_por_produto(produto: str) -> dict:
+    texto = normalize_search_text(produto)
+
+    return {
+        "Pedigree Transferência": ("pedigree" in texto and not is_produto_sem_transferencia(produto)),
+        "Sem Transferência": is_produto_sem_transferencia(produto),
+        "RG": "rg" in texto,
+        "Certidão": ("certidao" in texto or "certidão" in texto),
+        "Airtag": ("airtag" in texto or "air tag" in texto),
+    }
+
+
 def parse_date_any(v) -> Optional[dt.date]:
     if pd.isna(v):
         return None
@@ -2252,33 +2284,31 @@ elif page == "Comissão":
             if not df_com_filtrado.empty and cols_show:
                 df_editor = df_com_filtrado.copy()
 
-                if "Produtos" not in df_editor.columns and col_produtos:
-                    df_editor["Produtos"] = ""
+                if col_produtos and col_produtos in df_editor.columns:
+                    produto_series = df_editor[col_produtos].fillna("").astype(str)
+                else:
+                    produto_series = pd.Series([""] * len(df_editor), index=df_editor.index)
 
-                if "Valor" not in df_editor.columns and col_valor:
-                    df_editor["Valor"] = ""
+                checks_df = produto_series.apply(checks_por_produto).apply(pd.Series)
 
-                editor_cols = [
-                    "__row_number",
-                    col_data_venda,
-                    col_mes_venda,
-                    col_cliente,
-                    col_produtos,
-                    col_valor,
-                    col_vendedor,
-                ]
-
-                editor_cols = [c for c in editor_cols if c and c in df_editor.columns]
-
-                df_editor_view = df_editor[editor_cols].copy()
-
-                rename_map = {"__row_number": "Linha"}
-                df_editor_view = df_editor_view.rename(columns=rename_map)
+                df_editor_view = pd.DataFrame({
+                    "Linha": df_editor["__row_number"].astype(int),
+                    "Data da Venda": df_editor[col_data_venda] if col_data_venda in df_editor.columns else "",
+                    "Mês da Venda": df_editor[col_mes_venda] if col_mes_venda in df_editor.columns else "",
+                    "Cliente": df_editor[col_cliente] if col_cliente in df_editor.columns else "",
+                    "Pedigree Transferência": checks_df["Pedigree Transferência"].astype(bool),
+                    "Sem Transferência": checks_df["Sem Transferência"].astype(bool),
+                    "RG": checks_df["RG"].astype(bool),
+                    "Certidão": checks_df["Certidão"].astype(bool),
+                    "Airtag": checks_df["Airtag"].astype(bool),
+                    "Valor": df_editor[col_valor] if col_valor in df_editor.columns else "",
+                    "Vendedor": df_editor[col_vendedor] if col_vendedor in df_editor.columns else "",
+                })
 
                 st.markdown(
                     """
                     <div class="live-sub" style="margin-top:0.2rem; margin-bottom:0.8rem;">
-                        Escolha o produto vendido no menu da coluna <b>Produtos</b>. Depois clique em salvar para atualizar a planilha e recalcular a comissão.
+                        Marque os produtos escolhidos pelo cliente. Depois clique em salvar para atualizar a planilha e recalcular a comissão.
                     </div>
                     """,
                     unsafe_allow_html=True,
@@ -2294,15 +2324,15 @@ elif page == "Comissão":
                         "Data da Venda": st.column_config.TextColumn("Data da Venda", disabled=True),
                         "Mês da Venda": st.column_config.TextColumn("Mês da Venda", disabled=True),
                         "Cliente": st.column_config.TextColumn("Cliente", disabled=True),
-                        "Produtos": st.column_config.SelectboxColumn(
-                            "Produtos",
-                            options=OPCOES_PRODUTOS_COMISSAO,
-                            required=False,
-                        ),
+                        "Pedigree Transferência": st.column_config.CheckboxColumn("Pedigree Transferência"),
+                        "Sem Transferência": st.column_config.CheckboxColumn("Sem Transferência"),
+                        "RG": st.column_config.CheckboxColumn("RG"),
+                        "Certidão": st.column_config.CheckboxColumn("Certidão"),
+                        "Airtag": st.column_config.CheckboxColumn("Airtag"),
                         "Valor": st.column_config.TextColumn("Valor", disabled=True),
                         "Vendedor": st.column_config.TextColumn("Vendedor", disabled=True),
                     },
-                    key=f"editor_produtos_comissao_{selected_comm_month}_{selected_vendedor}_{busca_comissao}",
+                    key=f"editor_checks_comissao_{selected_comm_month}_{selected_vendedor}_{busca_comissao}",
                 )
 
                 if st.button("Salvar produtos e recalcular comissão", use_container_width=True, key="salvar_produtos_comissao"):
@@ -2317,7 +2347,21 @@ elif page == "Comissão":
 
                         for _, row_edit in edited_df.iterrows():
                             row_number_edit = int(row_edit.get("Linha", 0))
-                            produto_novo = normalize_text(row_edit.get("Produtos", ""))
+
+                            ped_trans = bool(row_edit.get("Pedigree Transferência", False))
+                            ped_sem = bool(row_edit.get("Sem Transferência", False))
+
+                            # Se marcou os dois, prioriza Sem Transferência para evitar duplicidade.
+                            if ped_sem:
+                                ped_trans = False
+
+                            produto_novo = montar_produto_por_checks(
+                                ped_trans,
+                                ped_sem,
+                                bool(row_edit.get("RG", False)),
+                                bool(row_edit.get("Certidão", False)),
+                                bool(row_edit.get("Airtag", False)),
+                            )
 
                             if row_number_edit <= 0:
                                 continue
