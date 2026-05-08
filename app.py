@@ -820,7 +820,7 @@ def render_realtime_table(df_table: pd.DataFrame, cols_to_show: list[str], heigh
             thead th {{
                 position: sticky;
                 top: 0;
-                background: #071B49;
+                background: #032450;
                 color: white;
                 padding: 12px 10px;
                 text-align: left;
@@ -851,7 +851,7 @@ def render_realtime_table(df_table: pd.DataFrame, cols_to_show: list[str], heigh
                 padding: 5px 10px;
                 font-size: 11px;
                 font-weight: 700;
-                background: #D39A33;
+                background: #2e6cbf;
                 color: white;
                 cursor: pointer;
             }}
@@ -969,7 +969,7 @@ st.markdown(
 <style>
     :root{
         --navy:#032450;
-        --wine:#8E0E3F;
+        --wine:#2e6cbf;
         --gold:#2e6cbf;
         --bg:#F4F6FB;
         --card:#FFFFFF;
@@ -1292,7 +1292,7 @@ st.markdown(
         border-radius: 999px !important;
         border: 1px solid #D8DDEA !important;
         background: #FFFFFF !important;
-        color: #071B49 !important;
+        color: #032450 !important;
         font-weight: 700 !important;
         font-size: 0.82rem !important;
         padding: 0.45rem 0.6rem !important;
@@ -1301,8 +1301,8 @@ st.markdown(
     }
 
     div.stButton > button:hover {
-        border-color: #D39A33 !important;
-        color: #D39A33 !important;
+        border-color: #2e6cbf !important;
+        color: #2e6cbf !important;
     }
 
     /* PALETA CLEAR - SIDEBAR FINAL */
@@ -1499,16 +1499,16 @@ if page == "Visão Geral":
     m1, m2, m3, m4 = st.columns(4)
 
     with m1:
-        card_metric("Primeiro contato", f"{primeiro_contato}", "no mês", "📞", "#8E0E3F")
+        card_metric("Primeiro contato", f"{primeiro_contato}", "no mês", "📞", "#2e6cbf")
 
     with m2:
-        card_metric("Segundo contato", f"{segundo_contato}", "no mês", "📋", "#071B49")
+        card_metric("Segundo contato", f"{segundo_contato}", "no mês", "📋", "#032450")
 
     with m3:
-        card_metric("Terceiro contato", f"{terceiro_contato}", "no mês", "🗂", "#D39A33")
+        card_metric("Terceiro contato", f"{terceiro_contato}", "no mês", "🗂", "#2e6cbf")
 
     with m4:
-        card_metric("Total de contratos", f"{total_contratos}", month_key_to_label(selected_month), "📄", "#071B49")
+        card_metric("Total de contratos", f"{total_contratos}", month_key_to_label(selected_month), "📄", "#032450")
 
     st.markdown(
         f"""
@@ -1937,7 +1937,7 @@ elif page == "Pedigree":
             f"{total_pedigrees_vendidos}",
             f"feitos em {month_key_to_label(selected_ped_month)}",
             "⚖️",
-            "#8E0E3F",
+            "#2e6cbf",
         )
 
     with total_col2:
@@ -1946,7 +1946,7 @@ elif page == "Pedigree":
             f"{total_caes_vendidos}",
             f"no mês de {month_key_to_label(selected_ped_month)}",
             "🐶",
-            "#071B49",
+            "#032450",
         )
 
     st.markdown("<br>", unsafe_allow_html=True)
@@ -2024,16 +2024,16 @@ elif page == "Pedigree":
         text="Pedigrees feitos",
         color="Mês",
         color_discrete_sequence=[
-            "#071B49",
-            "#8E0E3F",
+            "#032450",
+            "#2e6cbf",
             "#2E3192",
-            "#C00040",
+            "#2e6cbf",
             "#45546B",
             "#95A3B8",
             "#1B1D6D",
-            "#9B0033",
+            "#2e6cbf",
             "#3949AB",
-            "#D39A33",
+            "#2e6cbf",
             "#64748B",
             "#0F172A",
         ],
@@ -2220,7 +2220,7 @@ elif page == "Comissão":
                 format_money(valor_clientes_mes),
                 month_key_to_label(mes_valor_cliente),
                 "💰",
-                "#8E0E3F",
+                "#2e6cbf",
             )
 
         with right_col:
@@ -2306,7 +2306,7 @@ elif page == "Comissão":
                     f"""
                     <div class="metric-card" style="min-height:126px; display:flex; align-items:center;">
                         <div class="metric-wrap">
-                            <div class="metric-icon" style="background:#8E0E3F;">💰</div>
+                            <div class="metric-icon" style="background:#2e6cbf;">💰</div>
                             <div>
                                 <div class="metric-label">Comissão Jullia</div>
                                 <div class="metric-value">{format_money(comissao_jullia_render)}</div>
