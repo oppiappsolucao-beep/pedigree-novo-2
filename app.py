@@ -863,7 +863,7 @@ def render_realtime_table(df_table: pd.DataFrame, cols_to_show: list[str], heigh
             thead th {{
                 position: sticky;
                 top: 0;
-                background: #032450;
+                background:#032450;
                 color: white;
                 padding: 12px 10px;
                 text-align: left;
@@ -2320,7 +2320,7 @@ elif page == "Comissão":
                     f"""
                     <div class="metric-card" style="min-height:126px; display:flex; align-items:center;">
                         <div class="metric-wrap">
-                            <div class="metric-icon" style="background:#8E0E3F;">💰</div>
+                            <div class="metric-icon" style="background:#2e6cbf;">💰</div>
                             <div>
                                 <div class="metric-label">Comissão Jullia</div>
                                 <div class="metric-value">{format_money(comissao_jullia_render)}</div>
