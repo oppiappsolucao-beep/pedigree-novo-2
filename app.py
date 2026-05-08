@@ -740,6 +740,49 @@ def atualizar_status_pedigree(row_number: int, novo_status: str):
     st.cache_data.clear()
 
 
+def find_commission_row_by_cliente_name(cliente_nome: str):
+    worksheet = get_worksheet(COMM_WORKSHEET_NAME)
+    values = worksheet.get_all_values()
+
+    if not values:
+        return None
+
+    headers = [str(h).strip() for h in values[0]]
+
+    if "Cliente" not in headers:
+        return None
+
+    col_cliente = headers.index("Cliente")
+
+    for idx, row in enumerate(values[1:], start=2):
+        try:
+            nome_sheet = str(row[col_cliente]).strip().lower()
+        except:
+            nome_sheet = ""
+
+        if nome_sheet == str(cliente_nome).strip().lower():
+            return idx
+
+    return None
+
+
+def excluir_ficha_pedigree(row_number: int, cliente_nome: str):
+    ped_ws = get_worksheet(PED_WORKSHEET_NAME)
+    ped_ws.delete_rows(int(row_number))
+
+    try:
+        row_comissao = find_commission_row_by_cliente_name(cliente_nome)
+
+        if row_comissao:
+            comm_ws = get_worksheet(COMM_WORKSHEET_NAME)
+            comm_ws.delete_rows(int(row_comissao))
+    except:
+        pass
+
+    st.cache_data.clear()
+
+
+
 def card_metric(title: str, value: str, subtitle: str, emoji: str, color: str):
     st.markdown(
         f"""
@@ -943,7 +986,7 @@ def render_cliente_card(cliente: pd.Series, status_opcoes: list):
 
     status_index = status_opcoes.index(status_atual) if status_atual in status_opcoes else 0
 
-    col_status_1, col_status_2 = st.columns([3, 1])
+    col_status_1, col_status_2, col_status_3 = st.columns([3, 1, 1])
 
     with col_status_1:
         novo_status = st.selectbox(
@@ -963,6 +1006,32 @@ def render_cliente_card(cliente: pd.Series, status_opcoes: list):
                 st.rerun()
             except Exception as e:
                 st.error(f"Erro ao atualizar status: {e}")
+
+    with col_status_3:
+        st.markdown("<br>", unsafe_allow_html=True)
+
+        if st.button("🗑️ Excluir ficha", use_container_width=True, key=f"btn_excluir_{row_number}"):
+            st.session_state[f"confirmar_exclusao_{row_number}"] = True
+
+    if st.session_state.get(f"confirmar_exclusao_{row_number}", False):
+
+        st.warning(f"Tem certeza que deseja excluir a ficha de {nome}?")
+
+        col_conf_1, col_conf_2 = st.columns(2)
+
+        with col_conf_1:
+            if st.button("Sim, excluir", use_container_width=True, key=f"sim_excluir_{row_number}"):
+
+                excluir_ficha_pedigree(row_number, nome)
+
+                st.success("Ficha excluída com sucesso.")
+                st.rerun()
+
+        with col_conf_2:
+            if st.button("Cancelar", use_container_width=True, key=f"cancelar_excluir_{row_number}"):
+
+                st.session_state[f"confirmar_exclusao_{row_number}"] = False
+                st.rerun()
 
     c1, c2 = st.columns(2)
 
