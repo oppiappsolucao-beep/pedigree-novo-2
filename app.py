@@ -2291,18 +2291,21 @@ elif page == "Comissão":
 
                 checks_df = produto_series.apply(checks_por_produto).apply(pd.Series)
 
+                if "__row_number" not in df_editor.columns:
+                    df_editor["__row_number"] = df_editor.index + 2
+
                 df_editor_view = pd.DataFrame({
-                    "Linha": df_editor["__row_number"].astype(int),
-                    "Data da Venda": df_editor[col_data_venda] if col_data_venda in df_editor.columns else "",
-                    "Mês da Venda": df_editor[col_mes_venda] if col_mes_venda in df_editor.columns else "",
-                    "Cliente": df_editor[col_cliente] if col_cliente in df_editor.columns else "",
+                    "Linha": df_editor["__row_number"].fillna(0).astype(int),
+                    "Data da Venda": df_editor[col_data_venda] if col_data_venda and col_data_venda in df_editor.columns else "",
+                    "Mês da Venda": df_editor[col_mes_venda] if col_mes_venda and col_mes_venda in df_editor.columns else "",
+                    "Cliente": df_editor[col_cliente] if col_cliente and col_cliente in df_editor.columns else "",
                     "Pedigree Transferência": checks_df["Pedigree Transferência"].astype(bool),
                     "Sem Transferência": checks_df["Sem Transferência"].astype(bool),
                     "RG": checks_df["RG"].astype(bool),
                     "Certidão": checks_df["Certidão"].astype(bool),
                     "Airtag": checks_df["Airtag"].astype(bool),
-                    "Valor": df_editor[col_valor] if col_valor in df_editor.columns else "",
-                    "Vendedor": df_editor[col_vendedor] if col_vendedor in df_editor.columns else "",
+                    "Valor": df_editor[col_valor] if col_valor and col_valor in df_editor.columns else "",
+                    "Vendedor": df_editor[col_vendedor] if col_vendedor and col_vendedor in df_editor.columns else "",
                 })
 
                 st.markdown(
@@ -2339,10 +2342,13 @@ elif page == "Comissão":
                     try:
                         qtd_atualizados = 0
 
+                        if "__row_number" not in df_com_filtrado.columns:
+                            df_com_filtrado["__row_number"] = df_com_filtrado.index + 2
+
                         original_map = {
-                            int(row["__row_number"]): normalize_text(row.get(col_produtos, ""))
+                            int(row.get("__row_number", 0)): normalize_text(row.get(col_produtos, ""))
                             for _, row in df_com_filtrado.iterrows()
-                            if "__row_number" in row
+                            if int(row.get("__row_number", 0)) > 0
                         }
 
                         for _, row_edit in edited_df.iterrows():
