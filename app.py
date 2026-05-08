@@ -227,16 +227,15 @@ def salvar_pedigree_na_comissao(dados):
     cliente = normalize_text(dados.get("Nome", ""))
     transferencia = normalize_text(dados.get("Transferência", "Sim"))
 
-    produto = produto_pedigree_por_transferencia(transferencia)
-    valor = valor_pedigree_por_transferencia(transferencia)
-
+    # A entrada automática vinda do Pedigree apenas cria/atualiza o cliente na comissão.
+    # O cálculo só começa depois que o produto for escolhido no menu da página Comissão.
     row_data = {
         "Data da Venda": hoje.strftime("%d/%m/%Y"),
         "Mês da Venda": mes_nome_from_date(hoje),
         "Cliente": cliente,
-        "Produtos": produto,
+        "Produtos": "",
         "Mês da Compra do Cliente": month_name_pt(hoje.month),
-        "Valor": format_money(valor),
+        "Valor": "",
         "Vendedor": "Jullia",
         "Silmário": format_money(0),
         "Correio": format_money(VALOR_CORREIO),
@@ -289,8 +288,10 @@ def calcular_comissao_jullia(df_mes: pd.DataFrame, col_produtos: Optional[str], 
 
     # Identifica Pedigree sem transferência pelo texto do produto.
     if col_produtos and col_produtos in df_calc.columns:
+        df_calc["_produto_preenchido_calc"] = df_calc[col_produtos].astype(str).str.strip() != ""
         df_calc["_sem_transferencia_calc"] = df_calc[col_produtos].apply(is_produto_sem_transferencia)
     else:
+        df_calc["_produto_preenchido_calc"] = False
         df_calc["_sem_transferencia_calc"] = False
 
     # Segurança: quando o produto vier escrito errado/vazio, valores próximos do frete/sem transferência também são ignorados para a Jullia.
@@ -300,8 +301,11 @@ def calcular_comissao_jullia(df_mes: pd.DataFrame, col_produtos: Optional[str], 
     )
 
     # BASE DO PERCENTUAL:
-    # todas as vendas do mês MENOS os pedidos sem transferência.
-    df_validas_mes = df_calc[~df_calc["_sem_transferencia_calc"]].copy()
+    # todas as vendas do mês com produto escolhido, MENOS os pedidos sem transferência.
+    df_validas_mes = df_calc[
+        (df_calc["_produto_preenchido_calc"])
+        & (~df_calc["_sem_transferencia_calc"])
+    ].copy()
     total_vendas_validas_mes = int(len(df_validas_mes))
 
     if col_vendedor and col_vendedor in df_validas_mes.columns:
@@ -348,6 +352,89 @@ def calcular_comissao_jullia(df_mes: pd.DataFrame, col_produtos: Optional[str], 
         "comissao_jullia": float(comissao_jullia),
         "faixa": faixa,
     }
+
+
+OPCOES_PRODUTOS_COMISSAO = [
+    "",
+    "Pedigree Transferência",
+    "Pedigree Sem Transferência",
+    "RG",
+    "Certidão",
+    "Airtag",
+    "RG + Certidão",
+    "RG + Certidão + Airtag",
+    "Pedigree Transferência + RG",
+    "Pedigree Transferência + Certidão",
+    "Pedigree Transferência + Airtag",
+    "Pedigree Transferência + RG + Certidão",
+    "Pedigree Transferência + RG + Airtag",
+    "Pedigree Transferência + Certidão + Airtag",
+    "Pedigree Transferência + RG + Certidão + Airtag",
+    "Pedigree Sem Transferência + RG",
+    "Pedigree Sem Transferência + Certidão",
+    "Pedigree Sem Transferência + Airtag",
+    "Pedigree Sem Transferência + RG + Certidão",
+    "Pedigree Sem Transferência + RG + Airtag",
+    "Pedigree Sem Transferência + Certidão + Airtag",
+    "Pedigree Sem Transferência + RG + Certidão + Airtag",
+]
+
+
+def calcular_valor_produtos_comissao(produto: str) -> float:
+    texto = normalize_search_text(produto)
+
+    if not texto:
+        return 0.0
+
+    total = 0.0
+
+    tem_pedigree = "pedigree" in texto
+    sem_transferencia = is_produto_sem_transferencia(produto)
+
+    if tem_pedigree:
+        if sem_transferencia:
+            total += VALOR_PEDIGREE_SEM_TRANSFERENCIA
+        else:
+            total += VALOR_PEDIGREE_TRANSFERENCIA
+
+    tem_rg = "rg" in texto
+    tem_certidao = "certidao" in texto or "certidão" in texto
+    tem_airtag = "airtag" in texto or "air tag" in texto
+
+    # Regra especial:
+    # RG + Certidão + Airtag juntos valem R$ 190,00.
+    if tem_rg and tem_certidao and tem_airtag:
+        total += 190.00
+    else:
+        if tem_rg:
+            total += 30.00
+        if tem_certidao:
+            total += 30.00
+        if tem_airtag:
+            total += 130.00
+
+    return float(total)
+
+
+def atualizar_produtos_comissao(row_number: int, produto: str):
+    worksheet = get_worksheet(COMM_WORKSHEET_NAME)
+    headers = [str(h).strip() for h in worksheet.row_values(1)]
+
+    required = ["Produtos", "Valor"]
+
+    for col in required:
+        if col not in headers:
+            raise Exception(f"A coluna {col} não existe na aba {COMM_WORKSHEET_NAME}.")
+
+    valor = calcular_valor_produtos_comissao(produto)
+
+    col_produto = headers.index("Produtos") + 1
+    col_valor = headers.index("Valor") + 1
+
+    worksheet.update_cell(row_number, col_produto, produto)
+    worksheet.update_cell(row_number, col_valor, format_money(valor))
+
+    st.cache_data.clear()
 
 
 def parse_date_any(v) -> Optional[dt.date]:
@@ -2163,7 +2250,91 @@ elif page == "Comissão":
             ]
 
             if not df_com_filtrado.empty and cols_show:
-                render_realtime_table(df_com_filtrado, cols_show, height=430)
+                df_editor = df_com_filtrado.copy()
+
+                if "Produtos" not in df_editor.columns and col_produtos:
+                    df_editor["Produtos"] = ""
+
+                if "Valor" not in df_editor.columns and col_valor:
+                    df_editor["Valor"] = ""
+
+                editor_cols = [
+                    "__row_number",
+                    col_data_venda,
+                    col_mes_venda,
+                    col_cliente,
+                    col_produtos,
+                    col_valor,
+                    col_vendedor,
+                ]
+
+                editor_cols = [c for c in editor_cols if c and c in df_editor.columns]
+
+                df_editor_view = df_editor[editor_cols].copy()
+
+                rename_map = {"__row_number": "Linha"}
+                df_editor_view = df_editor_view.rename(columns=rename_map)
+
+                st.markdown(
+                    """
+                    <div class="live-sub" style="margin-top:0.2rem; margin-bottom:0.8rem;">
+                        Escolha o produto vendido no menu da coluna <b>Produtos</b>. Depois clique em salvar para atualizar a planilha e recalcular a comissão.
+                    </div>
+                    """,
+                    unsafe_allow_html=True,
+                )
+
+                edited_df = st.data_editor(
+                    df_editor_view,
+                    use_container_width=True,
+                    hide_index=True,
+                    height=430,
+                    column_config={
+                        "Linha": st.column_config.NumberColumn("Linha", disabled=True),
+                        "Data da Venda": st.column_config.TextColumn("Data da Venda", disabled=True),
+                        "Mês da Venda": st.column_config.TextColumn("Mês da Venda", disabled=True),
+                        "Cliente": st.column_config.TextColumn("Cliente", disabled=True),
+                        "Produtos": st.column_config.SelectboxColumn(
+                            "Produtos",
+                            options=OPCOES_PRODUTOS_COMISSAO,
+                            required=False,
+                        ),
+                        "Valor": st.column_config.TextColumn("Valor", disabled=True),
+                        "Vendedor": st.column_config.TextColumn("Vendedor", disabled=True),
+                    },
+                    key=f"editor_produtos_comissao_{selected_comm_month}_{selected_vendedor}_{busca_comissao}",
+                )
+
+                if st.button("Salvar produtos e recalcular comissão", use_container_width=True, key="salvar_produtos_comissao"):
+                    try:
+                        qtd_atualizados = 0
+
+                        original_map = {
+                            int(row["__row_number"]): normalize_text(row.get(col_produtos, ""))
+                            for _, row in df_com_filtrado.iterrows()
+                            if "__row_number" in row
+                        }
+
+                        for _, row_edit in edited_df.iterrows():
+                            row_number_edit = int(row_edit.get("Linha", 0))
+                            produto_novo = normalize_text(row_edit.get("Produtos", ""))
+
+                            if row_number_edit <= 0:
+                                continue
+
+                            produto_antigo = original_map.get(row_number_edit, "")
+
+                            if produto_novo != produto_antigo:
+                                atualizar_produtos_comissao(row_number_edit, produto_novo)
+                                qtd_atualizados += 1
+
+                        if qtd_atualizados > 0:
+                            st.success(f"{qtd_atualizados} produto(s) atualizado(s) na planilha.")
+                            st.rerun()
+                        else:
+                            st.info("Nenhuma alteração para salvar.")
+                    except Exception as e:
+                        st.error(f"Erro ao salvar produtos na planilha: {e}")
             else:
                 st.info("Nenhuma venda encontrada com os filtros selecionados.")
 
