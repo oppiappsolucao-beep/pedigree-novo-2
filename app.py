@@ -70,9 +70,34 @@ def load_pedigree_data() -> pd.DataFrame:
 @st.cache_data(show_spinner=False, ttl=CACHE_TTL_SECONDS)
 def load_commission_data() -> pd.DataFrame:
     worksheet = get_worksheet(COMM_WORKSHEET_NAME)
-    records = worksheet.get_all_records()
-    df = pd.DataFrame(records)
-    df.columns = [str(c).strip() for c in df.columns]
+    values = worksheet.get_all_values()
+
+    if not values:
+        return pd.DataFrame()
+
+    headers = [str(c).strip() for c in values[0]]
+    rows = values[1:]
+
+    clean_headers = []
+    seen = {}
+
+    for i, header in enumerate(headers):
+        if not header:
+            header = f"Coluna {i + 1}"
+
+        if header in seen:
+            seen[header] += 1
+            header = f"{header}_{seen[header]}"
+        else:
+            seen[header] = 1
+
+        clean_headers.append(header)
+
+    df = pd.DataFrame(rows, columns=clean_headers)
+
+    for col in df.columns:
+        df[col] = df[col].astype(str).str.strip()
+
     return df
 
 
