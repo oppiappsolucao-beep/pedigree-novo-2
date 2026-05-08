@@ -391,8 +391,6 @@ def calcular_valor_produtos_comissao(produto: str) -> float:
     tem_pedigree = "pedigree" in texto
     sem_transferencia = is_produto_sem_transferencia(produto)
 
-    # Pedigree com transferência entra com transferência + correio.
-    # Ex.: Plano 1 = 249,90 + 35,80 = 285,70.
     if tem_pedigree:
         if sem_transferencia:
             total += VALOR_PEDIGREE_SEM_TRANSFERENCIA
@@ -403,8 +401,6 @@ def calcular_valor_produtos_comissao(produto: str) -> float:
     tem_certidao = "certidao" in texto or "certidão" in texto
     tem_airtag = "airtag" in texto or "air tag" in texto
 
-    # Regra especial:
-    # RG + Certidão + Airtag juntos valem R$ 190,00.
     if tem_rg and tem_certidao and tem_airtag:
         total += 190.00
     else:
@@ -2218,50 +2214,53 @@ elif page == "Comissão":
             else:
                 produtos_unicos = 0
 
-            # A comissão da Jullia é calculada sempre pela base inteira do mês selecionado,
-            # sem ser afetada pelo filtro de vendedor ou busca rápida da tela.
+            # A comissão da Jullia é calculada pela base inteira do mês selecionado.
+            # A caixa abaixo é preenchida depois do editor, assim ela atualiza ao marcar/desmarcar produtos.
             df_com_mes_calculo_jullia = df_com[df_com["_mes_key"] == selected_comm_month].copy()
+            comissao_card_placeholder = st.empty()
+            regra_card_placeholder = st.empty()
 
-            dados_jullia = calcular_comissao_jullia(
-                df_com_mes_calculo_jullia,
-                col_produtos,
-                col_valor,
-                col_vendedor,
-            )
+            def render_card_comissao_jullia(df_base_calculo):
+                dados_jullia_render = calcular_comissao_jullia(
+                    df_base_calculo,
+                    col_produtos,
+                    col_valor,
+                    col_vendedor,
+                )
 
-            comissao_jullia = dados_jullia["comissao_jullia"]
-            percentual_jullia = dados_jullia["percentual_jullia"]
-            qtd_jullia_validas = dados_jullia["qtd_vendas_jullia_validas"]
-            total_validas_mes = dados_jullia["total_vendas_validas_mes"]
-            faixa_jullia = dados_jullia["faixa"]
+                comissao_jullia_render = dados_jullia_render["comissao_jullia"]
+                percentual_jullia_render = dados_jullia_render["percentual_jullia"]
+                qtd_jullia_validas_render = dados_jullia_render["qtd_vendas_jullia_validas"]
+                total_validas_mes_render = dados_jullia_render["total_vendas_validas_mes"]
+                faixa_jullia_render = dados_jullia_render["faixa"]
 
-            st.markdown(
-                f"""
-                <div class="metric-card" style="min-height:126px; display:flex; align-items:center;">
-                    <div class="metric-wrap">
-                        <div class="metric-icon" style="background:#8E0E3F;">💰</div>
-                        <div>
-                            <div class="metric-label">Comissão Jullia</div>
-                            <div class="metric-value">{format_money(comissao_jullia)}</div>
-                            <div class="metric-sub">{qtd_jullia_validas} de {total_validas_mes} vendas válidas • {percentual_jullia:.1%}</div>
+                comissao_card_placeholder.markdown(
+                    f"""
+                    <div class="metric-card" style="min-height:126px; display:flex; align-items:center;">
+                        <div class="metric-wrap">
+                            <div class="metric-icon" style="background:#8E0E3F;">💰</div>
+                            <div>
+                                <div class="metric-label">Comissão Jullia</div>
+                                <div class="metric-value">{format_money(comissao_jullia_render)}</div>
+                                <div class="metric-sub">{qtd_jullia_validas_render} de {total_validas_mes_render} vendas válidas • {percentual_jullia_render:.1%}</div>
+                            </div>
                         </div>
                     </div>
-                </div>
-                """,
-                unsafe_allow_html=True,
-            )
+                    """,
+                    unsafe_allow_html=True,
+                )
 
-            st.markdown(
-                f"""
-                <div class="live-card" style="margin-top:1rem;">
-                    <div class="live-title">Regra aplicada</div>
-                    <div class="live-sub">
-                        {faixa_jullia}. Base: todas as vendas do mês, menos Pedigree sem transferência. Sem transferência continua na planilha, mas não entra na comissão da Jullia.
+                regra_card_placeholder.markdown(
+                    f"""
+                    <div class="live-card" style="margin-top:1rem;">
+                        <div class="live-title">Regra aplicada</div>
+                        <div class="live-sub">
+                            {faixa_jullia_render}. Base: todas as vendas do mês com produto escolhido, menos Pedigree sem transferência.
+                        </div>
                     </div>
-                </div>
-                """,
-                unsafe_allow_html=True,
-            )
+                    """,
+                    unsafe_allow_html=True,
+                )
 
             st.markdown(
                 """
@@ -2345,6 +2344,42 @@ elif page == "Comissão":
                     key=f"editor_checks_comissao_{selected_comm_month}_{selected_vendedor}_{busca_comissao}",
                 )
 
+                # Prévia ao vivo: quando marcar/desmarcar os produtos, a caixa da comissão já reflete a nova conta.
+                df_com_mes_preview = df_com_mes_calculo_jullia.copy()
+
+                if "__row_number" not in df_com_mes_preview.columns:
+                    df_com_mes_preview["__row_number"] = df_com_mes_preview.index + 2
+
+                for _, row_edit_preview in edited_df.iterrows():
+                    row_number_preview = int(row_edit_preview.get("Linha", 0))
+
+                    ped_trans_preview = bool(row_edit_preview.get("Pedigree Transferência", False))
+                    ped_sem_preview = bool(row_edit_preview.get("Sem Transferência", False))
+
+                    if ped_sem_preview:
+                        ped_trans_preview = False
+
+                    produto_preview = montar_produto_por_checks(
+                        ped_trans_preview,
+                        ped_sem_preview,
+                        bool(row_edit_preview.get("RG", False)),
+                        bool(row_edit_preview.get("Certidão", False)),
+                        bool(row_edit_preview.get("Airtag", False)),
+                    )
+
+                    valor_preview = calcular_valor_produtos_comissao(produto_preview)
+
+                    if row_number_preview > 0:
+                        mask_preview = df_com_mes_preview["__row_number"].astype(int) == row_number_preview
+
+                        if col_produtos and col_produtos in df_com_mes_preview.columns:
+                            df_com_mes_preview.loc[mask_preview, col_produtos] = produto_preview
+
+                        if col_valor and col_valor in df_com_mes_preview.columns:
+                            df_com_mes_preview.loc[mask_preview, col_valor] = format_money(valor_preview)
+
+                render_card_comissao_jullia(df_com_mes_preview)
+
                 if st.button("Salvar produtos e recalcular comissão", use_container_width=True, key="salvar_produtos_comissao"):
                     try:
                         qtd_atualizados = 0
@@ -2391,6 +2426,7 @@ elif page == "Comissão":
                     except Exception as e:
                         st.error(f"Erro ao salvar produtos na planilha: {e}")
             else:
+                render_card_comissao_jullia(df_com_mes_calculo_jullia)
                 st.info("Nenhuma venda encontrada com os filtros selecionados.")
 
     else:
