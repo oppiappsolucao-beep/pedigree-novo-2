@@ -28,6 +28,10 @@ MAIN_WORKSHEET_NAME = "Clear"
 PED_WORKSHEET_NAME = "Planilha Dash Valéria sem mayra"
 COMM_WORKSHEET_NAME = "Pedigree Comissão Ju"
 
+# DESTINOS DOS SALVAMENTOS:
+# - salvar_formulario_pedigree() grava/atualiza na aba: Planilha Dash Valéria sem mayra
+# - salvar_pedigree_na_comissao() grava/atualiza na aba: Pedigree Comissão Ju
+
 SCOPES = [
     "https://www.googleapis.com/auth/spreadsheets",
     "https://www.googleapis.com/auth/drive",
