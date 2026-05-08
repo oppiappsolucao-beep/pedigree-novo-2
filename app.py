@@ -929,6 +929,20 @@ def render_realtime_table(df_table: pd.DataFrame, cols_to_show: list[str], heigh
         color: #ffffff !important;
     }
 
+
+    /* Ícone usuário branco */
+    [data-testid="stSidebar"] .brand-user,
+    [data-testid="stSidebar"] .brand-user * {
+        color: #ffffff !important;
+        fill: #ffffff !important;
+    }
+
+    /* Títulos da sidebar em branco */
+    [data-testid="stSidebar"] .brand-title,
+    [data-testid="stSidebar"] .brand-sub {
+        color: #ffffff !important;
+    }
+
 </style>
     </head>
 
