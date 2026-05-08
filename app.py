@@ -391,11 +391,13 @@ def calcular_valor_produtos_comissao(produto: str) -> float:
     tem_pedigree = "pedigree" in texto
     sem_transferencia = is_produto_sem_transferencia(produto)
 
+    # Pedigree com transferência entra com transferência + correio.
+    # Ex.: Plano 1 = 249,90 + 35,80 = 285,70.
     if tem_pedigree:
         if sem_transferencia:
             total += VALOR_PEDIGREE_SEM_TRANSFERENCIA
         else:
-            total += VALOR_PEDIGREE_TRANSFERENCIA
+            total += VALOR_PEDIGREE_TRANSFERENCIA + VALOR_CORREIO
 
     tem_rg = "rg" in texto
     tem_certidao = "certidao" in texto or "certidão" in texto
@@ -433,6 +435,11 @@ def atualizar_produtos_comissao(row_number: int, produto: str):
 
     worksheet.update_cell(row_number, col_produto, produto)
     worksheet.update_cell(row_number, col_valor, format_money(valor))
+
+    if "Correio" in headers:
+        col_correio = headers.index("Correio") + 1
+        correio_valor = VALOR_CORREIO if ("pedigree" in normalize_search_text(produto) and not is_produto_sem_transferencia(produto)) else 0.0
+        worksheet.update_cell(row_number, col_correio, format_money(correio_valor))
 
     st.cache_data.clear()
 
@@ -2372,14 +2379,12 @@ elif page == "Comissão":
                             if row_number_edit <= 0:
                                 continue
 
-                            produto_antigo = original_map.get(row_number_edit, "")
-
-                            if produto_novo != produto_antigo:
+                            if produto_novo:
                                 atualizar_produtos_comissao(row_number_edit, produto_novo)
                                 qtd_atualizados += 1
 
                         if qtd_atualizados > 0:
-                            st.success(f"{qtd_atualizados} produto(s) atualizado(s) na planilha.")
+                            st.success(f"{qtd_atualizados} linha(s) recalculada(s) na planilha.")
                             st.rerun()
                         else:
                             st.info("Nenhuma alteração para salvar.")
