@@ -273,25 +273,58 @@ def salvar_pedigree_na_comissao(dados):
     if existing_row:
         worksheet.update(f"A{existing_row}", [row_values], value_input_option="USER_ENTERED")
     else:
-        worksheet.append_row(row_values, value_input_option="USER_ENTERED")
+        next_row = proxima_linha_real_por_coluna(worksheet, "Cliente")
+        update_row_values(worksheet, next_row, row_values)
 
     st.cache_data.clear()
 
 
+def proxima_linha_real_por_coluna(worksheet, header_name: str) -> int:
+    values = worksheet.get_all_values()
+
+    if not values:
+        return 2
+
+    headers = [str(h).strip() for h in values[0]]
+
+    if header_name not in headers:
+        return len(values) + 1
+
+    col_idx = headers.index(header_name)
+    ultima_linha = 1
+
+    for i, row in enumerate(values[1:], start=2):
+        valor = ""
+
+        if col_idx < len(row):
+            valor = normalize_text(row[col_idx])
+
+        if valor:
+            ultima_linha = i
+
+    return ultima_linha + 1
+
+
+def update_row_values(worksheet, row_number: int, values: list):
+    worksheet.update(
+        f"A{row_number}",
+        [values],
+        value_input_option="USER_ENTERED",
+    )
+
+
 def sync_pedigrees_para_comissao():
     """
-    Garante que todo nome existente na aba 'Planilha Dash Valéria sem mayra'
-    também exista na aba 'Pedigree Comissão Ju'.
+    Sincroniza os nomes da aba Pedigree para a aba Comissão sem jogar no fundo da planilha.
 
-    IMPORTANTE:
-    - Não duplica cliente.
-    - Não sobrescreve Produto/Valor já escolhidos na comissão.
-    - Usa append_rows em lote para não estourar quota do Google Sheets.
+    A função encontra a última linha realmente preenchida pela coluna Cliente
+    e escreve o próximo cliente logo abaixo.
     """
     ped_ws = get_worksheet(PED_WORKSHEET_NAME)
     comm_ws = get_worksheet(COMM_WORKSHEET_NAME)
 
     ped_values = ped_ws.get_all_values()
+
     if not ped_values:
         return 0
 
@@ -315,6 +348,7 @@ def sync_pedigrees_para_comissao():
     comm_cliente_idx = comm_headers_now.index("Cliente")
 
     clientes_existentes = set()
+
     for row in comm_values[1:]:
         try:
             clientes_existentes.add(normalize_search_text(row[comm_cliente_idx]))
@@ -343,6 +377,7 @@ def sync_pedigrees_para_comissao():
             raw_mes = normalize_text(row[ped_mes_idx])
 
         mes_key = build_month_key_from_values(raw_mes, "")
+
         if mes_key:
             ano_ref, mes_ref = mes_key
             data_venda = f"01/{mes_ref:02d}/{ano_ref}"
@@ -368,7 +403,12 @@ def sync_pedigrees_para_comissao():
         clientes_existentes.add(nome_norm)
 
     if linhas_para_adicionar:
-        comm_ws.append_rows(linhas_para_adicionar, value_input_option="USER_ENTERED")
+        next_row = proxima_linha_real_por_coluna(comm_ws, "Cliente")
+
+        for values_row in linhas_para_adicionar:
+            update_row_values(comm_ws, next_row, values_row)
+            next_row += 1
+
         st.cache_data.clear()
 
     return len(linhas_para_adicionar)
