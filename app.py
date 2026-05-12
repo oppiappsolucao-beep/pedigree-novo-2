@@ -457,16 +457,19 @@ def calcular_valor_produtos_comissao(produto: str) -> float:
 
     # REGRAS DO VALOR NA TELA:
     # - Pedigree Transferência soma R$ 249,90 + Frete obrigatório R$ 35,80 = R$ 285,70
-    # - Sem Transferência é opcional e soma R$ 35,80 quando marcado
-    # - O frete dos Correios não depende da marcação "Sem Transferência"; ele já entra fixo quando há Transferência
+    # - Sem Transferência é opcional e soma R$ 35,80 apenas quando NÃO houver Transferência marcada
+    # - O frete dos Correios já entra fixo dentro da Transferência; não depende da coluna Sem Transferência
     # - RG + Certidão + Airtag juntos viram combo de R$ 190,00
     tem_pedigree_transferencia = "pedigree transferencia" in texto or "pedigree transferência" in texto
     tem_sem_transferencia = is_produto_sem_transferencia(produto)
 
+    # REGRA CORRETA:
+    # - Pedigree Transferência já inclui o frete obrigatório: 249,90 + 35,80 = 285,70.
+    # - Sem Transferência só vale 35,80 quando NÃO houver Pedigree Transferência marcado.
+    # - Se os dois forem marcados por engano, prevalece Pedigree Transferência, para não somar 35,80 duas vezes.
     if tem_pedigree_transferencia:
         total += VALOR_PEDIGREE_TRANSFERENCIA + VALOR_CORREIO
-
-    if tem_sem_transferencia:
+    elif tem_sem_transferencia:
         total += VALOR_PEDIGREE_SEM_TRANSFERENCIA
 
     tem_rg = "rg" in texto
