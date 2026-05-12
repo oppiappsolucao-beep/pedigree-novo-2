@@ -169,9 +169,16 @@ def format_money(v) -> str:
     return f"R$ {n:,.2f}".replace(",", "X").replace(".", ",").replace("X", ".")
 
 
+# Valores usados no simulador da Comissão.
+# Transferência na tela = Pedigree base (249,90) + Frete Correios (35,80) = 285,70.
+# Sem transferência usa o mesmo valor do frete: 35,80.
 VALOR_PEDIGREE_TRANSFERENCIA = 249.90
 VALOR_PEDIGREE_SEM_TRANSFERENCIA = 35.80
 VALOR_CORREIO = 35.80
+VALOR_RG = 30.00
+VALOR_CERTIDAO = 30.00
+VALOR_AIRTAG = 130.00
+VALOR_COMBO_RG_CERTIDAO_AIRTAG = 190.00
 
 
 def is_transferencia_sim(v) -> bool:
@@ -462,14 +469,14 @@ def calcular_valor_produtos_comissao(produto: str) -> float:
     tem_airtag = "airtag" in texto or "air tag" in texto
 
     if tem_rg and tem_certidao and tem_airtag:
-        total += 190.00
+        total += VALOR_COMBO_RG_CERTIDAO_AIRTAG
     else:
         if tem_rg:
-            total += 30.00
+            total += VALOR_RG
         if tem_certidao:
-            total += 30.00
+            total += VALOR_CERTIDAO
         if tem_airtag:
-            total += 130.00
+            total += VALOR_AIRTAG
 
     return float(total)
 
@@ -2504,9 +2511,51 @@ elif page == "Comissão":
                     "RG": checks_df["RG"].astype(bool),
                     "Certidão": checks_df["Certidão"].astype(bool),
                     "Airtag": checks_df["Airtag"].astype(bool),
-                    "Valor": df_editor[col_valor] if col_valor and col_valor in df_editor.columns else "",
+                    "Valor": "",
                     "Vendedor": df_editor[col_vendedor] if col_vendedor and col_vendedor in df_editor.columns else "",
                 })
+
+                editor_key = f"editor_checks_comissao_{selected_comm_month}_{selected_vendedor}_{busca_comissao}"
+
+                # Recupera as marcações feitas no editor antes do rerun.
+                # Assim a coluna Valor já volta recalculada na própria grade, sem gravar nada no Google Sheets.
+                editor_state = st.session_state.get(editor_key, {})
+                edited_rows_state = editor_state.get("edited_rows", {}) if isinstance(editor_state, dict) else {}
+
+                for idx_state, changes_state in edited_rows_state.items():
+                    try:
+                        idx_int = int(idx_state)
+                    except Exception:
+                        continue
+
+                    if 0 <= idx_int < len(df_editor_view):
+                        for col_state, value_state in changes_state.items():
+                            if col_state in df_editor_view.columns:
+                                df_editor_view.at[df_editor_view.index[idx_int], col_state] = value_state
+
+                def recalcular_linha_editor(row_editor):
+                    ped_trans_calc = checkbox_marcado(row_editor.get("Pedigree Transferência", False))
+                    ped_sem_calc = checkbox_marcado(row_editor.get("Sem Transferência", False))
+                    rg_calc = checkbox_marcado(row_editor.get("RG", False))
+                    certidao_calc = checkbox_marcado(row_editor.get("Certidão", False))
+                    airtag_calc = checkbox_marcado(row_editor.get("Airtag", False))
+
+                    # Sem transferência e transferência não podem valer juntas.
+                    # Se marcar Sem Transferência, ela ganha prioridade e desmarca Transferência no cálculo.
+                    if ped_sem_calc:
+                        ped_trans_calc = False
+
+                    produto_calc = montar_produto_por_checks(
+                        ped_trans_calc,
+                        ped_sem_calc,
+                        rg_calc,
+                        certidao_calc,
+                        airtag_calc,
+                    )
+
+                    return format_money(calcular_valor_produtos_comissao(produto_calc))
+
+                df_editor_view["Valor"] = df_editor_view.apply(recalcular_linha_editor, axis=1)
 
                 st.markdown(
                     """
@@ -2535,7 +2584,7 @@ elif page == "Comissão":
                         "Valor": st.column_config.TextColumn("Valor", disabled=True),
                         "Vendedor": st.column_config.TextColumn("Vendedor", disabled=True),
                     },
-                    key=f"editor_checks_comissao_{selected_comm_month}_{selected_vendedor}_{busca_comissao}",
+                    key=editor_key,
                 )
 
                 # Prévia ao vivo da comissão:
