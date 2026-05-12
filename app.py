@@ -333,103 +333,16 @@ def update_row_values(worksheet, row_number: int, values: list):
 
 def sync_pedigrees_para_comissao():
     """
-    Sincroniza os nomes da aba Pedigree para a aba Comissão sem jogar no fundo da planilha.
+    Sincronizar agora NÃO copia mais nomes da aba Pedigree para a Comissão.
 
-    A função encontra a última linha realmente preenchida pela coluna Cliente
-    e escreve o próximo cliente logo abaixo.
+    O botão Sincronizar serve somente para limpar o cache e reler a aba
+    'Pedigree Comissão Ju', mostrando exatamente o que já está na planilha.
+
+    Isso evita trazer de volta clientes que foram excluídos manualmente
+    ou bagunçar a base de comissão.
     """
-    ped_ws = get_worksheet(PED_WORKSHEET_NAME)
-    comm_ws = get_worksheet(COMM_WORKSHEET_NAME)
-
-    ped_values = ped_ws.get_all_values()
-
-    if not ped_values:
-        return 0
-
-    ped_headers = [str(h).strip() for h in ped_values[0]]
-    ped_rows = ped_values[1:]
-
-    if "Nome" not in ped_headers:
-        return 0
-
-    ped_nome_idx = ped_headers.index("Nome")
-    ped_mes_idx = ped_headers.index("Mês") if "Mês" in ped_headers else None
-
-    comm_headers = ensure_commission_base_headers()
-
-    comm_values = comm_ws.get_all_values()
-    comm_headers_now = [str(h).strip() for h in comm_values[0]] if comm_values else comm_headers
-
-    if "Cliente" not in comm_headers_now:
-        return 0
-
-    comm_cliente_idx = comm_headers_now.index("Cliente")
-
-    clientes_existentes = set()
-
-    for row in comm_values[1:]:
-        try:
-            clientes_existentes.add(normalize_search_text(row[comm_cliente_idx]))
-        except Exception:
-            pass
-
-    hoje = dt.date.today()
-    linhas_para_adicionar = []
-
-    for row in ped_rows:
-        try:
-            nome = normalize_text(row[ped_nome_idx])
-        except Exception:
-            nome = ""
-
-        if not nome:
-            continue
-
-        nome_norm = normalize_search_text(nome)
-
-        if not nome_norm or nome_norm in clientes_existentes:
-            continue
-
-        raw_mes = ""
-        if ped_mes_idx is not None and ped_mes_idx < len(row):
-            raw_mes = normalize_text(row[ped_mes_idx])
-
-        mes_key = build_month_key_from_values(raw_mes, "")
-
-        if mes_key:
-            ano_ref, mes_ref = mes_key
-            data_venda = f"01/{mes_ref:02d}/{ano_ref}"
-            mes_venda = month_name_pt(mes_ref)
-        else:
-            data_venda = hoje.strftime("%d/%m/%Y")
-            mes_venda = month_name_pt(hoje.month)
-
-        row_data = {
-            "Data da Venda": data_venda,
-            "Mês da Venda": mes_venda,
-            "Cliente": nome,
-            "Produtos": "",
-            "Mês da Compra do Cliente": mes_venda,
-            "Valor": "",
-            "Vendedor": "Jullia",
-            "Silmário": format_money(0),
-            "Correio": format_money(0),
-            "Jullia": format_money(0),
-        }
-
-        linhas_para_adicionar.append([row_data.get(header, "") for header in comm_headers_now])
-        clientes_existentes.add(nome_norm)
-
-    if linhas_para_adicionar:
-        next_row = proxima_linha_real_por_coluna(comm_ws, "Cliente")
-
-        for values_row in linhas_para_adicionar:
-            update_row_values(comm_ws, next_row, values_row)
-            next_row += 1
-
-        st.cache_data.clear()
-
-    return len(linhas_para_adicionar)
+    st.cache_data.clear()
+    return 0
 
 
 def is_produto_sem_transferencia(v) -> bool:
@@ -2323,18 +2236,15 @@ elif page == "Comissão":
         sincronizar_agora = st.button("Sincronizar", use_container_width=True, key="btn_sync_pedigree_comissao")
 
     # Não sincroniza automaticamente ao abrir a página.
-    # Use o botão Sincronizar apenas quando quiser importar novos nomes da aba Pedigree.
+    # Use o botão Sincronizar apenas para recarregar os dados atuais da aba Pedigree Comissão Ju.
     if sincronizar_agora:
         try:
-            novos_sync = sync_pedigrees_para_comissao()
+            sync_pedigrees_para_comissao()
             st.session_state["sync_pedigree_comissao_feito"] = True
-
-            if novos_sync:
-                st.success(f"{novos_sync} novo(s) pedigree(s) enviado(s) para a aba de Comissão.")
-            else:
-                st.info("Nenhum novo pedigree para sincronizar.")
+            st.success("Dados da aba Pedigree Comissão Ju recarregados.")
+            st.rerun()
         except Exception as e:
-            st.warning(f"Não foi possível sincronizar Pedigree com Comissão: {e}")
+            st.warning(f"Não foi possível recarregar a aba de Comissão: {e}")
 
     df_com = load_commission_data().copy()
 
