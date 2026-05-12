@@ -280,6 +280,13 @@ def salvar_pedigree_na_comissao(dados):
 
 
 def proxima_linha_real_por_coluna(worksheet, header_name: str) -> int:
+    """
+    Retorna a primeira linha vazia logo depois do bloco principal de dados.
+
+    Exemplo:
+    preenchido até 168, vazio de 169 até 832, lixo antigo em 833.
+    Retorna 169, não 842.
+    """
     values = worksheet.get_all_values()
 
     if not values:
@@ -291,7 +298,10 @@ def proxima_linha_real_por_coluna(worksheet, header_name: str) -> int:
         return len(values) + 1
 
     col_idx = headers.index(header_name)
-    ultima_linha = 1
+
+    encontrou_dados = False
+    linhas_vazias_seguidas = 0
+    ultima_linha_bloco_principal = 1
 
     for i, row in enumerate(values[1:], start=2):
         valor = ""
@@ -300,9 +310,17 @@ def proxima_linha_real_por_coluna(worksheet, header_name: str) -> int:
             valor = normalize_text(row[col_idx])
 
         if valor:
-            ultima_linha = i
+            encontrou_dados = True
+            linhas_vazias_seguidas = 0
+            ultima_linha_bloco_principal = i
+        else:
+            if encontrou_dados:
+                linhas_vazias_seguidas += 1
 
-    return ultima_linha + 1
+                if linhas_vazias_seguidas >= 3:
+                    return ultima_linha_bloco_principal + 1
+
+    return ultima_linha_bloco_principal + 1
 
 
 def update_row_values(worksheet, row_number: int, values: list):
@@ -2304,15 +2322,17 @@ elif page == "Comissão":
     with sync_col1:
         sincronizar_agora = st.button("Sincronizar", use_container_width=True, key="btn_sync_pedigree_comissao")
 
-    deve_sincronizar = sincronizar_agora or not st.session_state["sync_pedigree_comissao_feito"]
-
-    if deve_sincronizar:
+    # Não sincroniza automaticamente ao abrir a página.
+    # Use o botão Sincronizar apenas quando quiser importar novos nomes da aba Pedigree.
+    if sincronizar_agora:
         try:
             novos_sync = sync_pedigrees_para_comissao()
             st.session_state["sync_pedigree_comissao_feito"] = True
 
             if novos_sync:
                 st.success(f"{novos_sync} novo(s) pedigree(s) enviado(s) para a aba de Comissão.")
+            else:
+                st.info("Nenhum novo pedigree para sincronizar.")
         except Exception as e:
             st.warning(f"Não foi possível sincronizar Pedigree com Comissão: {e}")
 
