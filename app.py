@@ -212,10 +212,13 @@ def find_commission_row_by_cliente(worksheet, cliente_nome: str):
 
 
 def ensure_commission_base_headers():
-    worksheet = get_worksheet(COMM_WORKSHEET_NAME)
-    headers = [str(h).strip() for h in worksheet.row_values(1)]
+    """
+    MODO SOMENTE LEITURA DA COMISSÃO.
 
-    required = [
+    Não cria nem atualiza cabeçalhos na aba Pedigree Comissão Ju.
+    Apenas retorna a estrutura esperada para compatibilidade interna.
+    """
+    return [
         "Data da Venda",
         "Mês da Venda",
         "Cliente",
@@ -228,55 +231,19 @@ def ensure_commission_base_headers():
         "Jullia",
     ]
 
-    if not headers:
-        worksheet.update("A1", [required], value_input_option="USER_ENTERED")
-        return required
-
-    changed = False
-    for col in required:
-        if col not in headers:
-            headers.append(col)
-            changed = True
-
-    if changed:
-        worksheet.update("A1", [headers], value_input_option="USER_ENTERED")
-
-    return headers
-
 
 def salvar_pedigree_na_comissao(dados):
-    worksheet = get_worksheet(COMM_WORKSHEET_NAME)
-    headers = ensure_commission_base_headers()
+    """
+    MODO SOMENTE LEITURA DA COMISSÃO.
 
-    hoje = dt.date.today()
-    cliente = normalize_text(dados.get("Nome", ""))
-    transferencia = normalize_text(dados.get("Transferência", "Sim"))
+    Esta função foi mantida apenas para não quebrar chamadas antigas,
+    mas NÃO grava mais nada na aba Pedigree Comissão Ju.
 
-    # A entrada automática vinda do Pedigree apenas cria/atualiza o cliente na comissão.
-    # O cálculo só começa depois que o produto for escolhido no menu da página Comissão.
-    row_data = {
-        "Data da Venda": hoje.strftime("%d/%m/%Y"),
-        "Mês da Venda": mes_nome_from_date(hoje),
-        "Cliente": cliente,
-        "Produtos": "",
-        "Mês da Compra do Cliente": month_name_pt(hoje.month),
-        "Valor": "",
-        "Vendedor": "Jullia",
-        "Silmário": format_money(0),
-        "Correio": format_money(VALOR_CORREIO),
-        "Jullia": format_money(0),
-    }
-
-    row_values = [row_data.get(header, "") for header in headers]
-    existing_row = find_commission_row_by_cliente(worksheet, cliente)
-
-    if existing_row:
-        worksheet.update(f"A{existing_row}", [row_values], value_input_option="USER_ENTERED")
-    else:
-        next_row = proxima_linha_real_por_coluna(worksheet, "Cliente")
-        update_row_values(worksheet, next_row, row_values)
-
-    st.cache_data.clear()
+    Regra atual:
+    - Pedigree salva somente na aba Planilha Dash Valéria sem mayra.
+    - Comissão apenas lê a aba Pedigree Comissão Ju e calcula na tela.
+    """
+    return None
 
 
 def proxima_linha_real_por_coluna(worksheet, header_name: str) -> int:
@@ -324,11 +291,12 @@ def proxima_linha_real_por_coluna(worksheet, header_name: str) -> int:
 
 
 def update_row_values(worksheet, row_number: int, values: list):
-    worksheet.update(
-        f"A{row_number}",
-        [values],
-        value_input_option="USER_ENTERED",
-    )
+    """
+    MODO SOMENTE LEITURA DA COMISSÃO.
+
+    Mantida por compatibilidade, mas não grava linhas.
+    """
+    return None
 
 
 def sync_pedigrees_para_comissao():
@@ -507,29 +475,14 @@ def calcular_valor_produtos_comissao(produto: str) -> float:
 
 
 def atualizar_produtos_comissao(row_number: int, produto: str):
-    worksheet = get_worksheet(COMM_WORKSHEET_NAME)
-    headers = [str(h).strip() for h in worksheet.row_values(1)]
+    """
+    MODO SOMENTE LEITURA DA COMISSÃO.
 
-    required = ["Produtos", "Valor"]
-
-    for col in required:
-        if col not in headers:
-            raise Exception(f"A coluna {col} não existe na aba {COMM_WORKSHEET_NAME}.")
-
-    valor = calcular_valor_produtos_comissao(produto)
-
-    col_produto = headers.index("Produtos") + 1
-    col_valor = headers.index("Valor") + 1
-
-    worksheet.update_cell(row_number, col_produto, produto)
-    worksheet.update_cell(row_number, col_valor, format_money(valor))
-
-    if "Correio" in headers:
-        col_correio = headers.index("Correio") + 1
-        correio_valor = VALOR_CORREIO if ("pedigree" in normalize_search_text(produto) and not is_produto_sem_transferencia(produto)) else 0.0
-        worksheet.update_cell(row_number, col_correio, format_money(correio_valor))
-
-    st.cache_data.clear()
+    Antes esta função gravava Produto, Valor e Correio na aba Pedigree Comissão Ju.
+    Agora ela não altera a planilha. O cálculo é feito somente em memória,
+    dentro do dashboard.
+    """
+    return None
 
 
 def montar_produto_por_checks(ped_trans: bool, ped_sem: bool, rg: bool, certidao: bool, airtag: bool) -> str:
@@ -787,8 +740,7 @@ def salvar_formulario_pedigree(dados):
     else:
         worksheet.append_row(row_values, value_input_option="USER_ENTERED")
 
-    salvar_pedigree_na_comissao(dados)
-
+    # Comissão é somente leitura: não envia mais este cadastro para a aba Pedigree Comissão Ju.
     st.cache_data.clear()
 
 
@@ -834,20 +786,14 @@ def find_commission_row_by_cliente_name(cliente_nome: str):
 
 
 def excluir_ficha_pedigree(row_number: int, cliente_nome: str):
+    """
+    Exclui somente a ficha da aba Planilha Dash Valéria sem mayra.
+
+    A aba Pedigree Comissão Ju não é alterada pelo dashboard.
+    """
     ped_ws = get_worksheet(PED_WORKSHEET_NAME)
     ped_ws.delete_rows(int(row_number))
-
-    try:
-        row_comissao = find_commission_row_by_cliente_name(cliente_nome)
-
-        if row_comissao:
-            comm_ws = get_worksheet(COMM_WORKSHEET_NAME)
-            comm_ws.delete_rows(int(row_comissao))
-    except:
-        pass
-
     st.cache_data.clear()
-
 
 
 def card_metric(title: str, value: str, subtitle: str, emoji: str, color: str):
@@ -2565,7 +2511,7 @@ elif page == "Comissão":
                 st.markdown(
                     """
                     <div class="live-sub" style="margin-top:0.2rem; margin-bottom:0.8rem;">
-                        Marque os produtos escolhidos pelo cliente. Depois clique em salvar para atualizar a planilha e recalcular a comissão.
+                        Marque os produtos escolhidos pelo cliente para simular a comissão em tempo real. Nada será salvo na planilha.
                     </div>
                     """,
                     unsafe_allow_html=True,
@@ -2640,54 +2586,7 @@ elif page == "Comissão":
 
                 render_card_comissao_jullia(df_com_mes_preview)
 
-                if st.button("Salvar produtos e recalcular comissão", use_container_width=True, key="salvar_produtos_comissao"):
-                    try:
-                        qtd_atualizados = 0
-
-                        if "__row_number" not in df_com_filtrado.columns:
-                            df_com_filtrado["__row_number"] = df_com_filtrado.index + 2
-
-                        original_map = {
-                            int(row.get("__row_number", 0)): normalize_text(row.get(col_produtos, ""))
-                            for _, row in df_com_filtrado.iterrows()
-                            if int(row.get("__row_number", 0)) > 0
-                        }
-
-                        for _, row_edit in edited_df.iterrows():
-                            row_number_edit = int(row_edit.get("Linha", 0))
-
-                            ped_trans = checkbox_marcado(row_edit.get("Pedigree Transferência", False))
-                            ped_sem = checkbox_marcado(row_edit.get("Sem Transferência", False))
-                            rg_marcado = checkbox_marcado(row_edit.get("RG", False))
-                            certidao_marcado = checkbox_marcado(row_edit.get("Certidão", False))
-                            airtag_marcado = checkbox_marcado(row_edit.get("Airtag", False))
-
-                            # Se marcou os dois, prioriza Sem Transferência para evitar duplicidade.
-                            if ped_sem:
-                                ped_trans = False
-
-                            produto_novo = montar_produto_por_checks(
-                                ped_trans,
-                                ped_sem,
-                                rg_marcado,
-                                certidao_marcado,
-                                airtag_marcado,
-                            )
-
-                            if row_number_edit <= 0:
-                                continue
-
-                            if produto_novo:
-                                atualizar_produtos_comissao(row_number_edit, produto_novo)
-                                qtd_atualizados += 1
-
-                        if qtd_atualizados > 0:
-                            st.success(f"{qtd_atualizados} linha(s) recalculada(s) na planilha.")
-                            st.rerun()
-                        else:
-                            st.info("Nenhuma alteração para salvar.")
-                    except Exception as e:
-                        st.error(f"Erro ao salvar produtos na planilha: {e}")
+                st.info("Prévia calculada somente na tela. A aba Pedigree Comissão Ju não foi alterada.")
             else:
                 render_card_comissao_jullia(df_com_mes_calculo_jullia)
                 st.info("Nenhuma venda encontrada com os filtros selecionados.")
