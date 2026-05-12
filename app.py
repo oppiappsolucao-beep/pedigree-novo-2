@@ -455,14 +455,19 @@ def calcular_valor_produtos_comissao(produto: str) -> float:
 
     total = 0.0
 
-    tem_pedigree = "pedigree" in texto
-    sem_transferencia = is_produto_sem_transferencia(produto)
+    # REGRAS DO VALOR NA TELA:
+    # - Pedigree Transferência soma R$ 249,90 + Frete obrigatório R$ 35,80 = R$ 285,70
+    # - Sem Transferência é opcional e soma R$ 35,80 quando marcado
+    # - O frete dos Correios não depende da marcação "Sem Transferência"; ele já entra fixo quando há Transferência
+    # - RG + Certidão + Airtag juntos viram combo de R$ 190,00
+    tem_pedigree_transferencia = "pedigree transferencia" in texto or "pedigree transferência" in texto
+    tem_sem_transferencia = is_produto_sem_transferencia(produto)
 
-    if tem_pedigree:
-        if sem_transferencia:
-            total += VALOR_PEDIGREE_SEM_TRANSFERENCIA
-        else:
-            total += VALOR_PEDIGREE_TRANSFERENCIA + VALOR_CORREIO
+    if tem_pedigree_transferencia:
+        total += VALOR_PEDIGREE_TRANSFERENCIA + VALOR_CORREIO
+
+    if tem_sem_transferencia:
+        total += VALOR_PEDIGREE_SEM_TRANSFERENCIA
 
     tem_rg = "rg" in texto
     tem_certidao = "certidao" in texto or "certidão" in texto
@@ -495,9 +500,11 @@ def atualizar_produtos_comissao(row_number: int, produto: str):
 def montar_produto_por_checks(ped_trans: bool, ped_sem: bool, rg: bool, certidao: bool, airtag: bool) -> str:
     partes = []
 
+    # Permite múltiplas escolhas simultâneas.
+    # Transferência e Sem Transferência não são mais travadas uma contra a outra.
     if ped_trans:
         partes.append("Pedigree Transferência")
-    elif ped_sem:
+    if ped_sem:
         partes.append("Pedigree Sem Transferência")
 
     extras = []
@@ -2540,10 +2547,8 @@ elif page == "Comissão":
                     certidao_calc = checkbox_marcado(row_editor.get("Certidão", False))
                     airtag_calc = checkbox_marcado(row_editor.get("Airtag", False))
 
-                    # Sem transferência e transferência não podem valer juntas.
-                    # Se marcar Sem Transferência, ela ganha prioridade e desmarca Transferência no cálculo.
-                    if ped_sem_calc:
-                        ped_trans_calc = False
+                    # Permite múltiplas escolhas simultâneas.
+                    # Sem Transferência é opcional; o frete obrigatório já entra fixo quando Transferência está marcada.
 
                     produto_calc = montar_produto_por_checks(
                         ped_trans_calc,
@@ -2605,8 +2610,8 @@ elif page == "Comissão":
                     certidao_preview = checkbox_marcado(row_edit_preview.get("Certidão", False))
                     airtag_preview = checkbox_marcado(row_edit_preview.get("Airtag", False))
 
-                    if ped_sem_preview:
-                        ped_trans_preview = False
+                    # Permite múltiplas escolhas simultâneas.
+                    # Sem Transferência não desmarca Transferência.
 
                     produto_preview = montar_produto_por_checks(
                         ped_trans_preview,
