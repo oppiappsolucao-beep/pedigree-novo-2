@@ -512,9 +512,15 @@ def calcular_valor_produtos_comissao(produto: str) -> float:
     tem_certidao = "certidao" in texto or "certidão" in texto
     tem_airtag = "airtag" in texto or "air tag" in texto
 
+    # Compatibilidade para produtos vindos como texto da planilha.
+    # Quando houver Pedigree Transferência no texto antigo, considera Correios junto,
+    # porque o frete é obrigatório no valor base de R$ 285,70.
+    tem_correios = tem_pedigree_transferencia or ("correio" in texto) or ("correios" in texto)
+
     return calcular_valor_por_checks(
         tem_pedigree_transferencia,
         tem_sem_transferencia,
+        tem_correios,
         tem_rg,
         tem_certidao,
         tem_airtag,
@@ -2640,24 +2646,18 @@ elif page == "Comissão":
                 )
 
                 # Atualiza o estado próprio com TODAS as marcações retornadas pelo editor.
-                # Se houve mudança, força um rerun para o Valor aparecer recalculado na grade.
-                mudou_selecao = False
+                # IMPORTANTE: não usamos st.rerun() aqui.
+                # O próprio Streamlit já atualiza o script quando a célula muda; forçar outro rerun
+                # fazia a página "pular"/reiniciar visualmente a cada marcação.
                 for _, row_state_editor in edited_df.iterrows():
                     linha_state = str(int(row_state_editor.get("Linha", 0)))
                     if linha_state == "0":
                         continue
 
-                    nova_selecao = {
+                    st.session_state[selecoes_key][linha_state] = {
                         col_chk: checkbox_marcado(row_state_editor.get(col_chk, False))
                         for col_chk in checkbox_cols
                     }
-
-                    if st.session_state[selecoes_key].get(linha_state) != nova_selecao:
-                        st.session_state[selecoes_key][linha_state] = nova_selecao
-                        mudou_selecao = True
-
-                if mudou_selecao:
-                    st.rerun()
 
                 # Prévia ao vivo da comissão:
                 # monta uma base nova com o que está marcado no editor, sem depender da planilha salvar primeiro.
