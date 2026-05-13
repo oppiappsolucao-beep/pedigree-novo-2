@@ -180,6 +180,53 @@ VALOR_CERTIDAO = 30.00
 VALOR_AIRTAG = 130.00
 VALOR_COMBO_RG_CERTIDAO_AIRTAG = 190.00
 
+# Ajustes manuais definidos para meses históricos.
+# Janeiro a Abril/2026 ficam fechados pela conferência manual,
+# sem depender das marcações feitas no dashboard.
+COMISSAO_JULLIA_HISTORICO_FIXA = {
+    (2026, 1): 339.46,
+    (2026, 2): 273.28,
+    (2026, 3): 422.90,
+    (2026, 4): 443.67,
+}
+
+VALORES_CLIENTES_HISTORICO_FIXOS = {
+    ((2026, 1), normalize_search_text("Silvia Regina Leite Faganello")): 534.80,
+    ((2026, 4), normalize_search_text("Nilbea Regina Silva")): 534.80,
+    ((2026, 4), normalize_search_text("Mariana Sebanico Perim Bonassa")): 700.00,
+}
+
+
+def aplicar_valores_historicos_fixos(df_base: pd.DataFrame, col_cliente: Optional[str], col_valor: Optional[str]) -> pd.DataFrame:
+    """Aplica valores conferidos manualmente em clientes históricos."""
+    if df_base is None or df_base.empty or not col_cliente or col_cliente not in df_base.columns:
+        return df_base
+
+    df_ajustada = df_base.copy()
+
+    if "_mes_key" not in df_ajustada.columns:
+        return df_ajustada
+
+    if "_valor_num" not in df_ajustada.columns:
+        df_ajustada["_valor_num"] = df_ajustada[col_valor].apply(parse_money) if col_valor and col_valor in df_ajustada.columns else 0.0
+
+    for (mes_key, cliente_norm), valor_fixo in VALORES_CLIENTES_HISTORICO_FIXOS.items():
+        mask_cliente = (
+            (df_ajustada["_mes_key"] == mes_key)
+            & (df_ajustada[col_cliente].apply(normalize_search_text) == cliente_norm)
+        )
+
+        if mask_cliente.any():
+            df_ajustada.loc[mask_cliente, "_valor_num"] = float(valor_fixo)
+            if col_valor and col_valor in df_ajustada.columns:
+                df_ajustada.loc[mask_cliente, col_valor] = format_money(valor_fixo)
+
+    return df_ajustada
+
+
+def comissao_historica_fixa(mes_key) -> Optional[float]:
+    return COMISSAO_JULLIA_HISTORICO_FIXA.get(mes_key)
+
 
 def is_transferencia_sim(v) -> bool:
     texto = normalize_search_text(v)
@@ -2525,6 +2572,9 @@ elif page == "Comissão":
         df_com["_silimario_num"] = df_com[col_silimario].apply(parse_money) if col_silimario else 0.0
         df_com["_produto_norm"] = df_com[col_produtos].apply(normalize_search_text) if col_produtos else ""
 
+        # Aplica os valores históricos conferidos manualmente antes de qualquer soma/card.
+        df_com = aplicar_valores_historicos_fixos(df_com, col_cliente, col_valor)
+
         comm_months = sorted([m for m in df_com["_mes_key"].dropna().unique().tolist()], key=lambda x: (x[0], x[1]))
 
         if not comm_months:
@@ -2724,11 +2774,20 @@ elif page == "Comissão":
                     col_vendedor,
                 )
 
-                comissao_jullia_render = dados_jullia_render["comissao_jullia"]
-                percentual_jullia_render = dados_jullia_render["percentual_jullia"]
-                qtd_jullia_validas_render = dados_jullia_render["qtd_vendas_jullia_validas"]
-                total_validas_mes_render = dados_jullia_render["total_vendas_validas_mes"]
-                faixa_jullia_render = dados_jullia_render["faixa"]
+                comissao_fixa_mes = comissao_historica_fixa(selected_comm_month)
+
+                if comissao_fixa_mes is not None and selected_comm_month < (2026, 5):
+                    comissao_jullia_render = float(comissao_fixa_mes)
+                    percentual_jullia_render = dados_jullia_render["percentual_jullia"]
+                    qtd_jullia_validas_render = dados_jullia_render["qtd_vendas_jullia_validas"]
+                    total_validas_mes_render = dados_jullia_render["total_vendas_validas_mes"]
+                    faixa_jullia_render = "Comissão histórica fixa conferida manualmente"
+                else:
+                    comissao_jullia_render = dados_jullia_render["comissao_jullia"]
+                    percentual_jullia_render = dados_jullia_render["percentual_jullia"]
+                    qtd_jullia_validas_render = dados_jullia_render["qtd_vendas_jullia_validas"]
+                    total_validas_mes_render = dados_jullia_render["total_vendas_validas_mes"]
+                    faixa_jullia_render = dados_jullia_render["faixa"]
 
                 comissao_card_placeholder.markdown(
                     f"""
@@ -2751,7 +2810,7 @@ elif page == "Comissão":
                     <div class="live-card" style="margin-top:1rem;">
                         <div class="live-title">Regra aplicada</div>
                         <div class="live-sub">
-                            {faixa_jullia_render}. Base: todas as vendas do mês com produto escolhido, menos Pedigree sem transferência.
+                            {faixa_jullia_render}. {"Janeiro a Abril/2026 usam o valor fechado manualmente. Maio/2026 em diante usa as marcações do dashboard." if comissao_fixa_mes is not None and selected_comm_month < (2026, 5) else "Base: todas as vendas do mês com produto escolhido, menos Pedigree sem transferência."}
                         </div>
                     </div>
                     """,
