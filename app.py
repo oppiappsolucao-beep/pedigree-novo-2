@@ -2651,6 +2651,20 @@ elif page == "Comissão":
         # Aplica os valores históricos conferidos manualmente antes de qualquer soma/card.
         df_com = aplicar_valores_historicos_fixos(df_com, col_cliente, col_valor)
 
+        # IMPORTANTE:
+        # A função acima pode criar a coluna "Quantidade de Pedigrees" quando ela não existe na planilha.
+        # Então precisamos redetectar a coluna aqui, depois dos ajustes históricos.
+        # Isso garante que clientes como:
+        # - Silvia Regina Leite Faganello = 2
+        # - Nilbea Regina Silva = 2
+        # - Mariana Sebanico Perim Bonassa = 3
+        # apareçam corretamente no dashboard, mesmo que a planilha ainda esteja com 1 ou sem a coluna.
+        col_qtd_pedigrees = (
+            "Quantidade de Pedigrees"
+            if "Quantidade de Pedigrees" in df_com.columns
+            else detect_col(df_com, [["quantidade", "pedigree"], ["qtd", "pedigree"]])
+        )
+
         comm_months = sorted([m for m in df_com["_mes_key"].dropna().unique().tolist()], key=lambda x: (x[0], x[1]))
 
         if not comm_months:
