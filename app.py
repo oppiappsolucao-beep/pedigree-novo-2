@@ -524,13 +524,29 @@ def calcular_comissao_jullia(df_mes: pd.DataFrame, col_produtos: Optional[str], 
         | df_calc["_valor_calculo_jullia"].between(34.50, 36.50)
     )
 
+    # Quantidade de Pedigrees:
+    # quando uma linha representa mais de 1 pedigree, ela precisa contar como várias vendas
+    # para a Comissão Jullia, e não apenas como 1 linha.
+    col_qtd_calc = None
+    for possivel_col in ["Quantidade de Pedigrees", "Qtd Pedigrees", "Quantidade", "Qtd"]:
+        if possivel_col in df_calc.columns:
+            col_qtd_calc = possivel_col
+            break
+
+    if col_qtd_calc:
+        df_calc["_qtd_pedigrees_calc"] = df_calc[col_qtd_calc].apply(safe_int_zero)
+        df_calc.loc[df_calc["_qtd_pedigrees_calc"] <= 0, "_qtd_pedigrees_calc"] = 1
+    else:
+        df_calc["_qtd_pedigrees_calc"] = 1
+
     # BASE DO PERCENTUAL:
     # todas as vendas do mês com produto escolhido, MENOS os pedidos sem transferência.
+    # Aqui a quantidade digitada multiplica a venda válida.
     df_validas_mes = df_calc[
         (df_calc["_produto_preenchido_calc"])
         & (~df_calc["_sem_transferencia_calc"])
     ].copy()
-    total_vendas_validas_mes = int(len(df_validas_mes))
+    total_vendas_validas_mes = int(df_validas_mes["_qtd_pedigrees_calc"].sum()) if not df_validas_mes.empty else 0
 
     if col_vendedor and col_vendedor in df_validas_mes.columns:
         mask_jullia = df_validas_mes[col_vendedor].apply(normalize_search_text).str.contains(
@@ -542,7 +558,7 @@ def calcular_comissao_jullia(df_mes: pd.DataFrame, col_produtos: Optional[str], 
     else:
         df_jullia = pd.DataFrame()
 
-    qtd_vendas_jullia_validas = int(len(df_jullia))
+    qtd_vendas_jullia_validas = int(df_jullia["_qtd_pedigrees_calc"].sum()) if not df_jullia.empty and "_qtd_pedigrees_calc" in df_jullia.columns else 0
     valor_vendas_jullia_validas = (
         float(df_jullia["_valor_calculo_jullia"].sum())
         if not df_jullia.empty and "_valor_calculo_jullia" in df_jullia.columns
@@ -1176,31 +1192,31 @@ def render_realtime_table(df_table: pd.DataFrame, cols_to_show: list[str], heigh
             }}
 
 
-    /* SCROLLBAR MAIS GROSSA */
-    ::-webkit-scrollbar {
-        width: 16px !important;
-        height: 16px !important;
-    }
+            /* SCROLLBAR MAIS GROSSA */
+            ::-webkit-scrollbar {{
+                width: 16px !important;
+                height: 16px !important;
+            }}
 
-    ::-webkit-scrollbar-track {
-        background: #E5E7EB !important;
-        border-radius: 999px !important;
-    }
+            ::-webkit-scrollbar-track {{
+                background: #E5E7EB !important;
+                border-radius: 999px !important;
+            }}
 
-    ::-webkit-scrollbar-thumb {
-        background: #9CA3AF !important;
-        border-radius: 999px !important;
-        border: 3px solid #E5E7EB !important;
-    }
+            ::-webkit-scrollbar-thumb {{
+                background: #9CA3AF !important;
+                border-radius: 999px !important;
+                border: 3px solid #E5E7EB !important;
+            }}
 
-    ::-webkit-scrollbar-thumb:hover {
-        background: #6B7280 !important;
-    }
+            ::-webkit-scrollbar-thumb:hover {{
+                background: #6B7280 !important;
+            }}
 
-    * {
-        scrollbar-width: auto;
-        scrollbar-color: #9CA3AF #E5E7EB;
-    }
+            * {{
+                scrollbar-width: auto;
+                scrollbar-color: #9CA3AF #E5E7EB;
+            }}
 
 </style>
     </head>
@@ -1722,31 +1738,31 @@ st.markdown(
 
 
 
-    /* SCROLLBAR MAIS GROSSA */
-    ::-webkit-scrollbar {
-        width: 16px !important;
-        height: 16px !important;
-    }
+            /* SCROLLBAR MAIS GROSSA */
+            ::-webkit-scrollbar {{
+                width: 16px !important;
+                height: 16px !important;
+            }}
 
-    ::-webkit-scrollbar-track {
-        background: #E5E7EB !important;
-        border-radius: 999px !important;
-    }
+            ::-webkit-scrollbar-track {{
+                background: #E5E7EB !important;
+                border-radius: 999px !important;
+            }}
 
-    ::-webkit-scrollbar-thumb {
-        background: #9CA3AF !important;
-        border-radius: 999px !important;
-        border: 3px solid #E5E7EB !important;
-    }
+            ::-webkit-scrollbar-thumb {{
+                background: #9CA3AF !important;
+                border-radius: 999px !important;
+                border: 3px solid #E5E7EB !important;
+            }}
 
-    ::-webkit-scrollbar-thumb:hover {
-        background: #6B7280 !important;
-    }
+            ::-webkit-scrollbar-thumb:hover {{
+                background: #6B7280 !important;
+            }}
 
-    * {
-        scrollbar-width: auto;
-        scrollbar-color: #9CA3AF #E5E7EB;
-    }
+            * {{
+                scrollbar-width: auto;
+                scrollbar-color: #9CA3AF #E5E7EB;
+            }}
 
 </style>
 """,
@@ -3011,6 +3027,11 @@ elif page == "Comissão":
 
                             if col_valor and col_valor in df_com_mes_preview.columns:
                                 df_com_mes_preview.loc[mask_preview, col_valor] = format_money(valor_preview)
+
+                            # Garante que o card Comissão Jullia conte a quantidade digitada.
+                            if "Quantidade de Pedigrees" not in df_com_mes_preview.columns:
+                                df_com_mes_preview["Quantidade de Pedigrees"] = 1
+                            df_com_mes_preview.loc[mask_preview, "Quantidade de Pedigrees"] = qtd_pedigrees_preview
 
                             if col_vendedor and col_vendedor in df_com_mes_preview.columns:
                                 df_com_mes_preview.loc[mask_preview, col_vendedor] = normalize_text(row_edit_preview.get("Vendedor", "Jullia"))
