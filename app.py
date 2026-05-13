@@ -2808,10 +2808,17 @@ elif page == "Comissão":
                 ]
 
                 for idx_init, row_init in df_editor_view.iterrows():
-                    linha_init = str(int(row_init.get("Linha", 0)))
+                    linha_init = str(safe_int_zero(row_init.get("Linha", 0)))
                     if linha_init in st.session_state[selecoes_key]:
+                        estado_linha = st.session_state[selecoes_key][linha_init]
+
+                        # Restaura a quantidade digitada anteriormente.
+                        # Sem isso, o Streamlit voltava para 1 e parecia que a conta não mudava.
+                        if "Quantidade de Pedigrees" in estado_linha:
+                            df_editor_view.at[idx_init, "Quantidade de Pedigrees"] = safe_int_zero(estado_linha.get("Quantidade de Pedigrees", 1)) or 1
+
                         for col_chk in checkbox_cols:
-                            df_editor_view.at[idx_init, col_chk] = bool(st.session_state[selecoes_key][linha_init].get(col_chk, False))
+                            df_editor_view.at[idx_init, col_chk] = bool(estado_linha.get(col_chk, False))
 
                 def recalcular_linha_editor(row_editor):
                     ped_trans_calc = checkbox_marcado(row_editor.get("Pedigree Transferência", False))
@@ -2922,10 +2929,12 @@ elif page == "Comissão":
                         )
 
                         if linha_state != "0":
-                            st.session_state[selecoes_key][linha_state] = {
+                            estado_linha_atual = {
                                 col_chk: checkbox_marcado(row_state_editor.get(col_chk, False))
                                 for col_chk in checkbox_cols
                             }
+                            estado_linha_atual["Quantidade de Pedigrees"] = qtd_pedigrees_linha
+                            st.session_state[selecoes_key][linha_state] = estado_linha_atual
                         else:
                             # Linha nova criada no editor. Só salva quando tiver pelo menos Data/Mês/Cliente ou algum produto marcado.
                             if data_linha or mes_linha or cliente_linha or produto_linha:
