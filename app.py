@@ -2617,47 +2617,62 @@ elif page == "Comissão":
                 st.markdown(
                     """
                     <div class="live-sub" style="margin-top:0.2rem; margin-bottom:0.8rem;">
-                        Marque os produtos escolhidos pelo cliente para simular a comissão em tempo real. Nada será salvo na planilha.
+                        Marque todos os produtos desejados. A tabela não vai voltar para o começo a cada clique; depois clique em Calcular prévia da comissão. Nada será salvo na planilha.
                     </div>
                     """,
                     unsafe_allow_html=True,
                 )
 
-                edited_df = st.data_editor(
-                    df_editor_view,
-                    use_container_width=True,
-                    hide_index=True,
-                    height=430,
-                    column_config={
-                        "Linha": st.column_config.NumberColumn("Linha", disabled=True),
-                        "Data da Venda": st.column_config.TextColumn("Data da Venda", disabled=True),
-                        "Mês da Venda": st.column_config.TextColumn("Mês da Venda", disabled=True),
-                        "Cliente": st.column_config.TextColumn("Cliente", disabled=True),
-                        "Pedigree Transferência": st.column_config.CheckboxColumn("Pedigree Transferência"),
-                        "Sem Transferência": st.column_config.CheckboxColumn("Sem Transferência"),
-                        "Correios": st.column_config.CheckboxColumn("Correios"),
-                        "RG": st.column_config.CheckboxColumn("RG"),
-                        "Certidão": st.column_config.CheckboxColumn("Certidão"),
-                        "Airtag": st.column_config.CheckboxColumn("Airtag"),
-                        "Valor": st.column_config.TextColumn("Valor", disabled=True),
-                        "Vendedor": st.column_config.TextColumn("Vendedor", disabled=True),
-                    },
-                    key=editor_key,
-                )
+                # IMPORTANTE:
+                # O st.data_editor fora de formulário faz o Streamlit rodar a página inteira
+                # a cada checkbox marcado. Isso fazia a grade voltar para o começo.
+                # Dentro do st.form, você pode marcar várias opções/linhas primeiro;
+                # a página só recalcula quando clicar em "Calcular prévia".
+                with st.form(key=f"form_{editor_key}", clear_on_submit=False):
+                    edited_df = st.data_editor(
+                        df_editor_view,
+                        use_container_width=True,
+                        hide_index=True,
+                        height=430,
+                        column_config={
+                            "Linha": st.column_config.NumberColumn("Linha", disabled=True),
+                            "Data da Venda": st.column_config.TextColumn("Data da Venda", disabled=True),
+                            "Mês da Venda": st.column_config.TextColumn("Mês da Venda", disabled=True),
+                            "Cliente": st.column_config.TextColumn("Cliente", disabled=True),
+                            "Pedigree Transferência": st.column_config.CheckboxColumn("Pedigree Transferência"),
+                            "Sem Transferência": st.column_config.CheckboxColumn("Sem Transferência"),
+                            "Correios": st.column_config.CheckboxColumn("Correios"),
+                            "RG": st.column_config.CheckboxColumn("RG"),
+                            "Certidão": st.column_config.CheckboxColumn("Certidão"),
+                            "Airtag": st.column_config.CheckboxColumn("Airtag"),
+                            "Valor": st.column_config.TextColumn("Valor", disabled=True),
+                            "Vendedor": st.column_config.TextColumn("Vendedor", disabled=True),
+                        },
+                        key=editor_key,
+                    )
 
-                # Atualiza o estado próprio com TODAS as marcações retornadas pelo editor.
-                # IMPORTANTE: não usamos st.rerun() aqui.
-                # O próprio Streamlit já atualiza o script quando a célula muda; forçar outro rerun
-                # fazia a página "pular"/reiniciar visualmente a cada marcação.
-                for _, row_state_editor in edited_df.iterrows():
-                    linha_state = str(int(row_state_editor.get("Linha", 0)))
-                    if linha_state == "0":
-                        continue
+                    aplicar_previa = st.form_submit_button(
+                        "Calcular prévia da comissão",
+                        use_container_width=True,
+                    )
 
-                    st.session_state[selecoes_key][linha_state] = {
-                        col_chk: checkbox_marcado(row_state_editor.get(col_chk, False))
-                        for col_chk in checkbox_cols
-                    }
+                # Atualiza o estado próprio com TODAS as marcações retornadas pelo editor
+                # somente quando o usuário terminar de marcar e clicar no botão.
+                # Assim a tabela não fica voltando para o começo a cada clique.
+                if aplicar_previa:
+                    for _, row_state_editor in edited_df.iterrows():
+                        linha_state = str(int(row_state_editor.get("Linha", 0)))
+                        if linha_state == "0":
+                            continue
+
+                        st.session_state[selecoes_key][linha_state] = {
+                            col_chk: checkbox_marcado(row_state_editor.get(col_chk, False))
+                            for col_chk in checkbox_cols
+                        }
+                else:
+                    # Sem submit, usa a versão inicial/persistida para renderizar a prévia atual.
+                    # Isso evita salvar alterações parciais que ainda estão sendo marcadas na tela.
+                    pass
 
                 # Prévia ao vivo da comissão:
                 # monta uma base nova com o que está marcado no editor, sem depender da planilha salvar primeiro.
@@ -2708,7 +2723,7 @@ elif page == "Comissão":
 
                 render_card_comissao_jullia(df_com_mes_preview)
 
-                st.info("Prévia calculada somente na tela. A aba Pedigree Comissão Ju não foi alterada.")
+                st.info("Prévia calculada somente na tela. A aba Pedigree Comissão Ju não foi alterada. Para não resetar a posição da tabela, marque tudo primeiro e depois clique em Calcular prévia da comissão.")
             else:
                 render_card_comissao_jullia(df_com_mes_calculo_jullia)
                 st.info("Nenhuma venda encontrada com os filtros selecionados.")
