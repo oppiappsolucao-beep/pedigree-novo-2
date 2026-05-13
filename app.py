@@ -1170,6 +1170,34 @@ def render_realtime_table(df_table: pd.DataFrame, cols_to_show: list[str], heigh
                 color: white;
                 cursor: pointer;
             }}
+
+
+    /* SCROLLBAR MAIS GROSSA */
+    ::-webkit-scrollbar {
+        width: 16px !important;
+        height: 16px !important;
+    }
+
+    ::-webkit-scrollbar-track {
+        background: #E5E7EB !important;
+        border-radius: 999px !important;
+    }
+
+    ::-webkit-scrollbar-thumb {
+        background: #9CA3AF !important;
+        border-radius: 999px !important;
+        border: 3px solid #E5E7EB !important;
+    }
+
+    ::-webkit-scrollbar-thumb:hover {
+        background: #6B7280 !important;
+    }
+
+    * {
+        scrollbar-width: auto;
+        scrollbar-color: #9CA3AF #E5E7EB;
+    }
+
 </style>
     </head>
 
@@ -1686,6 +1714,34 @@ st.markdown(
     [data-testid="stSidebar"] .sidebar-logo-circle {
         background: #2e6cbf !important;
         box-shadow: 0 12px 30px rgba(46,108,191,0.20) !important;
+    }
+
+
+
+    /* SCROLLBAR MAIS GROSSA */
+    ::-webkit-scrollbar {
+        width: 16px !important;
+        height: 16px !important;
+    }
+
+    ::-webkit-scrollbar-track {
+        background: #E5E7EB !important;
+        border-radius: 999px !important;
+    }
+
+    ::-webkit-scrollbar-thumb {
+        background: #9CA3AF !important;
+        border-radius: 999px !important;
+        border: 3px solid #E5E7EB !important;
+    }
+
+    ::-webkit-scrollbar-thumb:hover {
+        background: #6B7280 !important;
+    }
+
+    * {
+        scrollbar-width: auto;
+        scrollbar-color: #9CA3AF #E5E7EB;
     }
 
 </style>
