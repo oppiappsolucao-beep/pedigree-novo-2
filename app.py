@@ -447,31 +447,37 @@ OPCOES_PRODUTOS_COMISSAO = [
 ]
 
 
-def calcular_valor_por_checks(ped_trans: bool, ped_sem: bool, rg: bool, certidao: bool, airtag: bool) -> float:
+def calcular_valor_por_checks(ped_trans: bool, ped_sem: bool, correios: bool, rg: bool, certidao: bool, airtag: bool) -> float:
     """
     Calcula o valor somente para exibição no dashboard.
     Nada é salvo na planilha.
 
-    Regra correta:
-    - Pedigree Transferência = R$ 249,90 + Correios obrigatório R$ 35,80 = R$ 285,70
-    - Sem Transferência = R$ 35,80 somente quando NÃO houver Pedigree Transferência marcado
+    Regra separada por checkbox:
+    - Pedigree Transferência = R$ 249,90
+    - Correios = R$ 35,80
+    - Pedigree Transferência + Correios = R$ 285,70
+    - Sem Transferência = R$ 35,80, independente do Correios
     - RG individual = R$ 30,00
     - Certidão individual = R$ 30,00
     - Airtag individual = R$ 130,00
     - RG + Certidão + Airtag juntos = R$ 190,00
 
-    Observação importante:
-    O checkbox "Sem Transferência" não representa o frete dos Correios.
-    O frete já entra automaticamente e obrigatório quando "Pedigree Transferência" está marcado.
-    Se por acaso "Pedigree Transferência" e "Sem Transferência" ficarem marcados juntos,
-    o sistema considera a transferência e NÃO soma R$ 35,80 duas vezes.
+    Plano 2:
+    Pedigree Transferência + Correios + RG + Certidão = R$ 345,70
+
+    Plano 3:
+    Pedigree Transferência + Correios + RG + Certidão + Airtag = R$ 475,70
     """
     total = 0.0
 
     if ped_trans:
-        total += VALOR_PEDIGREE_TRANSFERENCIA + VALOR_CORREIO
-    elif ped_sem:
+        total += VALOR_PEDIGREE_TRANSFERENCIA
+
+    if ped_sem:
         total += VALOR_PEDIGREE_SEM_TRANSFERENCIA
+
+    if correios:
+        total += VALOR_CORREIO
 
     if rg and certidao and airtag:
         total += VALOR_COMBO_RG_CERTIDAO_AIRTAG
@@ -485,6 +491,11 @@ def calcular_valor_por_checks(ped_trans: bool, ped_sem: bool, rg: bool, certidao
 
     return float(total)
 
+
+def calcular_valor_por_checks_antigo(ped_trans: bool, ped_sem: bool, rg: bool, certidao: bool, airtag: bool) -> float:
+    # Mantido apenas por compatibilidade interna, caso algum trecho antigo chame a função sem Correios.
+    correios = bool(ped_trans)
+    return calcular_valor_por_checks(ped_trans, ped_sem, correios, rg, certidao, airtag)
 
 def calcular_valor_produtos_comissao(produto: str) -> float:
     texto = normalize_search_text(produto)
@@ -546,9 +557,13 @@ def montar_produto_por_checks(ped_trans: bool, ped_sem: bool, rg: bool, certidao
 def checks_por_produto(produto: str) -> dict:
     texto = normalize_search_text(produto)
 
+    ped_trans = ("pedigree" in texto and not is_produto_sem_transferencia(produto))
+    sem_trans = is_produto_sem_transferencia(produto)
+
     return {
-        "Pedigree Transferência": ("pedigree" in texto and not is_produto_sem_transferencia(produto)),
-        "Sem Transferência": is_produto_sem_transferencia(produto),
+        "Pedigree Transferência": ped_trans,
+        "Sem Transferência": sem_trans,
+        "Correios": ped_trans,
         "RG": "rg" in texto,
         "Certidão": ("certidao" in texto or "certidão" in texto),
         "Airtag": ("airtag" in texto or "air tag" in texto),
@@ -2539,6 +2554,7 @@ elif page == "Comissão":
                     "Cliente": df_editor[col_cliente] if col_cliente and col_cliente in df_editor.columns else "",
                     "Pedigree Transferência": checks_df["Pedigree Transferência"].astype(bool),
                     "Sem Transferência": checks_df["Sem Transferência"].astype(bool),
+                    "Correios": checks_df["Correios"].astype(bool) if "Correios" in checks_df.columns else checks_df["Pedigree Transferência"].astype(bool),
                     "RG": checks_df["RG"].astype(bool),
                     "Certidão": checks_df["Certidão"].astype(bool),
                     "Airtag": checks_df["Airtag"].astype(bool),
@@ -2548,25 +2564,31 @@ elif page == "Comissão":
 
                 editor_key = f"editor_checks_comissao_{selected_comm_month}_{selected_vendedor}_{busca_comissao}"
 
-                # Recupera as marcações feitas no editor antes do rerun.
-                # Assim a coluna Valor já volta recalculada na própria grade, sem gravar nada no Google Sheets.
-                editor_state = st.session_state.get(editor_key, {})
-                edited_rows_state = editor_state.get("edited_rows", {}) if isinstance(editor_state, dict) else {}
+                # Estado próprio por linha. Isso evita o problema de selecionar um checkbox
+                # e perder as outras marcações da mesma linha no rerun do Streamlit.
+                selecoes_key = "selecoes_comissao_por_linha"
+                if selecoes_key not in st.session_state:
+                    st.session_state[selecoes_key] = {}
 
-                for idx_state, changes_state in edited_rows_state.items():
-                    try:
-                        idx_int = int(idx_state)
-                    except Exception:
-                        continue
+                checkbox_cols = [
+                    "Pedigree Transferência",
+                    "Sem Transferência",
+                    "Correios",
+                    "RG",
+                    "Certidão",
+                    "Airtag",
+                ]
 
-                    if 0 <= idx_int < len(df_editor_view):
-                        for col_state, value_state in changes_state.items():
-                            if col_state in df_editor_view.columns:
-                                df_editor_view.at[df_editor_view.index[idx_int], col_state] = value_state
+                for idx_init, row_init in df_editor_view.iterrows():
+                    linha_init = str(int(row_init.get("Linha", 0)))
+                    if linha_init in st.session_state[selecoes_key]:
+                        for col_chk in checkbox_cols:
+                            df_editor_view.at[idx_init, col_chk] = bool(st.session_state[selecoes_key][linha_init].get(col_chk, False))
 
                 def recalcular_linha_editor(row_editor):
                     ped_trans_calc = checkbox_marcado(row_editor.get("Pedigree Transferência", False))
                     ped_sem_calc = checkbox_marcado(row_editor.get("Sem Transferência", False))
+                    correios_calc = checkbox_marcado(row_editor.get("Correios", False))
                     rg_calc = checkbox_marcado(row_editor.get("RG", False))
                     certidao_calc = checkbox_marcado(row_editor.get("Certidão", False))
                     airtag_calc = checkbox_marcado(row_editor.get("Airtag", False))
@@ -2582,7 +2604,7 @@ elif page == "Comissão":
                         airtag_calc,
                     )
 
-                    return format_money(calcular_valor_por_checks(ped_trans_calc, ped_sem_calc, rg_calc, certidao_calc, airtag_calc))
+                    return format_money(calcular_valor_por_checks(ped_trans_calc, ped_sem_calc, correios_calc, rg_calc, certidao_calc, airtag_calc))
 
                 df_editor_view["Valor"] = df_editor_view.apply(recalcular_linha_editor, axis=1)
 
@@ -2607,6 +2629,7 @@ elif page == "Comissão":
                         "Cliente": st.column_config.TextColumn("Cliente", disabled=True),
                         "Pedigree Transferência": st.column_config.CheckboxColumn("Pedigree Transferência"),
                         "Sem Transferência": st.column_config.CheckboxColumn("Sem Transferência"),
+                        "Correios": st.column_config.CheckboxColumn("Correios"),
                         "RG": st.column_config.CheckboxColumn("RG"),
                         "Certidão": st.column_config.CheckboxColumn("Certidão"),
                         "Airtag": st.column_config.CheckboxColumn("Airtag"),
@@ -2615,6 +2638,26 @@ elif page == "Comissão":
                     },
                     key=editor_key,
                 )
+
+                # Atualiza o estado próprio com TODAS as marcações retornadas pelo editor.
+                # Se houve mudança, força um rerun para o Valor aparecer recalculado na grade.
+                mudou_selecao = False
+                for _, row_state_editor in edited_df.iterrows():
+                    linha_state = str(int(row_state_editor.get("Linha", 0)))
+                    if linha_state == "0":
+                        continue
+
+                    nova_selecao = {
+                        col_chk: checkbox_marcado(row_state_editor.get(col_chk, False))
+                        for col_chk in checkbox_cols
+                    }
+
+                    if st.session_state[selecoes_key].get(linha_state) != nova_selecao:
+                        st.session_state[selecoes_key][linha_state] = nova_selecao
+                        mudou_selecao = True
+
+                if mudou_selecao:
+                    st.rerun()
 
                 # Prévia ao vivo da comissão:
                 # monta uma base nova com o que está marcado no editor, sem depender da planilha salvar primeiro.
@@ -2630,6 +2673,7 @@ elif page == "Comissão":
 
                     ped_trans_preview = checkbox_marcado(row_edit_preview.get("Pedigree Transferência", False))
                     ped_sem_preview = checkbox_marcado(row_edit_preview.get("Sem Transferência", False))
+                    correios_preview = checkbox_marcado(row_edit_preview.get("Correios", False))
                     rg_preview = checkbox_marcado(row_edit_preview.get("RG", False))
                     certidao_preview = checkbox_marcado(row_edit_preview.get("Certidão", False))
                     airtag_preview = checkbox_marcado(row_edit_preview.get("Airtag", False))
@@ -2645,7 +2689,7 @@ elif page == "Comissão":
                         airtag_preview,
                     )
 
-                    valor_preview = calcular_valor_por_checks(ped_trans_preview, ped_sem_preview, rg_preview, certidao_preview, airtag_preview)
+                    valor_preview = calcular_valor_por_checks(ped_trans_preview, ped_sem_preview, correios_preview, rg_preview, certidao_preview, airtag_preview)
 
                     if row_number_preview > 0:
                         linhas_editadas_preview.append(row_number_preview)
