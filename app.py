@@ -2672,11 +2672,8 @@ elif page == "Comissão":
                     novas_linhas_para_salvar = []
 
                     for _, row_state_editor in edited_df.iterrows():
-                        linha_state_raw = row_state_editor.get("Linha", 0)
-                        try:
-                            linha_state = str(int(float(linha_state_raw)))
-                        except Exception:
-                            linha_state = "0"
+                        linha_state_num = safe_int_zero(row_state_editor.get("Linha", 0))
+                        linha_state = str(linha_state_num)
 
                         data_linha = normalize_text(row_state_editor.get("Data da Venda", ""))
                         mes_linha = normalize_text(row_state_editor.get("Mês da Venda", ""))
@@ -2746,7 +2743,7 @@ elif page == "Comissão":
                 linhas_editadas_preview = []
 
                 for _, row_edit_preview in edited_df.iterrows():
-                    row_number_preview = int(row_edit_preview.get("Linha", 0))
+                    row_number_preview = safe_int_zero(row_edit_preview.get("Linha", 0))
 
                     ped_trans_preview = checkbox_marcado(row_edit_preview.get("Pedigree Transferência", False))
                     ped_sem_preview = checkbox_marcado(row_edit_preview.get("Sem Transferência", False))
