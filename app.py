@@ -2789,7 +2789,7 @@ elif page == "Comissão":
             )
 
             mes_valor_cliente = st.selectbox(
-                "Valor clientes no mês",
+                "Valor total vendido no mês",
                 options=comm_months,
                 index=comm_months.index(default_comm_month),
                 format_func=month_key_to_label,
@@ -2800,7 +2800,7 @@ elif page == "Comissão":
             valor_clientes_mes = float(df_mes_valor["_valor_num"].sum()) if not df_mes_valor.empty else 0.0
 
             card_metric(
-                "Valor clientes no mês",
+                "Valor total vendido no mês",
                 format_money(valor_clientes_mes),
                 month_key_to_label(mes_valor_cliente),
                 "💰",
