@@ -2956,6 +2956,11 @@ elif page == "Comissão":
                             st.rerun()
                         except Exception as e:
                             st.error(f"Erro ao salvar novas linhas na planilha: {e}")
+                    else:
+                        # Força uma nova renderização APÓS o clique no botão para a coluna Valor
+                        # aparecer atualizada na própria tabela com:
+                        # valor da combinação marcada x Quantidade de Pedigrees.
+                        st.rerun()
                 else:
                     # Sem submit, usa a versão inicial/persistida para renderizar a prévia atual.
                     # Isso evita salvar alterações parciais que ainda estão sendo marcadas na tela.
