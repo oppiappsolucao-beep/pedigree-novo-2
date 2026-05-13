@@ -1317,8 +1317,8 @@ def render_realtime_table(df_table: pd.DataFrame, cols_to_show: list[str], heigh
 
             /* SCROLLBAR MAIS GROSSA */
             ::-webkit-scrollbar {{
-                width: 16px !important;
-                height: 16px !important;
+                width: 22px !important;
+                height: 22px !important;
             }}
 
             ::-webkit-scrollbar-track {{
@@ -1329,7 +1329,7 @@ def render_realtime_table(df_table: pd.DataFrame, cols_to_show: list[str], heigh
             ::-webkit-scrollbar-thumb {{
                 background: #9CA3AF !important;
                 border-radius: 999px !important;
-                border: 3px solid #E5E7EB !important;
+                border: 4px solid #E5E7EB !important;
             }}
 
             ::-webkit-scrollbar-thumb:hover {{
@@ -1863,8 +1863,8 @@ st.markdown(
 
             /* SCROLLBAR MAIS GROSSA */
             ::-webkit-scrollbar {{
-                width: 16px !important;
-                height: 16px !important;
+                width: 22px !important;
+                height: 22px !important;
             }}
 
             ::-webkit-scrollbar-track {{
@@ -1875,7 +1875,7 @@ st.markdown(
             ::-webkit-scrollbar-thumb {{
                 background: #9CA3AF !important;
                 border-radius: 999px !important;
-                border: 3px solid #E5E7EB !important;
+                border: 4px solid #E5E7EB !important;
             }}
 
             ::-webkit-scrollbar-thumb:hover {{
@@ -1886,6 +1886,28 @@ st.markdown(
                 scrollbar-width: auto;
                 scrollbar-color: #9CA3AF #E5E7EB;
             }}
+
+
+    /* BARRA DE ROLAGEM DA TABELA MAIS GROSSA */
+    [data-testid="stDataFrame"] ::-webkit-scrollbar {
+        width: 22px !important;
+        height: 22px !important;
+    }
+
+    [data-testid="stDataFrame"] ::-webkit-scrollbar-track {
+        background: #D1D5DB !important;
+        border-radius: 999px !important;
+    }
+
+    [data-testid="stDataFrame"] ::-webkit-scrollbar-thumb {
+        background: #6B7280 !important;
+        border-radius: 999px !important;
+        border: 4px solid #D1D5DB !important;
+    }
+
+    [data-testid="stDataFrame"] ::-webkit-scrollbar-thumb:hover {
+        background: #374151 !important;
+    }
 
 </style>
 """,
