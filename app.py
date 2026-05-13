@@ -2648,6 +2648,12 @@ elif page == "Comissão":
         with right_col:
             selected_comm_month = data_referencia
 
+            # Regra definida:
+            # - Meses anteriores a Maio/2026: comissão calculada somente pela leitura da planilha.
+            # - Maio/2026 em diante: comissão calculada pelas marcações feitas no dashboard.
+            MES_DASHBOARD_INICIO = (2026, 5)
+            usar_marcacoes_dashboard = selected_comm_month >= MES_DASHBOARD_INICIO
+
             vendedores = ["Todos"]
 
             if col_vendedor and col_vendedor in df_com.columns:
@@ -2861,9 +2867,9 @@ elif page == "Comissão":
                 df_editor_view["Valor"] = df_editor_view.apply(recalcular_linha_editor, axis=1)
 
                 st.markdown(
-                    """
+                    f"""
                     <div class="live-sub" style="margin-top:0.2rem; margin-bottom:0.8rem;">
-                        Marque os produtos desejados e informe a Quantidade de Pedigrees. Para inserir uma nova venda, adicione uma linha no final preenchendo Data da Venda, Mês da Venda e Cliente. Depois clique em Calcular prévia / salvar novas linhas.
+                        {"Marque os produtos desejados e informe a Quantidade de Pedigrees. Para inserir uma nova venda, adicione uma linha no final preenchendo Data da Venda, Mês da Venda e Cliente. Depois clique em Calcular prévia / salvar novas linhas." if usar_marcacoes_dashboard else "Mês anterior a Maio/2026: cálculo feito somente pela leitura da planilha. As marcações do dashboard ficam bloqueadas para não alterar o histórico."}
                     </div>
                     """,
                     unsafe_allow_html=True,
@@ -2896,13 +2902,35 @@ elif page == "Comissão":
                             "Vendedor": st.column_config.TextColumn("Vendedor", disabled=True),
                         },
                         key=editor_key,
-                        num_rows="dynamic",
+                        disabled=(
+                            []
+                            if usar_marcacoes_dashboard
+                            else [
+                                "Data da Venda",
+                                "Mês da Venda",
+                                "Cliente",
+                                "Quantidade de Pedigrees",
+                                "Pedigree Transferência",
+                                "Sem Transferência",
+                                "Correios",
+                                "RG",
+                                "Certidão",
+                                "Airtag",
+                                "Valor",
+                                "Vendedor",
+                            ]
+                        ),
+                        num_rows=("dynamic" if usar_marcacoes_dashboard else "fixed"),
                     )
 
                     aplicar_previa = st.form_submit_button(
                         "Calcular prévia da comissão",
                         use_container_width=True,
                     )
+
+                if aplicar_previa and not usar_marcacoes_dashboard:
+                    st.info("Este mês é histórico. A Comissão Jullia está sendo calculada pela planilha, sem usar marcações do dashboard.")
+                    aplicar_previa = False
 
                 # Atualiza o estado próprio com TODAS as marcações retornadas pelo editor
                 # somente quando o usuário terminar de marcar e clicar no botão.
@@ -2991,7 +3019,7 @@ elif page == "Comissão":
 
                 linhas_editadas_preview = []
 
-                for _, row_edit_preview in edited_df.iterrows():
+                for _, row_edit_preview in (edited_df if usar_marcacoes_dashboard else pd.DataFrame()).iterrows():
                     row_number_preview = safe_int_zero(row_edit_preview.get("Linha", 0))
 
                     ped_trans_preview = checkbox_marcado(row_edit_preview.get("Pedigree Transferência", False))
@@ -3038,7 +3066,10 @@ elif page == "Comissão":
 
                 render_card_comissao_jullia(df_com_mes_preview)
 
-                st.info("Marque tudo primeiro e depois clique em Calcular prévia / salvar novas linhas. Linhas novas são gravadas sempre abaixo da última linha escrita.")
+                if usar_marcacoes_dashboard:
+                    st.info("Marque tudo primeiro e depois clique em Calcular prévia / salvar novas linhas. Linhas novas são gravadas sempre abaixo da última linha escrita.")
+                else:
+                    st.info("Mês histórico: a comissão está sendo calculada diretamente pela planilha. Maio/2026 em diante usa as marcações do dashboard.")
             else:
                 render_card_comissao_jullia(df_com_mes_calculo_jullia)
                 st.info("Nenhuma venda encontrada com os filtros selecionados.")
