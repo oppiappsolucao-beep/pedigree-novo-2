@@ -196,6 +196,12 @@ VALORES_CLIENTES_HISTORICO_FIXOS = {
     ((2026, 4), normalize_search_text("Mariana Sebanico Perim Bonassa")): 700.00,
 }
 
+QUANTIDADES_CLIENTES_HISTORICO_FIXAS = {
+    ((2026, 1), normalize_search_text("Silvia Regina Leite Faganello")): 2,
+    ((2026, 4), normalize_search_text("Nilbea Regina Silva")): 2,
+    ((2026, 4), normalize_search_text("Mariana Sebanico Perim Bonassa")): 3,
+}
+
 
 def aplicar_valores_historicos_fixos(df_base: pd.DataFrame, col_cliente: Optional[str], col_valor: Optional[str]) -> pd.DataFrame:
     """Aplica valores conferidos manualmente em clientes históricos."""
@@ -210,6 +216,10 @@ def aplicar_valores_historicos_fixos(df_base: pd.DataFrame, col_cliente: Optiona
     if "_valor_num" not in df_ajustada.columns:
         df_ajustada["_valor_num"] = df_ajustada[col_valor].apply(parse_money) if col_valor and col_valor in df_ajustada.columns else 0.0
 
+    # Garante a coluna de quantidade para os clientes que compraram mais de 1 pedigree.
+    if "Quantidade de Pedigrees" not in df_ajustada.columns:
+        df_ajustada["Quantidade de Pedigrees"] = 1
+
     for (mes_key, cliente_norm), valor_fixo in VALORES_CLIENTES_HISTORICO_FIXOS.items():
         mask_cliente = (
             (df_ajustada["_mes_key"] == mes_key)
@@ -220,6 +230,10 @@ def aplicar_valores_historicos_fixos(df_base: pd.DataFrame, col_cliente: Optiona
             df_ajustada.loc[mask_cliente, "_valor_num"] = float(valor_fixo)
             if col_valor and col_valor in df_ajustada.columns:
                 df_ajustada.loc[mask_cliente, col_valor] = format_money(valor_fixo)
+
+            qtd_fixa = QUANTIDADES_CLIENTES_HISTORICO_FIXAS.get((mes_key, cliente_norm))
+            if qtd_fixa:
+                df_ajustada.loc[mask_cliente, "Quantidade de Pedigrees"] = int(qtd_fixa)
 
     return df_ajustada
 
@@ -522,6 +536,68 @@ def sync_pedigrees_para_comissao():
     """
     st.cache_data.clear()
     return 0
+
+
+
+
+def salvar_edicoes_linhas_comissao(edicoes_linhas: list[dict]) -> int:
+    """
+    Atualiza linhas já existentes da aba Pedigree Comissão Ju diretamente pelo dashboard.
+
+    Atualiza somente as colunas operacionais pedidas para comissão:
+    Data da Venda, Mês da Venda, Cliente, Quantidade de Pedigrees, Produtos,
+    Mês da Compra do Cliente, Valor e Vendedor.
+    """
+    if not edicoes_linhas:
+        return 0
+
+    worksheet = get_worksheet(COMM_WORKSHEET_NAME)
+    required_cols = [
+        "Data da Venda",
+        "Mês da Venda",
+        "Cliente",
+        "Quantidade de Pedigrees",
+        "Produtos",
+        "Mês da Compra do Cliente",
+        "Valor",
+        "Vendedor",
+    ]
+    headers = garantir_colunas_comissao(worksheet, required_cols)
+
+    atualizadas = 0
+
+    for item in edicoes_linhas:
+        row_number = safe_int_zero(item.get("Linha", 0))
+        if row_number <= 1:
+            continue
+
+        row_values = worksheet.row_values(row_number)
+        if len(row_values) < len(headers):
+            row_values += [""] * (len(headers) - len(row_values))
+
+        novos_valores = {
+            "Data da Venda": normalize_text(item.get("Data da Venda", "")),
+            "Mês da Venda": normalize_text(item.get("Mês da Venda", "")),
+            "Cliente": normalize_text(item.get("Cliente", "")),
+            "Quantidade de Pedigrees": safe_int_zero(item.get("Quantidade de Pedigrees", 1)) or 1,
+            "Produtos": normalize_text(item.get("Produtos", "")),
+            "Mês da Compra do Cliente": normalize_text(item.get("Mês da Compra do Cliente", item.get("Mês da Venda", ""))),
+            "Valor": normalize_text(item.get("Valor", "")),
+            "Vendedor": normalize_text(item.get("Vendedor", "Jullia")) or "Jullia",
+        }
+
+        for col_name, value in novos_valores.items():
+            if col_name in headers:
+                col_idx = headers.index(col_name)
+                row_values[col_idx] = value
+
+        worksheet.update(f"A{row_number}", [row_values], value_input_option="USER_ENTERED")
+        atualizadas += 1
+
+    if atualizadas:
+        st.cache_data.clear()
+
+    return atualizadas
 
 
 def is_produto_sem_transferencia(v) -> bool:
@@ -2928,7 +3004,7 @@ elif page == "Comissão":
                 st.markdown(
                     f"""
                     <div class="live-sub" style="margin-top:0.2rem; margin-bottom:0.8rem;">
-                        {"Marque os produtos desejados e informe a Quantidade de Pedigrees. Para inserir uma nova venda, adicione uma linha no final preenchendo Data da Venda, Mês da Venda e Cliente. Depois clique em Calcular prévia / salvar novas linhas." if usar_marcacoes_dashboard else "Mês anterior a Maio/2026: cálculo feito somente pela leitura da planilha. As marcações do dashboard ficam bloqueadas para não alterar o histórico."}
+                        {"Marque os produtos desejados e informe a Quantidade de Pedigrees. Para inserir uma nova venda, adicione uma linha no final preenchendo Data da Venda, Mês da Venda e Cliente. Depois clique em Calcular prévia / salvar novas linhas." if usar_marcacoes_dashboard else "Mês histórico: você pode ajustar Quantidade de Pedigrees/Produtos no dashboard e salvar direto na planilha; a comissão final do mês continua usando os valores históricos conferidos."}
                     </div>
                     """,
                     unsafe_allow_html=True,
@@ -2961,25 +3037,8 @@ elif page == "Comissão":
                             "Vendedor": st.column_config.TextColumn("Vendedor", disabled=True),
                         },
                         key=editor_key,
-                        disabled=(
-                            []
-                            if usar_marcacoes_dashboard
-                            else [
-                                "Data da Venda",
-                                "Mês da Venda",
-                                "Cliente",
-                                "Quantidade de Pedigrees",
-                                "Pedigree Transferência",
-                                "Sem Transferência",
-                                "Correios",
-                                "RG",
-                                "Certidão",
-                                "Airtag",
-                                "Valor",
-                                "Vendedor",
-                            ]
-                        ),
-                        num_rows=("dynamic" if usar_marcacoes_dashboard else "fixed"),
+                        disabled=["Valor", "Vendedor"],
+                        num_rows="dynamic",
                     )
 
                     aplicar_previa = st.form_submit_button(
@@ -2987,15 +3046,12 @@ elif page == "Comissão":
                         use_container_width=True,
                     )
 
-                if aplicar_previa and not usar_marcacoes_dashboard:
-                    st.info("Este mês é histórico. A Comissão Jullia está sendo calculada pela planilha, sem usar marcações do dashboard.")
-                    aplicar_previa = False
-
                 # Atualiza o estado próprio com TODAS as marcações retornadas pelo editor
                 # somente quando o usuário terminar de marcar e clicar no botão.
                 # Assim a tabela não fica voltando para o começo a cada clique.
                 if aplicar_previa:
                     novas_linhas_para_salvar = []
+                    edicoes_linhas_para_salvar = []
 
                     for _, row_state_editor in edited_df.iterrows():
                         linha_state_num = safe_int_zero(row_state_editor.get("Linha", 0))
@@ -3038,6 +3094,21 @@ elif page == "Comissão":
                             }
                             estado_linha_atual["Quantidade de Pedigrees"] = qtd_pedigrees_linha
                             st.session_state[selecoes_key][linha_state] = estado_linha_atual
+
+                            # Salva diretamente na planilha a quantidade, produtos e valor calculado.
+                            # Isso resolve os casos de clientes com 2 ou mais pedigrees na mesma venda.
+                            if qtd_pedigrees_linha >= 2 or produto_linha or data_linha or mes_linha or cliente_linha:
+                                edicoes_linhas_para_salvar.append({
+                                    "Linha": linha_state_num,
+                                    "Data da Venda": data_linha,
+                                    "Mês da Venda": mes_linha,
+                                    "Cliente": cliente_linha,
+                                    "Quantidade de Pedigrees": qtd_pedigrees_linha,
+                                    "Produtos": produto_linha,
+                                    "Mês da Compra do Cliente": mes_linha,
+                                    "Valor": format_money(valor_linha),
+                                    "Vendedor": normalize_text(row_state_editor.get("Vendedor", "Jullia")) or "Jullia",
+                                })
                         else:
                             # Linha nova criada no editor. Só salva quando tiver pelo menos Data/Mês/Cliente ou algum produto marcado.
                             if data_linha or mes_linha or cliente_linha or produto_linha:
@@ -3052,18 +3123,18 @@ elif page == "Comissão":
                                     "Vendedor": "Jullia",
                                 })
 
-                    if novas_linhas_para_salvar:
-                        try:
-                            qtd_salvas = salvar_novas_linhas_comissao(novas_linhas_para_salvar)
-                            st.success(f"{qtd_salvas} nova(s) venda(s) adicionada(s) na próxima linha vazia da aba Pedigree Comissão Ju.")
-                            st.rerun()
-                        except Exception as e:
-                            st.error(f"Erro ao salvar novas linhas na planilha: {e}")
-                    else:
-                        # Força uma nova renderização APÓS o clique no botão para a coluna Valor
-                        # aparecer atualizada na própria tabela com:
-                        # valor da combinação marcada x Quantidade de Pedigrees.
+                    try:
+                        qtd_editadas = salvar_edicoes_linhas_comissao(edicoes_linhas_para_salvar)
+                        qtd_salvas = salvar_novas_linhas_comissao(novas_linhas_para_salvar) if novas_linhas_para_salvar else 0
+
+                        if qtd_editadas or qtd_salvas:
+                            st.success(f"{qtd_editadas} linha(s) atualizada(s) e {qtd_salvas} nova(s) venda(s) adicionada(s) na aba Pedigree Comissão Ju.")
+                        else:
+                            st.info("Prévia recalculada. Nenhuma linha nova ou alteração para salvar.")
+
                         st.rerun()
+                    except Exception as e:
+                        st.error(f"Erro ao salvar alterações na planilha: {e}")
                 else:
                     # Sem submit, usa a versão inicial/persistida para renderizar a prévia atual.
                     # Isso evita salvar alterações parciais que ainda estão sendo marcadas na tela.
@@ -3128,7 +3199,7 @@ elif page == "Comissão":
                 if usar_marcacoes_dashboard:
                     st.info("Marque tudo primeiro e depois clique em Calcular prévia / salvar novas linhas. Linhas novas são gravadas sempre abaixo da última linha escrita.")
                 else:
-                    st.info("Mês histórico: a comissão está sendo calculada diretamente pela planilha. Maio/2026 em diante usa as marcações do dashboard.")
+                    st.info("Mês histórico: clientes com mais de 1 pedigree podem ser corrigidos no dashboard e gravados direto na planilha.")
             else:
                 render_card_comissao_jullia(df_com_mes_calculo_jullia)
                 st.info("Nenhuma venda encontrada com os filtros selecionados.")
