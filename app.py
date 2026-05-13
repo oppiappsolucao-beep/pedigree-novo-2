@@ -560,6 +560,29 @@ def montar_produto_por_checks(ped_trans: bool, ped_sem: bool, rg: bool, certidao
     return " + ".join(partes)
 
 
+
+def montar_produto_com_correios(ped_trans: bool, ped_sem: bool, correios: bool, rg: bool, certidao: bool, airtag: bool) -> str:
+    partes = []
+
+    if ped_trans:
+        partes.append("Pedigree Transferência")
+    if ped_sem:
+        partes.append("Pedigree Sem Transferência")
+    if correios:
+        partes.append("Correios")
+
+    extras = []
+    if rg:
+        extras.append("RG")
+    if certidao:
+        extras.append("Certidão")
+    if airtag:
+        extras.append("Airtag")
+
+    partes.extend(extras)
+    return " + ".join(partes)
+
+
 def checks_por_produto(produto: str) -> dict:
     texto = normalize_search_text(produto)
 
@@ -2301,21 +2324,6 @@ elif page == "Comissão":
                 key="data_referencia_comissao",
             )
 
-            venc_col1, venc_col2 = st.columns(2)
-
-            with venc_col1:
-                data_venc_de = st.date_input("Vencimento de", value=None, key="vencimento_de_comissao")
-
-            with venc_col2:
-                data_venc_ate = st.date_input("Vencimento até", value=None, key="vencimento_ate_comissao")
-
-            pag_col1, pag_col2 = st.columns(2)
-
-            with pag_col1:
-                data_pag_de = st.date_input("Pagamento de", value=None, key="pagamento_de_comissao")
-
-            with pag_col2:
-                data_pag_ate = st.date_input("Pagamento até", value=None, key="pagamento_ate_comissao")
 
             st.markdown(
                 """
@@ -2617,7 +2625,7 @@ elif page == "Comissão":
                 st.markdown(
                     """
                     <div class="live-sub" style="margin-top:0.2rem; margin-bottom:0.8rem;">
-                        Marque todos os produtos desejados. A tabela não vai voltar para o começo a cada clique; depois clique em Calcular prévia da comissão. Nada será salvo na planilha.
+                        Marque os produtos desejados. Para inserir uma nova venda, adicione uma linha no final preenchendo Data da Venda, Mês da Venda e Cliente. Depois clique em Calcular prévia / salvar novas linhas.
                     </div>
                     """,
                     unsafe_allow_html=True,
@@ -2636,9 +2644,9 @@ elif page == "Comissão":
                         height=430,
                         column_config={
                             "Linha": st.column_config.NumberColumn("Linha", disabled=True),
-                            "Data da Venda": st.column_config.TextColumn("Data da Venda", disabled=True),
-                            "Mês da Venda": st.column_config.TextColumn("Mês da Venda", disabled=True),
-                            "Cliente": st.column_config.TextColumn("Cliente", disabled=True),
+                            "Data da Venda": st.column_config.TextColumn("Data da Venda"),
+                            "Mês da Venda": st.column_config.TextColumn("Mês da Venda"),
+                            "Cliente": st.column_config.TextColumn("Cliente"),
                             "Pedigree Transferência": st.column_config.CheckboxColumn("Pedigree Transferência"),
                             "Sem Transferência": st.column_config.CheckboxColumn("Sem Transferência"),
                             "Correios": st.column_config.CheckboxColumn("Correios"),
@@ -2649,6 +2657,7 @@ elif page == "Comissão":
                             "Vendedor": st.column_config.TextColumn("Vendedor", disabled=True),
                         },
                         key=editor_key,
+                        num_rows="dynamic",
                     )
 
                     aplicar_previa = st.form_submit_button(
@@ -2660,15 +2669,68 @@ elif page == "Comissão":
                 # somente quando o usuário terminar de marcar e clicar no botão.
                 # Assim a tabela não fica voltando para o começo a cada clique.
                 if aplicar_previa:
-                    for _, row_state_editor in edited_df.iterrows():
-                        linha_state = str(int(row_state_editor.get("Linha", 0)))
-                        if linha_state == "0":
-                            continue
+                    novas_linhas_para_salvar = []
 
-                        st.session_state[selecoes_key][linha_state] = {
-                            col_chk: checkbox_marcado(row_state_editor.get(col_chk, False))
-                            for col_chk in checkbox_cols
-                        }
+                    for _, row_state_editor in edited_df.iterrows():
+                        linha_state_raw = row_state_editor.get("Linha", 0)
+                        try:
+                            linha_state = str(int(float(linha_state_raw)))
+                        except Exception:
+                            linha_state = "0"
+
+                        data_linha = normalize_text(row_state_editor.get("Data da Venda", ""))
+                        mes_linha = normalize_text(row_state_editor.get("Mês da Venda", ""))
+                        cliente_linha = normalize_text(row_state_editor.get("Cliente", ""))
+
+                        ped_trans_linha = checkbox_marcado(row_state_editor.get("Pedigree Transferência", False))
+                        ped_sem_linha = checkbox_marcado(row_state_editor.get("Sem Transferência", False))
+                        correios_linha = checkbox_marcado(row_state_editor.get("Correios", False))
+                        rg_linha = checkbox_marcado(row_state_editor.get("RG", False))
+                        certidao_linha = checkbox_marcado(row_state_editor.get("Certidão", False))
+                        airtag_linha = checkbox_marcado(row_state_editor.get("Airtag", False))
+
+                        produto_linha = montar_produto_com_correios(
+                            ped_trans_linha,
+                            ped_sem_linha,
+                            correios_linha,
+                            rg_linha,
+                            certidao_linha,
+                            airtag_linha,
+                        )
+                        valor_linha = calcular_valor_por_checks(
+                            ped_trans_linha,
+                            ped_sem_linha,
+                            correios_linha,
+                            rg_linha,
+                            certidao_linha,
+                            airtag_linha,
+                        )
+
+                        if linha_state != "0":
+                            st.session_state[selecoes_key][linha_state] = {
+                                col_chk: checkbox_marcado(row_state_editor.get(col_chk, False))
+                                for col_chk in checkbox_cols
+                            }
+                        else:
+                            # Linha nova criada no editor. Só salva quando tiver pelo menos Data/Mês/Cliente ou algum produto marcado.
+                            if data_linha or mes_linha or cliente_linha or produto_linha:
+                                novas_linhas_para_salvar.append({
+                                    "Data da Venda": data_linha,
+                                    "Mês da Venda": mes_linha,
+                                    "Cliente": cliente_linha,
+                                    "Produtos": produto_linha,
+                                    "Mês da Compra do Cliente": mes_linha,
+                                    "Valor": format_money(valor_linha),
+                                    "Vendedor": "Jullia",
+                                })
+
+                    if novas_linhas_para_salvar:
+                        try:
+                            qtd_salvas = salvar_novas_linhas_comissao(novas_linhas_para_salvar)
+                            st.success(f"{qtd_salvas} nova(s) venda(s) adicionada(s) na próxima linha vazia da aba Pedigree Comissão Ju.")
+                            st.rerun()
+                        except Exception as e:
+                            st.error(f"Erro ao salvar novas linhas na planilha: {e}")
                 else:
                     # Sem submit, usa a versão inicial/persistida para renderizar a prévia atual.
                     # Isso evita salvar alterações parciais que ainda estão sendo marcadas na tela.
@@ -2696,9 +2758,10 @@ elif page == "Comissão":
                     # Permite múltiplas escolhas simultâneas.
                     # Sem Transferência não é frete. Se Transferência e Sem Transferência ficarem marcados juntos, a Transferência vence e não soma R$ 35,80 duas vezes.
 
-                    produto_preview = montar_produto_por_checks(
+                    produto_preview = montar_produto_com_correios(
                         ped_trans_preview,
                         ped_sem_preview,
+                        correios_preview,
                         rg_preview,
                         certidao_preview,
                         airtag_preview,
@@ -2723,7 +2786,7 @@ elif page == "Comissão":
 
                 render_card_comissao_jullia(df_com_mes_preview)
 
-                st.info("Prévia calculada somente na tela. A aba Pedigree Comissão Ju não foi alterada. Para não resetar a posição da tabela, marque tudo primeiro e depois clique em Calcular prévia da comissão.")
+                st.info("Marque tudo primeiro e depois clique em Calcular prévia / salvar novas linhas. Linhas novas são gravadas sempre abaixo da última linha escrita.")
             else:
                 render_card_comissao_jullia(df_com_mes_calculo_jullia)
                 st.info("Nenhuma venda encontrada com os filtros selecionados.")
