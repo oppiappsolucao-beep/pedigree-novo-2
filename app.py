@@ -306,6 +306,158 @@ def update_row_values(worksheet, row_number: int, values: list):
     return None
 
 
+
+
+def safe_int_zero(v) -> int:
+    """
+    Converte valores vindos do st.data_editor para inteiro com segurança.
+    Quando a linha é nova, o Streamlit pode mandar vazio, None, NaN ou string.
+    """
+    try:
+        if pd.isna(v):
+            return 0
+    except Exception:
+        pass
+
+    try:
+        texto = str(v).strip()
+        if not texto:
+            return 0
+        if texto.endswith(".0"):
+            texto = texto[:-2]
+        return int(float(texto))
+    except Exception:
+        return 0
+
+
+def garantir_colunas_comissao(worksheet, required_cols: list[str]) -> list[str]:
+    """Garante as colunas básicas da aba Pedigree Comissão Ju."""
+    headers = [str(h).strip() for h in worksheet.row_values(1)]
+
+    if not headers:
+        worksheet.update("A1", [required_cols], value_input_option="USER_ENTERED")
+        return required_cols
+
+    changed = False
+    for col in required_cols:
+        if col not in headers:
+            headers.append(col)
+            changed = True
+
+    if changed:
+        worksheet.update("A1", [headers], value_input_option="USER_ENTERED")
+
+    return headers
+
+
+def proxima_linha_real_comissao(worksheet) -> int:
+    """
+    Retorna SEMPRE a próxima linha logo abaixo da última linha com escrita real.
+
+    Não usa append_row, porque o Google Sheets pode considerar linhas formatadas
+    como usadas e jogar o registro muito para baixo.
+    """
+    values = worksheet.get_all_values()
+
+    if not values:
+        return 2
+
+    headers = [str(h).strip() for h in values[0]]
+
+    colunas_base = [
+        "Data da Venda",
+        "Mês da Venda",
+        "Cliente",
+        "Produtos",
+        "Mês da Compra do Cliente",
+        "Valor",
+        "Vendedor",
+    ]
+
+    idxs = [headers.index(c) for c in colunas_base if c in headers]
+
+    if not idxs:
+        return len(values) + 1
+
+    ultima_linha_com_texto = 1
+
+    for row_number, row in enumerate(values[1:], start=2):
+        tem_texto = False
+
+        for idx in idxs:
+            if idx < len(row) and str(row[idx]).strip():
+                tem_texto = True
+                break
+
+        if tem_texto:
+            ultima_linha_com_texto = row_number
+
+    return ultima_linha_com_texto + 1
+
+
+def salvar_novas_linhas_comissao(novas_linhas: list[dict]) -> int:
+    """
+    Salva novas vendas na aba Pedigree Comissão Ju.
+
+    Salva somente linhas novas criadas no editor. Linhas já existentes continuam
+    sem alteração. A inserção é feita exatamente na linha abaixo da última com escrita.
+    """
+    if not novas_linhas:
+        return 0
+
+    worksheet = get_worksheet(COMM_WORKSHEET_NAME)
+
+    required_cols = [
+        "Data da Venda",
+        "Mês da Venda",
+        "Cliente",
+        "Produtos",
+        "Mês da Compra do Cliente",
+        "Valor",
+        "Vendedor",
+    ]
+
+    headers = garantir_colunas_comissao(worksheet, required_cols)
+    next_row = proxima_linha_real_comissao(worksheet)
+
+    rows_to_write = []
+
+    for item in novas_linhas:
+        data_venda = normalize_text(item.get("Data da Venda", ""))
+        mes_venda = normalize_text(item.get("Mês da Venda", ""))
+        cliente = normalize_text(item.get("Cliente", ""))
+        produtos = normalize_text(item.get("Produtos", ""))
+        valor = normalize_text(item.get("Valor", ""))
+
+        # Evita salvar linha completamente vazia criada sem querer no editor.
+        if not any([data_venda, mes_venda, cliente, produtos, valor]):
+            continue
+
+        row_data = {
+            "Data da Venda": data_venda,
+            "Mês da Venda": mes_venda,
+            "Cliente": cliente,
+            "Produtos": produtos,
+            "Mês da Compra do Cliente": normalize_text(item.get("Mês da Compra do Cliente", mes_venda)),
+            "Valor": valor,
+            "Vendedor": normalize_text(item.get("Vendedor", "Jullia")) or "Jullia",
+        }
+
+        rows_to_write.append([row_data.get(header, "") for header in headers])
+
+    if not rows_to_write:
+        return 0
+
+    worksheet.update(
+        f"A{next_row}",
+        rows_to_write,
+        value_input_option="USER_ENTERED",
+    )
+
+    st.cache_data.clear()
+    return len(rows_to_write)
+
+
 def sync_pedigrees_para_comissao():
     """
     Sincronizar agora NÃO copia mais nomes da aba Pedigree para a Comissão.
