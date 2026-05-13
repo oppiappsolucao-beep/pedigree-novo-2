@@ -447,46 +447,67 @@ OPCOES_PRODUTOS_COMISSAO = [
 ]
 
 
+def calcular_valor_por_checks(ped_trans: bool, ped_sem: bool, rg: bool, certidao: bool, airtag: bool) -> float:
+    """
+    Calcula o valor somente para exibição no dashboard.
+    Nada é salvo na planilha.
+
+    Regra correta:
+    - Pedigree Transferência = R$ 249,90 + Correios obrigatório R$ 35,80 = R$ 285,70
+    - Sem Transferência = R$ 35,80 somente quando NÃO houver Pedigree Transferência marcado
+    - RG individual = R$ 30,00
+    - Certidão individual = R$ 30,00
+    - Airtag individual = R$ 130,00
+    - RG + Certidão + Airtag juntos = R$ 190,00
+
+    Observação importante:
+    O checkbox "Sem Transferência" não representa o frete dos Correios.
+    O frete já entra automaticamente e obrigatório quando "Pedigree Transferência" está marcado.
+    Se por acaso "Pedigree Transferência" e "Sem Transferência" ficarem marcados juntos,
+    o sistema considera a transferência e NÃO soma R$ 35,80 duas vezes.
+    """
+    total = 0.0
+
+    if ped_trans:
+        total += VALOR_PEDIGREE_TRANSFERENCIA + VALOR_CORREIO
+    elif ped_sem:
+        total += VALOR_PEDIGREE_SEM_TRANSFERENCIA
+
+    if rg and certidao and airtag:
+        total += VALOR_COMBO_RG_CERTIDAO_AIRTAG
+    else:
+        if rg:
+            total += VALOR_RG
+        if certidao:
+            total += VALOR_CERTIDAO
+        if airtag:
+            total += VALOR_AIRTAG
+
+    return float(total)
+
+
 def calcular_valor_produtos_comissao(produto: str) -> float:
     texto = normalize_search_text(produto)
 
     if not texto:
         return 0.0
 
-    total = 0.0
-
-    # REGRAS DO VALOR NA TELA:
-    # - Pedigree Transferência soma R$ 249,90 + Frete obrigatório R$ 35,80 = R$ 285,70
-    # - Sem Transferência é opcional e soma R$ 35,80 apenas quando NÃO houver Transferência marcada
-    # - O frete dos Correios já entra fixo dentro da Transferência; não depende da coluna Sem Transferência
-    # - RG + Certidão + Airtag juntos viram combo de R$ 190,00
-    tem_pedigree_transferencia = "pedigree transferencia" in texto or "pedigree transferência" in texto
+    tem_pedigree_transferencia = (
+        "pedigree transferencia" in texto
+        or "pedigree transferência" in texto
+    )
     tem_sem_transferencia = is_produto_sem_transferencia(produto)
-
-    # REGRA CORRETA:
-    # - Pedigree Transferência já inclui o frete obrigatório: 249,90 + 35,80 = 285,70.
-    # - Sem Transferência só vale 35,80 quando NÃO houver Pedigree Transferência marcado.
-    # - Se os dois forem marcados por engano, prevalece Pedigree Transferência, para não somar 35,80 duas vezes.
-    if tem_pedigree_transferencia:
-        total += VALOR_PEDIGREE_TRANSFERENCIA + VALOR_CORREIO
-    elif tem_sem_transferencia:
-        total += VALOR_PEDIGREE_SEM_TRANSFERENCIA
-
     tem_rg = "rg" in texto
     tem_certidao = "certidao" in texto or "certidão" in texto
     tem_airtag = "airtag" in texto or "air tag" in texto
 
-    if tem_rg and tem_certidao and tem_airtag:
-        total += VALOR_COMBO_RG_CERTIDAO_AIRTAG
-    else:
-        if tem_rg:
-            total += VALOR_RG
-        if tem_certidao:
-            total += VALOR_CERTIDAO
-        if tem_airtag:
-            total += VALOR_AIRTAG
-
-    return float(total)
+    return calcular_valor_por_checks(
+        tem_pedigree_transferencia,
+        tem_sem_transferencia,
+        tem_rg,
+        tem_certidao,
+        tem_airtag,
+    )
 
 
 def atualizar_produtos_comissao(row_number: int, produto: str):
@@ -2551,7 +2572,7 @@ elif page == "Comissão":
                     airtag_calc = checkbox_marcado(row_editor.get("Airtag", False))
 
                     # Permite múltiplas escolhas simultâneas.
-                    # Sem Transferência é opcional; o frete obrigatório já entra fixo quando Transferência está marcada.
+                    # Sem Transferência não é frete; o frete obrigatório já entra fixo quando Transferência está marcada.
 
                     produto_calc = montar_produto_por_checks(
                         ped_trans_calc,
@@ -2561,7 +2582,7 @@ elif page == "Comissão":
                         airtag_calc,
                     )
 
-                    return format_money(calcular_valor_produtos_comissao(produto_calc))
+                    return format_money(calcular_valor_por_checks(ped_trans_calc, ped_sem_calc, rg_calc, certidao_calc, airtag_calc))
 
                 df_editor_view["Valor"] = df_editor_view.apply(recalcular_linha_editor, axis=1)
 
@@ -2614,7 +2635,7 @@ elif page == "Comissão":
                     airtag_preview = checkbox_marcado(row_edit_preview.get("Airtag", False))
 
                     # Permite múltiplas escolhas simultâneas.
-                    # Sem Transferência não desmarca Transferência.
+                    # Sem Transferência não é frete. Se Transferência e Sem Transferência ficarem marcados juntos, a Transferência vence e não soma R$ 35,80 duas vezes.
 
                     produto_preview = montar_produto_por_checks(
                         ped_trans_preview,
@@ -2624,7 +2645,7 @@ elif page == "Comissão":
                         airtag_preview,
                     )
 
-                    valor_preview = calcular_valor_produtos_comissao(produto_preview)
+                    valor_preview = calcular_valor_por_checks(ped_trans_preview, ped_sem_preview, rg_preview, certidao_preview, airtag_preview)
 
                     if row_number_preview > 0:
                         linhas_editadas_preview.append(row_number_preview)
