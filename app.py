@@ -229,6 +229,7 @@ def ensure_commission_base_headers():
         "Data da Venda",
         "Mês da Venda",
         "Cliente",
+        "Quantidade de Pedigrees",
         "Produtos",
         "Mês da Compra do Cliente",
         "Valor",
@@ -368,6 +369,7 @@ def proxima_linha_real_comissao(worksheet) -> int:
         "Data da Venda",
         "Mês da Venda",
         "Cliente",
+        "Quantidade de Pedigrees",
         "Produtos",
         "Mês da Compra do Cliente",
         "Valor",
@@ -411,6 +413,7 @@ def salvar_novas_linhas_comissao(novas_linhas: list[dict]) -> int:
         "Data da Venda",
         "Mês da Venda",
         "Cliente",
+        "Quantidade de Pedigrees",
         "Produtos",
         "Mês da Compra do Cliente",
         "Valor",
@@ -426,6 +429,7 @@ def salvar_novas_linhas_comissao(novas_linhas: list[dict]) -> int:
         data_venda = normalize_text(item.get("Data da Venda", ""))
         mes_venda = normalize_text(item.get("Mês da Venda", ""))
         cliente = normalize_text(item.get("Cliente", ""))
+        qtd_pedigrees = safe_int_zero(item.get("Quantidade de Pedigrees", 1)) or 1
         produtos = normalize_text(item.get("Produtos", ""))
         valor = normalize_text(item.get("Valor", ""))
 
@@ -437,6 +441,7 @@ def salvar_novas_linhas_comissao(novas_linhas: list[dict]) -> int:
             "Data da Venda": data_venda,
             "Mês da Venda": mes_venda,
             "Cliente": cliente,
+            "Quantidade de Pedigrees": qtd_pedigrees,
             "Produtos": produtos,
             "Mês da Compra do Cliente": normalize_text(item.get("Mês da Compra do Cliente", mes_venda)),
             "Valor": valor,
@@ -599,55 +604,53 @@ OPCOES_PRODUTOS_COMISSAO = [
 ]
 
 
-def calcular_valor_por_checks(ped_trans: bool, ped_sem: bool, correios: bool, rg: bool, certidao: bool, airtag: bool) -> float:
+def calcular_valor_por_checks(
+    ped_trans: bool,
+    ped_sem: bool,
+    correios: bool,
+    rg: bool,
+    certidao: bool,
+    airtag: bool,
+    quantidade_pedigrees: int = 1,
+) -> float:
     """
     Calcula o valor somente para exibição no dashboard.
-    Nada é salvo na planilha.
 
-    Regra separada por checkbox:
-    - Pedigree Transferência = R$ 249,90
-    - Correios = R$ 35,80
-    - Pedigree Transferência + Correios = R$ 285,70
-    - Sem Transferência = R$ 35,80, independente do Correios
-    - RG individual = R$ 30,00
-    - Certidão individual = R$ 30,00
-    - Airtag individual = R$ 130,00
-    - RG + Certidão + Airtag juntos = R$ 190,00
-
-    Plano 2:
-    Pedigree Transferência + Correios + RG + Certidão = R$ 345,70
-
-    Plano 3:
-    Pedigree Transferência + Correios + RG + Certidão + Airtag = R$ 475,70
+    Quantidade de Pedigrees multiplica a combinação marcada na linha.
+    Exemplo: 3 pedigrees com transferência + correios = 3 x 285,70.
     """
-    total = 0.0
+    qtd = safe_int_zero(quantidade_pedigrees) or 1
+    if qtd < 1:
+        qtd = 1
+
+    total_unitario = 0.0
 
     if ped_trans:
-        total += VALOR_PEDIGREE_TRANSFERENCIA
+        total_unitario += VALOR_PEDIGREE_TRANSFERENCIA
 
     if ped_sem:
-        total += VALOR_PEDIGREE_SEM_TRANSFERENCIA
+        total_unitario += VALOR_PEDIGREE_SEM_TRANSFERENCIA
 
     if correios:
-        total += VALOR_CORREIO
+        total_unitario += VALOR_CORREIO
 
     if rg and certidao and airtag:
-        total += VALOR_COMBO_RG_CERTIDAO_AIRTAG
+        total_unitario += VALOR_COMBO_RG_CERTIDAO_AIRTAG
     else:
         if rg:
-            total += VALOR_RG
+            total_unitario += VALOR_RG
         if certidao:
-            total += VALOR_CERTIDAO
+            total_unitario += VALOR_CERTIDAO
         if airtag:
-            total += VALOR_AIRTAG
+            total_unitario += VALOR_AIRTAG
 
-    return float(total)
+    return float(total_unitario * qtd)
 
 
 def calcular_valor_por_checks_antigo(ped_trans: bool, ped_sem: bool, rg: bool, certidao: bool, airtag: bool) -> float:
     # Mantido apenas por compatibilidade interna, caso algum trecho antigo chame a função sem Correios.
     correios = bool(ped_trans)
-    return calcular_valor_por_checks(ped_trans, ped_sem, correios, rg, certidao, airtag)
+    return calcular_valor_por_checks(ped_trans, ped_sem, correios, rg, certidao, airtag, 1)
 
 def calcular_valor_produtos_comissao(produto: str) -> float:
     texto = normalize_search_text(produto)
@@ -676,6 +679,7 @@ def calcular_valor_produtos_comissao(produto: str) -> float:
         tem_rg,
         tem_certidao,
         tem_airtag,
+        1,
     )
 
 
@@ -2488,6 +2492,7 @@ elif page == "Comissão":
         col_data_venda = "Data da Venda" if "Data da Venda" in df_com.columns else detect_col(df_com, [["data", "venda"]])
         col_mes_venda = "Mês da Venda" if "Mês da Venda" in df_com.columns else detect_col(df_com, [["mês", "venda"], ["mes", "venda"]])
         col_cliente = "Cliente" if "Cliente" in df_com.columns else detect_col(df_com, [["cliente"]])
+        col_qtd_pedigrees = "Quantidade de Pedigrees" if "Quantidade de Pedigrees" in df_com.columns else detect_col(df_com, [["quantidade", "pedigree"], ["qtd", "pedigree"]])
         col_produtos = "Produtos" if "Produtos" in df_com.columns else detect_col(df_com, [["produto"]])
         col_mes_compra_cliente = (
             "Mês da Compra do Cliente"
@@ -2774,6 +2779,7 @@ elif page == "Comissão":
                     "Data da Venda": df_editor[col_data_venda] if col_data_venda and col_data_venda in df_editor.columns else "",
                     "Mês da Venda": df_editor[col_mes_venda] if col_mes_venda and col_mes_venda in df_editor.columns else "",
                     "Cliente": df_editor[col_cliente] if col_cliente and col_cliente in df_editor.columns else "",
+                    "Quantidade de Pedigrees": df_editor[col_qtd_pedigrees].apply(safe_int_zero).replace(0, 1) if col_qtd_pedigrees and col_qtd_pedigrees in df_editor.columns else 1,
                     "Pedigree Transferência": checks_df["Pedigree Transferência"].astype(bool),
                     "Sem Transferência": checks_df["Sem Transferência"].astype(bool),
                     "Correios": checks_df["Correios"].astype(bool) if "Correios" in checks_df.columns else checks_df["Pedigree Transferência"].astype(bool),
@@ -2814,6 +2820,7 @@ elif page == "Comissão":
                     rg_calc = checkbox_marcado(row_editor.get("RG", False))
                     certidao_calc = checkbox_marcado(row_editor.get("Certidão", False))
                     airtag_calc = checkbox_marcado(row_editor.get("Airtag", False))
+                    qtd_calc = safe_int_zero(row_editor.get("Quantidade de Pedigrees", 1)) or 1
 
                     # Permite múltiplas escolhas simultâneas.
                     # Sem Transferência não é frete; o frete obrigatório já entra fixo quando Transferência está marcada.
@@ -2826,14 +2833,14 @@ elif page == "Comissão":
                         airtag_calc,
                     )
 
-                    return format_money(calcular_valor_por_checks(ped_trans_calc, ped_sem_calc, correios_calc, rg_calc, certidao_calc, airtag_calc))
+                    return format_money(calcular_valor_por_checks(ped_trans_calc, ped_sem_calc, correios_calc, rg_calc, certidao_calc, airtag_calc, qtd_calc))
 
                 df_editor_view["Valor"] = df_editor_view.apply(recalcular_linha_editor, axis=1)
 
                 st.markdown(
                     """
                     <div class="live-sub" style="margin-top:0.2rem; margin-bottom:0.8rem;">
-                        Marque os produtos desejados. Para inserir uma nova venda, adicione uma linha no final preenchendo Data da Venda, Mês da Venda e Cliente. Depois clique em Calcular prévia / salvar novas linhas.
+                        Marque os produtos desejados e informe a Quantidade de Pedigrees. Para inserir uma nova venda, adicione uma linha no final preenchendo Data da Venda, Mês da Venda e Cliente. Depois clique em Calcular prévia / salvar novas linhas.
                     </div>
                     """,
                     unsafe_allow_html=True,
@@ -2855,6 +2862,7 @@ elif page == "Comissão":
                             "Data da Venda": st.column_config.TextColumn("Data da Venda"),
                             "Mês da Venda": st.column_config.TextColumn("Mês da Venda"),
                             "Cliente": st.column_config.TextColumn("Cliente"),
+                            "Quantidade de Pedigrees": st.column_config.NumberColumn("Quantidade de Pedigrees", min_value=1, step=1),
                             "Pedigree Transferência": st.column_config.CheckboxColumn("Pedigree Transferência"),
                             "Sem Transferência": st.column_config.CheckboxColumn("Sem Transferência"),
                             "Correios": st.column_config.CheckboxColumn("Correios"),
@@ -2886,6 +2894,7 @@ elif page == "Comissão":
                         data_linha = normalize_text(row_state_editor.get("Data da Venda", ""))
                         mes_linha = normalize_text(row_state_editor.get("Mês da Venda", ""))
                         cliente_linha = normalize_text(row_state_editor.get("Cliente", ""))
+                        qtd_pedigrees_linha = safe_int_zero(row_state_editor.get("Quantidade de Pedigrees", 1)) or 1
 
                         ped_trans_linha = checkbox_marcado(row_state_editor.get("Pedigree Transferência", False))
                         ped_sem_linha = checkbox_marcado(row_state_editor.get("Sem Transferência", False))
@@ -2909,6 +2918,7 @@ elif page == "Comissão":
                             rg_linha,
                             certidao_linha,
                             airtag_linha,
+                            qtd_pedigrees_linha,
                         )
 
                         if linha_state != "0":
@@ -2923,6 +2933,7 @@ elif page == "Comissão":
                                     "Data da Venda": data_linha,
                                     "Mês da Venda": mes_linha,
                                     "Cliente": cliente_linha,
+                                    "Quantidade de Pedigrees": qtd_pedigrees_linha,
                                     "Produtos": produto_linha,
                                     "Mês da Compra do Cliente": mes_linha,
                                     "Valor": format_money(valor_linha),
@@ -2959,6 +2970,7 @@ elif page == "Comissão":
                     rg_preview = checkbox_marcado(row_edit_preview.get("RG", False))
                     certidao_preview = checkbox_marcado(row_edit_preview.get("Certidão", False))
                     airtag_preview = checkbox_marcado(row_edit_preview.get("Airtag", False))
+                    qtd_pedigrees_preview = safe_int_zero(row_edit_preview.get("Quantidade de Pedigrees", 1)) or 1
 
                     # Permite múltiplas escolhas simultâneas.
                     # Sem Transferência não é frete. Se Transferência e Sem Transferência ficarem marcados juntos, a Transferência vence e não soma R$ 35,80 duas vezes.
@@ -2972,7 +2984,7 @@ elif page == "Comissão":
                         airtag_preview,
                     )
 
-                    valor_preview = calcular_valor_por_checks(ped_trans_preview, ped_sem_preview, correios_preview, rg_preview, certidao_preview, airtag_preview)
+                    valor_preview = calcular_valor_por_checks(ped_trans_preview, ped_sem_preview, correios_preview, rg_preview, certidao_preview, airtag_preview, qtd_pedigrees_preview)
 
                     if row_number_preview > 0:
                         linhas_editadas_preview.append(row_number_preview)
