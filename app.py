@@ -16,6 +16,7 @@ from google.oauth2.service_account import Credentials
 
 # Login atualizado: usuário clear / senha Clear@2026!
 
+# atualização: ícone normal/colorido no card Terceiro contato
 st.set_page_config(
     page_title="Dashboard Vendas Clear",
     page_icon="📋",
@@ -2332,7 +2333,7 @@ if page == "Visão Geral":
         card_metric("Segundo contato", f"{segundo_contato}", "no mês", "📋", "#032450")
 
     with m3:
-        card_metric("Terceiro contato", f"{terceiro_contato}", "no mês", "🗂", "#2e6cbf")
+        card_metric("Terceiro contato", f"{terceiro_contato}", "no mês", "🗂️", "#2e6cbf")
 
     with m4:
         card_metric("Total de contratos", f"{total_contratos}", month_key_to_label(selected_month), "📄", "#032450")
