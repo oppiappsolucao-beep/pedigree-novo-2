@@ -2042,9 +2042,10 @@ def render_login_screen():
             }}
 
             div[data-testid="stForm"] input {{
-                background: #1d2d3e !important;
-                color: #ffffff !important;
-                border: 1px solid rgba(255,255,255,0.24) !important;
+                background: #FFFFFF !important;
+                color: #032450 !important;
+                -webkit-text-fill-color: #032450 !important;
+                border: 1px solid rgba(255,255,255,0.92) !important;
                 border-radius: 999px !important;
                 min-height: 38px !important;
                 padding-left: 16px !important;
@@ -2052,8 +2053,17 @@ def render_login_screen():
             }}
 
             div[data-testid="stForm"] input::placeholder {{
-                color: #FFFFFF !important;
+                color: #6B7280 !important;
+                -webkit-text-fill-color: #6B7280 !important;
                 opacity: 1 !important;
+            }}
+
+            div[data-testid="stForm"] input:focus {{
+                background: #FFFFFF !important;
+                color: #032450 !important;
+                -webkit-text-fill-color: #032450 !important;
+                border: 2px solid #2e6cbf !important;
+                box-shadow: 0 0 0 3px rgba(46,108,191,0.18) !important;
             }}
 
             div[data-testid="stForm"] div.stButton > button {{
