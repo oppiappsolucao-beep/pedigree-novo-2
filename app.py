@@ -14,6 +14,8 @@ import gspread
 from google.oauth2.service_account import Credentials
 
 
+# Login atualizado: usuário clear / senha Clear@2026!
+
 st.set_page_config(
     page_title="Dashboard Vendas Clear",
     page_icon="📋",
@@ -2131,7 +2133,7 @@ def render_login_screen():
         entrar = st.form_submit_button("ENTRAR")
 
     if entrar:
-        if usuario.strip() == "clear" and senha.strip() == "clear123":
+        if usuario.strip() == "clear" and senha.strip() == "Clear@2026!":
             st.session_state["clear_logged_in"] = True
             st.rerun()
         else:
