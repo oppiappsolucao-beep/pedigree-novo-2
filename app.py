@@ -1050,6 +1050,34 @@ def count_filled_matching_columns(df_month: pd.DataFrame, target: str) -> int:
     return int(final_mask.sum())
 
 
+def count_contact_dates_by_selected_month(df_base: pd.DataFrame, target: str, selected_month: Tuple[int, int]) -> int:
+    """
+    Conta contatos pela DATA da própria coluna de contato.
+
+    Exemplo: para Maio/2026, a caixa "Segundo contato" conta somente
+    as células da coluna "2º contato" cuja data esteja em 05/2026,
+    independente do mês original da venda/contrato.
+    """
+    if df_base is None or df_base.empty or not selected_month:
+        return 0
+
+    matching_cols = find_matching_columns(df_base, target)
+    if not matching_cols:
+        return 0
+
+    selected_year, selected_month_num = selected_month
+    final_mask = pd.Series(False, index=df_base.index)
+
+    for col in matching_cols:
+        datas_coluna = df_base[col].apply(parse_date_any)
+        mask_coluna = datas_coluna.apply(
+            lambda d: bool(d and d.year == selected_year and d.month == selected_month_num)
+        )
+        final_mask = final_mask | mask_coluna
+
+    return int(final_mask.sum())
+
+
 def is_status_pedigree_vendido(v) -> bool:
     status = normalize_search_text(v)
     return status.startswith("postado/enviado")
@@ -2288,9 +2316,11 @@ if page == "Visão Geral":
 
             filtered_df = filtered_df[mask].copy()
 
-    primeiro_contato = count_filled_matching_columns(month_df, "1° contato") if not month_df.empty else 0
-    segundo_contato = count_filled_matching_columns(month_df, "2° contato") if not month_df.empty else 0
-    terceiro_contato = count_filled_matching_columns(month_df, "3° contato") if not month_df.empty else 0
+    # Contatos por mês: agora cada card lê a DATA da sua própria coluna.
+    # Ex.: Maio/2026 conta apenas datas 05/2026 em 1º, 2º e 3º contato.
+    primeiro_contato = count_contact_dates_by_selected_month(df, "1° contato", selected_month) if not df.empty else 0
+    segundo_contato = count_contact_dates_by_selected_month(df, "2° contato", selected_month) if not df.empty else 0
+    terceiro_contato = count_contact_dates_by_selected_month(df, "3° contato", selected_month) if not df.empty else 0
     total_contratos = len(month_df)
 
     m1, m2, m3, m4 = st.columns(4)
