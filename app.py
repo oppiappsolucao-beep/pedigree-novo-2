@@ -2687,11 +2687,6 @@ elif page == "Comissão":
             else detect_col(df_com, [["quantidade", "pedigree"], ["qtd", "pedigree"]])
         )
 
-        # Recalcula o valor numérico depois dos ajustes históricos.
-        # Assim o card "Valor total vendido no mês" fica exatamente igual
-        # à soma da coluna Valor exibida no dashboard.
-        df_com["_valor_num"] = df_com[col_valor].apply(parse_money) if col_valor and col_valor in df_com.columns else 0.0
-
         comm_months = sorted([m for m in df_com["_mes_key"].dropna().unique().tolist()], key=lambda x: (x[0], x[1]))
 
         if not comm_months:
@@ -2802,19 +2797,34 @@ elif page == "Comissão":
             )
 
             df_mes_valor = df_com[df_com["_mes_key"] == mes_valor_cliente].copy()
-            valor_clientes_mes = float(df_mes_valor["_valor_num"].sum()) if not df_mes_valor.empty else 0.0
+
+            # O card precisa bater exatamente com a soma da coluna Valor.
+            # Por isso a soma é feita lendo a própria coluna Valor visível/atualizada,
+            # e não uma métrica antiga em memória. Quando uma venda é adicionada ou
+            # excluída da planilha, ao recarregar/sincronizar o total acompanha a base atual.
+            if not df_mes_valor.empty and col_valor and col_valor in df_mes_valor.columns:
+                valor_clientes_mes = float(df_mes_valor[col_valor].apply(parse_money).sum())
+            else:
+                valor_clientes_mes = 0.0
 
             valor_total_mes_placeholder = st.empty()
 
-            def render_valor_total_mes_card(valor_total_mes: float):
-                with valor_total_mes_placeholder.container():
-                    card_metric(
-                        "Valor total vendido no mês",
-                        format_money(valor_total_mes),
-                        month_key_to_label(mes_valor_cliente),
-                        "💰",
-                        "#2e6cbf",
-                    )
+            def render_valor_total_mes_card(valor_total_mes_atual: float):
+                valor_total_mes_placeholder.markdown(
+                    f"""
+                    <div class="metric-card">
+                        <div class="metric-wrap">
+                            <div class="metric-icon" style="background:#2e6cbf;">💰</div>
+                            <div>
+                                <div class="metric-label">Valor total<br>vendido no mês</div>
+                                <div class="metric-value">{format_money(valor_total_mes_atual)}</div>
+                                <div class="metric-sub">{month_key_to_label(mes_valor_cliente)}</div>
+                            </div>
+                        </div>
+                    </div>
+                    """,
+                    unsafe_allow_html=True,
+                )
 
             render_valor_total_mes_card(valor_clientes_mes)
 
@@ -3048,28 +3058,6 @@ elif page == "Comissão":
 
                 df_editor_view["Valor"] = df_editor_view.apply(recalcular_linha_editor, axis=1)
 
-                # Mantém o card da esquerda em par com a soma da coluna Valor do mês.
-                # Usa a base completa do mês e substitui os valores das linhas exibidas
-                # pela prévia calculada na tabela. Se novas vendas forem salvas, no rerun
-                # a soma já entra automaticamente pela leitura da planilha.
-                try:
-                    if mes_valor_cliente == selected_comm_month:
-                        df_total_mes_preview = df_com[df_com["_mes_key"] == mes_valor_cliente].copy()
-                        if "__row_number" not in df_total_mes_preview.columns:
-                            df_total_mes_preview["__row_number"] = df_total_mes_preview.index + 2
-
-                        for _, row_val_preview in df_editor_view.iterrows():
-                            linha_val_preview = safe_int_zero(row_val_preview.get("Linha", 0))
-                            if linha_val_preview > 0:
-                                mask_val_preview = df_total_mes_preview["__row_number"].apply(safe_int_zero) == linha_val_preview
-                                if mask_val_preview.any():
-                                    df_total_mes_preview.loc[mask_val_preview, "_valor_num"] = parse_money(row_val_preview.get("Valor", ""))
-
-                        valor_total_preview_mes = float(df_total_mes_preview["_valor_num"].sum()) if not df_total_mes_preview.empty else 0.0
-                        render_valor_total_mes_card(valor_total_preview_mes)
-                except Exception:
-                    pass
-
                 st.markdown(
                     f"""
                     <div class="live-sub" style="margin-top:0.2rem; margin-bottom:0.8rem;">
@@ -3262,6 +3250,17 @@ elif page == "Comissão":
 
                             if col_vendedor and col_vendedor in df_com_mes_preview.columns:
                                 df_com_mes_preview.loc[mask_preview, col_vendedor] = normalize_text(row_edit_preview.get("Vendedor", "Jullia"))
+
+                # Atualiza também o card lateral de Valor Total Vendido no Mês
+                # usando exatamente a soma da coluna Valor depois da prévia/edição.
+                # Assim, se uma linha for adicionada, alterada ou excluída da base,
+                # o total fica sempre igual à soma dos valores exibidos.
+                if selected_comm_month == mes_valor_cliente:
+                    if col_valor and col_valor in df_com_mes_preview.columns and not df_com_mes_preview.empty:
+                        valor_total_mes_preview = float(df_com_mes_preview[col_valor].apply(parse_money).sum())
+                    else:
+                        valor_total_mes_preview = 0.0
+                    render_valor_total_mes_card(valor_total_mes_preview)
 
                 render_card_comissao_jullia(df_com_mes_preview)
 
