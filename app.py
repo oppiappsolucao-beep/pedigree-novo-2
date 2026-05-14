@@ -2052,7 +2052,8 @@ def render_login_screen():
             }}
 
             div[data-testid="stForm"] input::placeholder {{
-                color: rgba(255,255,255,0.45) !important;
+                color: #FFFFFF !important;
+                opacity: 1 !important;
             }}
 
             div[data-testid="stForm"] div.stButton > button {{
