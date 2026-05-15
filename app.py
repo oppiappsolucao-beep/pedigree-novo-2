@@ -2374,13 +2374,19 @@ elif page == "Pedigree":
     )
 
     status_opcoes = [
-        "Pendências / Problemas",
+        "Fazer Pedigree Venda",
         "Fazer Pedigree venda",
         "Fazer Pedigree s/ trans",
+        "Fazer Pedrigree s/ trans",
         "Fazer RG/Certidão",
+        "Fazer rg e certidão",
+        "Pendência / Problemas",
+        "Pendências / Problemas",
         "Aprovação Cliente",
         "Para Imprimir Pedigree",
+        "Imprimir Pedigree",
         "Imprimir Etiqueta",
+        "Imprimir RG E CERTIDÃO",
         "Imprimir RG + Certidão",
         "Airtag",
         "Envio Correio",
@@ -2391,23 +2397,34 @@ elif page == "Pedigree":
         "Sem Matriz",
     ]
 
+    # Interpretação automática do texto da coluna "Status Pedigree" para abrir a área correta.
+    # Não cria coluna nova: apenas lê o nome existente e mostra no botão/área correspondente.
     MAP_STATUS_ACAO = {
-        "Fazer Pedigree venda": "Transferência",
-        "Fazer Pedigree s/ trans": "Sem transferência",
-        "Fazer RG/Certidão": "RG E CERTIDÃO",
-        "Pendências / Problemas": "Problemas",
-        "Aprovação Cliente": "Aprovação",
-        "Para Imprimir Pedigree": "Imprimir Pedigree",
-        "Imprimir Etiqueta": "Imprimir etiqueta",
-        "Imprimir RG + Certidão": "Imprimir RG e CERTIDÃO",
-        "Airtag": "Airtag",
-        "Envio Correio": "Enviar",
-        "Postado/Enviado Correio": "Enviado Cliente",
-        "Postado/Enviado Corr": "Enviado Cliente",
-        "Postado/ enviado loja": "Enviado Cliente",
-        "Pendência Cliente": "Problemas",
-        "Sem Matriz": "Problemas",
+        "fazer pedigree venda": "Transferência",
+        "fazer pedigree s/ trans": "Sem transferência",
+        "fazer pedrigree s/ trans": "Sem transferência",
+        "fazer rg/certidao": "RG E CERTIDÃO",
+        "fazer rg e certidao": "RG E CERTIDÃO",
+        "pendencia / problemas": "Problemas",
+        "pendencias / problemas": "Problemas",
+        "aprovacao cliente": "Aprovação",
+        "para imprimir pedigree": "Imprimir Pedigree",
+        "imprimir pedigree": "Imprimir Pedigree",
+        "imprimir rg e certidao": "Imprimir RG+ Certidão",
+        "imprimir rg + certidao": "Imprimir RG+ Certidão",
+        "imprimir etiqueta": "Imprimir Etiqueta",
+        "airtag": "Airtag",
+        "envio correio": "Envio",
+        "postado/enviado correio": "Enviado Cliente",
+        "postado/enviado corr": "Enviado Cliente",
+        "postado/ enviado loja": "Enviado Cliente",
+        "pendencia cliente": "Problemas",
+        "sem matriz": "Problemas",
     }
+
+    def map_status_para_acao(status):
+        status_norm = normalize_search_text(status)
+        return MAP_STATUS_ACAO.get(status_norm, "")
 
     df_ped = load_pedigree_data().copy()
 
@@ -2454,7 +2471,7 @@ elif page == "Pedigree":
 
         df_ped["_search_all"] = df_ped.apply(normalize_full_row, axis=1)
         df_ped["_tel_digits_ped"] = df_ped["Telefone"].apply(only_digits)
-        df_ped["ACAO"] = df_ped["Status Pedigree"].map(MAP_STATUS_ACAO).fillna("")
+        df_ped["ACAO"] = df_ped["Status Pedigree"].apply(map_status_para_acao)
     else:
         df_ped = pd.DataFrame(
             columns=[
@@ -2585,14 +2602,14 @@ elif page == "Pedigree":
     with linha2[2]:
         st.button("Imprimir Pedigree", use_container_width=True, on_click=set_acao_ped, args=("Imprimir Pedigree",))
     with linha2[3]:
-        st.button("Imprimir RG e CERTIDÃO", use_container_width=True, on_click=set_acao_ped, args=("Imprimir RG e CERTIDÃO",))
+        st.button("Imprimir RG+ Certidão", use_container_width=True, on_click=set_acao_ped, args=("Imprimir RG+ Certidão",))
 
     with linha3[0]:
-        st.button("Imprimir etiqueta", use_container_width=True, on_click=set_acao_ped, args=("Imprimir etiqueta",))
+        st.button("Imprimir Etiqueta", use_container_width=True, on_click=set_acao_ped, args=("Imprimir Etiqueta",))
     with linha3[1]:
         st.button("Airtag", use_container_width=True, on_click=set_acao_ped, args=("Airtag",))
     with linha3[2]:
-        st.button("Enviar", use_container_width=True, on_click=set_acao_ped, args=("Enviar",))
+        st.button("Envio", use_container_width=True, on_click=set_acao_ped, args=("Envio",))
     with linha3[3]:
         st.button("Enviado Cliente", use_container_width=True, on_click=set_acao_ped, args=("Enviado Cliente",))
 
