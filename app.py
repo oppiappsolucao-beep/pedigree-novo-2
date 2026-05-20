@@ -2346,33 +2346,8 @@ if page == "Visão Geral":
     with m4:
         card_metric("Total de contratos", f"{total_contratos}", month_key_to_label(selected_month), "📄", "#032450")
 
-    st.markdown(
-        f"""
-        <div class="live-card">
-            <div class="live-title">Contratos em tempo real</div>
-            <div class="live-sub">
-                Exibindo {len(filtered_df)} registros de {month_key_to_label(selected_month)} até a coluna WhatsApp.
-            </div>
-        </div>
-        """,
-        unsafe_allow_html=True,
-    )
-
-    if not filtered_df.empty:
-        if COL_WHATSAPP and COL_WHATSAPP in df.columns:
-            end_idx = list(df.columns).index(COL_WHATSAPP)
-
-            cols_until_whatsapp = [
-                c
-                for c in df.columns[: end_idx + 1]
-                if not str(c).startswith("_") and not str(c).lower().startswith("unnamed")
-            ]
-        else:
-            preferred_cols = [COL_NOME, COL_TEL, COL_RACA, COL_DATA]
-            cols_until_whatsapp = [c for c in preferred_cols if c and c in df.columns]
-
-        render_realtime_table(filtered_df, cols_until_whatsapp)
-
+    # Tabela/planilha da Visão Geral removida conforme solicitado.
+    # Mantidos somente filtros e cards superiores desta página.
 
 elif page == "Pedigree":
     st.markdown('<div class="page-title">Pedigree</div>', unsafe_allow_html=True)
