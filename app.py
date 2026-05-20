@@ -2058,7 +2058,7 @@ def render_login_screen():
                 max-width: 950px !important;
                 margin: 0 auto !important;
                 background: #26384B !important;
-                padding: 18px 42px 34px 42px !important;
+                padding: 18px 42px 120px 42px !important;
                 border-radius: 0 0 22px 22px !important;
                 border: 1px solid rgba(255,255,255,0.22) !important;
                 border-top: 0 !important;
@@ -2117,7 +2117,7 @@ def render_login_screen():
                 width: 50vw;
                 min-width: 700px;
                 max-width: 950px;
-                margin: 12px auto 0 auto;
+                margin: 22px auto 0 auto;
                 text-align: center;
                 color: rgba(255,255,255,0.76);
                 font-weight: 800;
