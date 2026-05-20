@@ -1979,7 +1979,9 @@ def render_login_screen():
             }}
 
             .login-shell {{
-                width: min(560px, 92vw);
+                width: 50vw;
+                min-width: 700px;
+                max-width: 950px;
                 margin: 0 auto;
                 padding-top: 0.15rem;
             }}
@@ -1995,7 +1997,7 @@ def render_login_screen():
             }}
 
             .login-hero {{
-                height: 124px;
+                height: 170px;
                 background-image: linear-gradient(180deg, rgba(255,255,255,0.02), rgba(3,36,80,0.05)), url('data:image/jpeg;base64,{LOGIN_HERO_B64}');
                 background-size: cover;
                 background-position: center;
@@ -2005,16 +2007,16 @@ def render_login_screen():
                 background: #26384B;
                 color: #ffffff;
                 text-align: center;
-                padding: 0 28px 18px 28px;
+                padding: 0 42px 26px 42px;
                 position: relative;
             }}
 
             .login-badge {{
-                width: 68px;
-                height: 68px;
+                width: 82px;
+                height: 82px;
                 border-radius: 50%;
                 background: #2e6cbf;
-                margin: -34px auto 10px auto;
+                margin: -41px auto 12px auto;
                 display: flex;
                 align-items: center;
                 justify-content: center;
@@ -2051,10 +2053,12 @@ def render_login_screen():
             }}
 
             div[data-testid="stForm"] {{
-                width: min(560px, 92vw) !important;
+                width: 50vw !important;
+                min-width: 700px !important;
+                max-width: 950px !important;
                 margin: 0 auto !important;
                 background: #26384B !important;
-                padding: 14px 28px 22px 28px !important;
+                padding: 18px 42px 34px 42px !important;
                 border-radius: 0 0 22px 22px !important;
                 border: 1px solid rgba(255,255,255,0.22) !important;
                 border-top: 0 !important;
@@ -2078,7 +2082,7 @@ def render_login_screen():
                 -webkit-text-fill-color: #032450 !important;
                 border: 1px solid rgba(255,255,255,0.92) !important;
                 border-radius: 999px !important;
-                min-height: 38px !important;
+                min-height: 44px !important;
                 padding-left: 16px !important;
                 box-shadow: none !important;
             }}
@@ -2101,7 +2105,7 @@ def render_login_screen():
                 width: 100% !important;
                 border: none !important;
                 border-radius: 999px !important;
-                min-height: 40px !important;
+                min-height: 46px !important;
                 color: #ffffff !important;
                 font-weight: 900 !important;
                 background: linear-gradient(90deg, #20D8F0 0%, #2e6cbf 52%, #032450 100%) !important;
@@ -2110,7 +2114,9 @@ def render_login_screen():
             }}
 
             .login-footer {{
-                width: min(560px, 92vw);
+                width: 50vw;
+                min-width: 700px;
+                max-width: 950px;
                 margin: 12px auto 0 auto;
                 text-align: center;
                 color: rgba(255,255,255,0.76);
@@ -2120,7 +2126,9 @@ def render_login_screen():
             }}
 
             .login-error {{
-                width: min(560px, 92vw);
+                width: 50vw;
+                min-width: 700px;
+                max-width: 950px;
                 margin: 12px auto 0 auto;
                 background: rgba(255, 86, 86, 0.15);
                 border: 1px solid rgba(255, 86, 86, 0.42);
