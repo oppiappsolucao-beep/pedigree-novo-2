@@ -2332,12 +2332,18 @@ if page == "Visão Geral":
     terceiro_contato = count_contact_dates_by_selected_month(df, "3° contato", selected_month) if not df.empty else 0
     total_contratos = len(month_df)
 
-    m1, m2 = st.columns(2)
+    m1, m2, m3, m4 = st.columns(4)
 
     with m1:
         card_metric("Primeiro contato", f"{primeiro_contato}", "no mês", "📞", "#2e6cbf")
 
     with m2:
+        card_metric("Segundo contato", f"{segundo_contato}", "no mês", "📋", "#032450")
+
+    with m3:
+        card_metric("Terceiro contato", f"{terceiro_contato}", "no mês", "🗂️", "#2e6cbf")
+
+    with m4:
         card_metric("Total de contratos", f"{total_contratos}", month_key_to_label(selected_month), "📄", "#032450")
 
     # Tabela/planilha da Visão Geral removida conforme solicitado.
@@ -2733,152 +2739,6 @@ elif page == "Pedigree":
         else pd.DataFrame()
     )
 
-    # Total de Pedigrees feitos:
-    # conta todos os registros da aba "Planilha Dash Valéria sem mayra"
-    # no mês selecionado, mesmo que tenham sido adicionados manualmente
-    # e mesmo que o status ainda não esteja como Postado/Enviado.
-    if not df_ped_mes.empty and "Nome" in df_ped_mes.columns:
-        total_pedigrees_vendidos = int(
-            (df_ped_mes["Nome"].astype(str).str.strip() != "").sum()
-        )
-    elif not df_ped_mes.empty:
-        total_pedigrees_vendidos = int(len(df_ped_mes))
-    else:
-        total_pedigrees_vendidos = 0
-
-    if not df_caes_mes.empty and COL_NOME and COL_NOME in df_caes_mes.columns:
-        total_caes_vendidos = int((df_caes_mes[COL_NOME].astype(str).str.strip() != "").sum())
-    else:
-        total_caes_vendidos = 0
-
-    total_col1, total_col2 = st.columns(2)
-
-    with total_col1:
-        card_metric_big(
-            "Total de Pedigrees",
-            f"{total_pedigrees_vendidos}",
-            f"feitos em {month_key_to_label(selected_ped_month)}",
-            "⚖️",
-            "#2e6cbf",
-        )
-
-    with total_col2:
-        card_metric_big(
-            "Cães vendidos",
-            f"{total_caes_vendidos}",
-            f"no mês de {month_key_to_label(selected_ped_month)}",
-            "🐶",
-            "#032450",
-        )
-
-    st.markdown("<br>", unsafe_allow_html=True)
-
-    ano_selecionado = selected_ped_month[0]
-
-    meses_base = pd.DataFrame(
-        {
-            "_mes_num": list(range(1, 13)),
-            "Mês": [
-                "Janeiro",
-                "Fevereiro",
-                "Março",
-                "Abril",
-                "Maio",
-                "Junho",
-                "Julho",
-                "Agosto",
-                "Setembro",
-                "Outubro",
-                "Novembro",
-                "Dezembro",
-            ],
-        }
-    )
-
-    # Gráfico anual de Pedigrees feitos:
-    # conta todos os nomes registrados na aba "Planilha Dash Valéria sem mayra",
-    # sem depender do status Postado/Enviado.
-    if not df_ped.empty and "_mes_key" in df_ped.columns:
-        df_grafico_ped = df_ped.copy()
-
-        df_grafico_ped["_ano"] = df_grafico_ped["_mes_key"].apply(
-            lambda x: x[0] if isinstance(x, tuple) and len(x) == 2 else None
-        )
-
-        df_grafico_ped["_mes_num"] = df_grafico_ped["_mes_key"].apply(
-            lambda x: x[1] if isinstance(x, tuple) and len(x) == 2 else None
-        )
-
-        if "Nome" in df_grafico_ped.columns:
-            df_grafico_ped = df_grafico_ped[
-                (df_grafico_ped["_ano"] == ano_selecionado)
-                & (df_grafico_ped["Nome"].astype(str).str.strip() != "")
-            ].copy()
-        else:
-            df_grafico_ped = df_grafico_ped[
-                df_grafico_ped["_ano"] == ano_selecionado
-            ].copy()
-
-        resumo_mensal = df_grafico_ped.groupby("_mes_num").size().reset_index(name="Pedigrees feitos")
-
-        resumo_mensal = meses_base.merge(resumo_mensal, on="_mes_num", how="left")
-        resumo_mensal["Pedigrees feitos"] = resumo_mensal["Pedigrees feitos"].fillna(0).astype(int)
-    else:
-        resumo_mensal = meses_base.copy()
-        resumo_mensal["Pedigrees feitos"] = 0
-
-    st.markdown(
-        f"""
-        <div class="live-card">
-            <div class="live-title">⚖️ Pedigrees feitos no ano</div>
-            <div class="live-sub">
-                Total mensal de pedigrees feitos em {ano_selecionado}, considerando todos os nomes da aba Planilha Dash Valéria sem mayra.
-            </div>
-        </div>
-        """,
-        unsafe_allow_html=True,
-    )
-
-    fig_ped_ano = px.bar(
-        resumo_mensal,
-        x="Mês",
-        y="Pedigrees feitos",
-        text="Pedigrees feitos",
-        color="Mês",
-        color_discrete_sequence=[
-            "#032450",
-            "#2e6cbf",
-            "#2E3192",
-            "#2e6cbf",
-            "#45546B",
-            "#95A3B8",
-            "#1B1D6D",
-            "#2e6cbf",
-            "#3949AB",
-            "#2e6cbf",
-            "#64748B",
-            "#0F172A",
-        ],
-    )
-
-    fig_ped_ano.update_traces(
-        textposition="outside",
-        marker_line_width=0,
-        hovertemplate="<b>%{x}</b><br>Pedigrees feitos: %{y}<extra></extra>",
-    )
-
-    fig_ped_ano.update_layout(
-        height=440,
-        showlegend=False,
-        plot_bgcolor="white",
-        paper_bgcolor="white",
-        margin=dict(l=20, r=20, t=30, b=80),
-        xaxis=dict(title="", tickangle=-35, showgrid=False, tickfont=dict(size=12, color="#34405A")),
-        yaxis=dict(title="", rangemode="tozero", gridcolor="#E7EAF3", tickfont=dict(size=12, color="#34405A")),
-        font=dict(family="Arial", color="#18243D"),
-    )
-
-    st.plotly_chart(fig_ped_ano, use_container_width=True)
 
 
 elif page == "Comissão":
