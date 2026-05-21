@@ -2722,6 +2722,19 @@ elif page == "Pedigree":
 
     st.markdown("<br><br>", unsafe_allow_html=True)
 
+    df_ped_mes = (
+        df_ped[df_ped["_mes_key"] == selected_ped_month].copy()
+        if "_mes_key" in df_ped.columns
+        else pd.DataFrame()
+    )
+    df_caes_mes = (
+        df[df["_mes_key"] == selected_ped_month].copy()
+        if not df.empty and "_mes_key" in df.columns
+        else pd.DataFrame()
+    )
+
+
+
 
 elif page == "Comissão":
     st.markdown('<div class="page-title">Comissão</div>', unsafe_allow_html=True)
