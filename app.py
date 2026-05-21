@@ -2287,16 +2287,18 @@ if page == "Visão Geral":
 
     month_df = df[df["_mes_key"] == selected_month].copy() if not df.empty and "_mes_key" in df.columns else pd.DataFrame()
 
-    races = ["Todas"]
-
-    if not month_df.empty and COL_RACA and COL_RACA in month_df.columns:
-        race_vals = sorted([r for r in month_df[COL_RACA].dropna().astype(str).str.strip().unique() if r])
-        races += race_vals
+    semanas = [
+        "Todas",
+        "Primeira",
+        "Segunda",
+        "Terceira",
+        "Quarta",
+    ]
 
     filter_col1, filter_col2 = st.columns([1.2, 1.2])
 
     with filter_col1:
-        selected_race = st.selectbox("Raça", races, index=0)
+        selected_week = st.selectbox("Semana", semanas, index=0)
 
     with filter_col2:
         search_top = st.text_input("Busca rápida", placeholder="Nome, CPF, telefone ou e-mail")
@@ -2304,9 +2306,6 @@ if page == "Visão Geral":
     filtered_df = month_df.copy()
 
     if not filtered_df.empty:
-        if selected_race != "Todas" and COL_RACA and COL_RACA in filtered_df.columns:
-            filtered_df = filtered_df[filtered_df[COL_RACA].astype(str).str.strip() == selected_race].copy()
-
         if search_top.strip():
             q = normalize_search_text(search_top)
             q_digits = re.sub(r"\D", "", search_top)
@@ -2502,7 +2501,7 @@ if page == "Visão Geral":
         margin=dict(l=10, r=10, t=10, b=10),
     )
 
-    fig_pedigree.update_traces(
+    fig_pedigree.update_tsemanas(
         textposition="outside",
     )
 
