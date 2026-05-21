@@ -2645,6 +2645,68 @@ elif page == "Pedigree":
                 with col4:
                     foto_pet = st.file_uploader("Foto do pet", type=["png", "jpg", "jpeg"])
 
+st.markdown("<div style='height:35px'></div>", unsafe_allow_html=True)
+
+# CARDS GRANDES
+big1, big2 = st.columns(2)
+
+with big1:
+    card_metric_big(
+        "Total de Pedigrees",
+        str(total_pedigrees_mes),
+        f"feitos em {mes_referencia_label}",
+        "⚖️",
+        "#2e6cbf",
+    )
+
+with big2:
+    card_metric_big(
+        "Cães vendidos",
+        str(total_caes_vendidos),
+        f"no mês de {mes_referencia_label}",
+        "🐶",
+        "#032450",
+    )
+
+st.markdown("<div style='height:25px'></div>", unsafe_allow_html=True)
+
+st.markdown(
+    '''
+    <div class="live-card">
+        <div class="live-title">⚖️ Pedigrees feitos no ano</div>
+        <div class="live-sub">
+            Total mensal de pedigrees feitos em 2026.
+        </div>
+    </div>
+    ''',
+    unsafe_allow_html=True,
+)
+
+fig_pedigree = px.bar(
+    df_pedigrees_ano,
+    x="Mês",
+    y="Quantidade",
+    text="Quantidade",
+)
+
+fig_pedigree.update_layout(
+    height=450,
+    paper_bgcolor="white",
+    plot_bgcolor="white",
+    margin=dict(l=10, r=10, t=10, b=10),
+)
+
+fig_pedigree.update_traces(
+    textposition="outside"
+)
+
+st.plotly_chart(
+    fig_pedigree,
+    use_container_width=True
+)
+
+
+
                     if foto_pet:
                         st.image(foto_pet, caption="Foto do pet", width=220)
 
