@@ -2332,18 +2332,12 @@ if page == "Visão Geral":
     terceiro_contato = count_contact_dates_by_selected_month(df, "3° contato", selected_month) if not df.empty else 0
     total_contratos = len(month_df)
 
-    m1, m2, m3, m4 = st.columns(4)
+    m1, m2 = st.columns(2)
 
     with m1:
         card_metric("Primeiro contato", f"{primeiro_contato}", "no mês", "📞", "#2e6cbf")
 
     with m2:
-        card_metric("Segundo contato", f"{segundo_contato}", "no mês", "📋", "#032450")
-
-    with m3:
-        card_metric("Terceiro contato", f"{terceiro_contato}", "no mês", "🗂️", "#2e6cbf")
-
-    with m4:
         card_metric("Total de contratos", f"{total_contratos}", month_key_to_label(selected_month), "📄", "#032450")
 
     # Tabela/planilha da Visão Geral removida conforme solicitado.
@@ -2727,18 +2721,6 @@ elif page == "Pedigree":
                 st.info("Nenhum formulário nesta ação no momento.")
 
     st.markdown("<br><br>", unsafe_allow_html=True)
-
-    df_ped_mes = (
-        df_ped[df_ped["_mes_key"] == selected_ped_month].copy()
-        if "_mes_key" in df_ped.columns
-        else pd.DataFrame()
-    )
-    df_caes_mes = (
-        df[df["_mes_key"] == selected_ped_month].copy()
-        if not df.empty and "_mes_key" in df.columns
-        else pd.DataFrame()
-    )
-
 
 
 elif page == "Comissão":
