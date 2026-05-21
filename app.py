@@ -2645,6 +2645,36 @@ elif page == "Pedigree":
                 with col4:
                     foto_pet = st.file_uploader("Foto do pet", type=["png", "jpg", "jpeg"])
 
+    st.markdown("<div style='height:35px'></div>", unsafe_allow_html=True)
+
+    # =========================
+    # CARDS GRANDES
+    # =========================
+
+    top_big1, top_big2 = st.columns(2)
+
+    with top_big1:
+        card_metric_big(
+            "Total de Pedigrees",
+            str(total_pedigrees_mes),
+            f"feitos em {selected_month_label}",
+            "⚖️",
+            "#2e6cbf"
+        )
+
+    with top_big2:
+        card_metric_big(
+            "Cães vendidos",
+            str(total_caes_vendidos),
+            f"no mês de {selected_month_label}",
+            "🐶",
+            "#032450"
+        )
+
+    st.markdown("<div style='height:30px'></div>", unsafe_allow_html=True)
+
+
+
                     if foto_pet:
                         st.image(foto_pet, caption="Foto do pet", width=220)
 
