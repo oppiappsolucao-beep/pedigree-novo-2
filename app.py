@@ -2326,7 +2326,10 @@ if page == "Visão Geral":
             filtered_df = filtered_df[mask].copy()
 
     # Contatos por mês: agora cada card lê a DATA da sua própria coluna.
+    # Ex.: Maio/2026 conta apenas datas 05/2026 em 1º, 2º e 3º contato.
     primeiro_contato = count_contact_dates_by_selected_month(df, "1° contato", selected_month) if not df.empty else 0
+    segundo_contato = count_contact_dates_by_selected_month(df, "2° contato", selected_month) if not df.empty else 0
+    terceiro_contato = count_contact_dates_by_selected_month(df, "3° contato", selected_month) if not df.empty else 0
     total_contratos = len(month_df)
 
     m1, m2 = st.columns(2)
@@ -2337,159 +2340,8 @@ if page == "Visão Geral":
     with m2:
         card_metric("Total de contratos", f"{total_contratos}", month_key_to_label(selected_month), "📄", "#032450")
 
-    st.markdown("<br>", unsafe_allow_html=True)
-
-    # =========================
-    # CARDS PEDIGREE NA VISÃO GERAL
-    # =========================
-
-    df_ped_visao = load_pedigree_data().copy()
-
-    if not df_ped_visao.empty:
-        if "_mes_key" not in df_ped_visao.columns:
-            col_mes_ped = detect_col(df_ped_visao, [["mes"]])
-            col_data_ped = detect_col(df_ped_visao, [["data"]])
-
-            df_ped_visao["_mes_key"] = df_ped_visao.apply(
-                lambda row: build_month_key(row, col_mes_ped, col_data_ped),
-                axis=1,
-            )
-
-    df_ped_mes_visao = (
-        df_ped_visao[df_ped_visao["_mes_key"] == selected_month].copy()
-        if not df_ped_visao.empty and "_mes_key" in df_ped_visao.columns
-        else pd.DataFrame()
-    )
-
-    df_caes_mes_visao = (
-        df[df["_mes_key"] == selected_month].copy()
-        if not df.empty and "_mes_key" in df.columns
-        else pd.DataFrame()
-    )
-
-    if not df_ped_mes_visao.empty and "Nome" in df_ped_mes_visao.columns:
-        total_pedigrees_vendidos = int(
-            (df_ped_mes_visao["Nome"].astype(str).str.strip() != "").sum()
-        )
-    elif not df_ped_mes_visao.empty:
-        total_pedigrees_vendidos = int(len(df_ped_mes_visao))
-    else:
-        total_pedigrees_vendidos = 0
-
-    if not df_caes_mes_visao.empty and COL_NOME and COL_NOME in df_caes_mes_visao.columns:
-        total_caes_vendidos = int(
-            (df_caes_mes_visao[COL_NOME].astype(str).str.strip() != "").sum()
-        )
-    else:
-        total_caes_vendidos = 0
-
-    ped1, ped2 = st.columns(2)
-
-    with ped1:
-        card_metric_big(
-            "Total de Pedigrees",
-            f"{total_pedigrees_vendidos}",
-            f"feitos em {month_key_to_label(selected_month)}",
-            "⚖️",
-            "#2e6cbf",
-        )
-
-    with ped2:
-        card_metric_big(
-            "Cães vendidos",
-            f"{total_caes_vendidos}",
-            f"no mês de {month_key_to_label(selected_month)}",
-            "🐶",
-            "#032450",
-        )
-
-    st.markdown("<br>", unsafe_allow_html=True)
-
-    meses_base_visao = pd.DataFrame(
-        {
-            "_mes_num": list(range(1, 13)),
-            "Mês": [
-                "Janeiro",
-                "Fevereiro",
-                "Março",
-                "Abril",
-                "Maio",
-                "Junho",
-                "Julho",
-                "Agosto",
-                "Setembro",
-                "Outubro",
-                "Novembro",
-                "Dezembro",
-            ],
-        }
-    )
-
-    if not df_ped_visao.empty and "_mes_key" in df_ped_visao.columns:
-        df_grafico_ped_visao = df_ped_visao.copy()
-
-        df_grafico_ped_visao["_ano"] = df_grafico_ped_visao["_mes_key"].apply(
-            lambda x: x[0] if isinstance(x, tuple) and len(x) == 2 else None
-        )
-
-        df_grafico_ped_visao["_mes_num"] = df_grafico_ped_visao["_mes_key"].apply(
-            lambda x: x[1] if isinstance(x, tuple) and len(x) == 2 else None
-        )
-
-        if "Nome" in df_grafico_ped_visao.columns:
-            df_grafico_ped_visao = df_grafico_ped_visao[
-                df_grafico_ped_visao["Nome"].astype(str).str.strip() != ""
-            ]
-
-        df_grafico_ped_visao = df_grafico_ped_visao[
-            df_grafico_ped_visao["_ano"] == selected_month[0]
-        ]
-
-        grafico_ped_ano = (
-            df_grafico_ped_visao.groupby("_mes_num")
-            .size()
-            .reset_index(name="Quantidade")
-        )
-    else:
-        grafico_ped_ano = pd.DataFrame(columns=["_mes_num", "Quantidade"])
-
-    grafico_ped_ano = meses_base_visao.merge(
-        grafico_ped_ano,
-        on="_mes_num",
-        how="left",
-    )
-
-    grafico_ped_ano["Quantidade"] = grafico_ped_ano["Quantidade"].fillna(0).astype(int)
-
-    st.markdown(
-        """
-        <div class="live-card">
-            <div class="live-title">⚖️ Pedigrees feitos no ano</div>
-            <div class="live-sub">
-                Total mensal de pedigrees feitos em 2026, considerando todos os nomes da aba Planilha Dash Valéria sem mayra.
-            </div>
-        </div>
-        """,
-        unsafe_allow_html=True,
-    )
-
-    fig_ped_ano_visao = px.bar(
-        grafico_ped_ano,
-        x="Mês",
-        y="Quantidade",
-        text="Quantidade",
-    )
-
-    fig_ped_ano_visao.update_layout(
-        height=500,
-        plot_bgcolor="white",
-        paper_bgcolor="white",
-        margin=dict(l=10, r=10, t=10, b=10),
-    )
-
-    st.plotly_chart(fig_ped_ano_visao, use_container_width=True)
-
     # Tabela/planilha da Visão Geral removida conforme solicitado.
+    # Mantidos somente filtros e cards superiores desta página.
 
 elif page == "Pedigree":
     st.markdown('<div class="page-title">Pedigree</div>', unsafe_allow_html=True)
