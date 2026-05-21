@@ -2707,8 +2707,8 @@ st.plotly_chart(
 
 
 
-                if foto_pet:
-                    st.image(foto_pet, caption="Foto do pet", width=220)
+if foto_pet:
+    st.image(foto_pet, caption="Foto do pet", width=220)
 
                 observacoes = st.text_area("Observações gerais")
 
