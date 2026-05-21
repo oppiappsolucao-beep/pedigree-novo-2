@@ -2324,20 +2324,104 @@ if page == "Visão Geral":
 
             filtered_df = filtered_df[mask].copy()
 
-    # Contatos por mês: agora cada card lê a DATA da sua própria coluna.
-    # Ex.: Maio/2026 conta apenas datas 05/2026 em 1º, 2º e 3º contato.
-    primeiro_contato = count_contact_dates_by_selected_month(df, "1° contato", selected_month) if not df.empty else 0
-    segundo_contato = count_contact_dates_by_selected_month(df, "2° contato", selected_month) if not df.empty else 0
-    terceiro_contato = count_contact_dates_by_selected_month(df, "3° contato", selected_month) if not df.empty else 0
-    total_contratos = len(month_df)
+    # ============================================
+    # GRÁFICO VENDAS DA SEMANA
+    # ============================================
 
-    m1, m2 = st.columns(2)
+    def semana_do_mes(data_ref):
+        if not data_ref:
+            return "Sem data"
 
-    with m1:
-        card_metric("Primeiro contato", f"{primeiro_contato}", "no mês", "📞", "#2e6cbf")
+        try:
+            dia = int(data_ref.day)
+        except Exception:
+            return "Sem data"
 
-    with m2:
-        card_metric("Total de contratos", f"{total_contratos}", month_key_to_label(selected_month), "📄", "#032450")
+        if dia <= 7:
+            return "Primeira"
+        elif dia <= 14:
+            return "Segunda"
+        elif dia <= 21:
+            return "Terceira"
+        else:
+            return "Quarta"
+
+    if not month_df.empty and "_data_compra" in month_df.columns:
+        month_df["_semana_label"] = month_df["_data_compra"].apply(semana_do_mes)
+    elif not month_df.empty:
+        month_df["_semana_label"] = "Sem data"
+
+    if not filtered_df.empty and "_data_compra" in filtered_df.columns:
+        filtered_df["_semana_label"] = filtered_df["_data_compra"].apply(semana_do_mes)
+    elif not filtered_df.empty:
+        filtered_df["_semana_label"] = "Sem data"
+
+    if selected_week != "Todas" and not filtered_df.empty and "_semana_label" in filtered_df.columns:
+        filtered_df = filtered_df[filtered_df["_semana_label"] == selected_week].copy()
+
+    semanas_base = pd.DataFrame(
+        {
+            "Semana": ["Primeira", "Segunda", "Terceira", "Quarta"],
+            "Ordem": [1, 2, 3, 4],
+        }
+    )
+
+    if not month_df.empty and "_semana_label" in month_df.columns:
+        vendas_semana = (
+            month_df[month_df["_semana_label"].isin(["Primeira", "Segunda", "Terceira", "Quarta"])]
+            .groupby("_semana_label")
+            .size()
+            .reset_index(name="Vendas")
+            .rename(columns={"_semana_label": "Semana"})
+        )
+    else:
+        vendas_semana = pd.DataFrame(columns=["Semana", "Vendas"])
+
+    vendas_semana = semanas_base.merge(
+        vendas_semana,
+        on="Semana",
+        how="left",
+    )
+
+    vendas_semana["Vendas"] = vendas_semana["Vendas"].fillna(0).astype(int)
+    vendas_semana = vendas_semana.sort_values("Ordem")
+
+    st.markdown(
+        """
+        <div class="live-card">
+            <div class="live-title">📊 Vendas da semana</div>
+            <div class="live-sub">
+                Total de vendas por semana dentro do mês selecionado.
+            </div>
+        </div>
+        """,
+        unsafe_allow_html=True,
+    )
+
+    fig_vendas_semana = px.bar(
+        vendas_semana,
+        x="Semana",
+        y="Vendas",
+        text="Vendas",
+    )
+
+    fig_vendas_semana.update_layout(
+        height=360,
+        paper_bgcolor="white",
+        plot_bgcolor="white",
+        margin=dict(l=10, r=10, t=10, b=10),
+        xaxis_title="",
+        yaxis_title="Vendas",
+    )
+
+    fig_vendas_semana.update_traces(
+        textposition="outside",
+    )
+
+    st.plotly_chart(
+        fig_vendas_semana,
+        use_container_width=True,
+    )
 
     
     st.markdown("<br><br>", unsafe_allow_html=True)
