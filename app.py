@@ -1446,7 +1446,6 @@ def render_status_venda_editavel_table(df_table: pd.DataFrame, cols_to_show: lis
     """
     status_options = [
         "Vendido",
-        "Vender",
         "Não tem interesse",
         "Sem Resposta",
         "Emitir Sem Venda",
@@ -1490,6 +1489,9 @@ def render_status_venda_editavel_table(df_table: pd.DataFrame, cols_to_show: lis
                     current_status = "Vendido"
                 elif current_status == "Sem transferência":
                     current_status = "Emitir Sem Venda"
+
+                if current_status == "Vender":
+                    current_status = "Conversando"
 
                 if current_status not in status_options:
                     current_status = "Conversando"
@@ -2944,6 +2946,7 @@ if page == "Visão Geral":
         "Conversando": 0,
         "Sem Resposta": 0,
         "Sem transferência": 0,
+        "Novo Lead": 0,
     }
 
     status_masks_caes = {
@@ -2952,6 +2955,7 @@ if page == "Visão Geral":
         "Conversando": pd.Series(False, index=df_caes_mes.index),
         "Sem Resposta": pd.Series(False, index=df_caes_mes.index),
         "Sem transferência": pd.Series(False, index=df_caes_mes.index),
+        "Novo Lead": pd.Series(False, index=df_caes_mes.index),
     }
 
     if not df_caes_mes.empty and col_status_venda_pedigree and col_status_venda_pedigree in df_caes_mes.columns:
@@ -2963,41 +2967,18 @@ if page == "Visão Geral":
         status_masks_caes["Conversando"] = serie_status_caes.eq(normalize_search_text("Conversando"))
         status_masks_caes["Sem Resposta"] = serie_status_caes.eq(normalize_search_text("Sem Resposta"))
         status_masks_caes["Sem transferência"] = serie_status_caes.eq(normalize_search_text("Emitir Sem Venda"))
+        status_masks_caes["Novo Lead"] = serie_status_caes.eq(normalize_search_text("Vender"))
 
         for status_nome, status_mask in status_masks_caes.items():
             status_resumo_caes[status_nome] = int(status_mask.sum())
 
     total_caes_vendidos = int(sum(status_resumo_caes.values()))
 
-    def lead_identity(row):
-        partes = []
-
-        for coluna_base in ["Nome", "Telefone", "CPF", "E-mail", "Email", "WhatsApp"]:
-            if coluna_base in row:
-                partes.append(normalize_text(row.get(coluna_base, "")))
-
-        if not any(partes):
-            partes.append(str(row.name))
-
-        return "||".join(partes)
-
-    current_lead_ids = set()
-
-    if not df_caes_mes.empty:
-        current_lead_ids = set(df_caes_mes.apply(lead_identity, axis=1).tolist())
-
-    baseline_key_novo_lead = f"baseline_novo_lead_{selected_month[0]}_{selected_month[1]}"
-
-    if baseline_key_novo_lead not in st.session_state:
-        st.session_state[baseline_key_novo_lead] = current_lead_ids
-
-    novos_leads_ids = current_lead_ids - set(st.session_state.get(baseline_key_novo_lead, set()))
-    total_novos_leads = len(novos_leads_ids)
-
-    if not df_caes_mes.empty and novos_leads_ids:
-        mask_novos_leads = df_caes_mes.apply(lambda row: lead_identity(row) in novos_leads_ids, axis=1)
-    else:
-        mask_novos_leads = pd.Series(False, index=df_caes_mes.index)
+    total_novos_leads = int(status_resumo_caes.get("Novo Lead", 0))
+    mask_novos_leads = status_masks_caes.get(
+        "Novo Lead",
+        pd.Series(False, index=df_caes_mes.index),
+    )
 
     total_col1, total_col2 = st.columns(2)
 
@@ -3180,6 +3161,9 @@ if page == "Visão Geral":
 
                         for k, v in params_preservados.items():
                             st.query_params[k] = v
+
+                        if "status_card_aberto" in st.session_state:
+                            st.session_state["status_card_aberto"] = ""
 
                         st.toast("Status atualizado com sucesso.")
                         st.rerun()
