@@ -1172,6 +1172,35 @@ def atualizar_status_pedigree(row_number: int, novo_status: str):
     st.cache_data.clear()
 
 
+
+def atualizar_status_venda_pedigree_clear(row_number: int, novo_status: str):
+    """
+    Atualiza SOMENTE a coluna Status Venda Pedigree na aba Clear.
+    """
+    worksheet = get_worksheet(MAIN_WORKSHEET_NAME)
+    headers = [str(h).strip() for h in worksheet.row_values(1)]
+
+    if "Status Venda Pedigree" not in headers:
+        headers.append("Status Venda Pedigree")
+        worksheet.update("A1", [headers], value_input_option="USER_ENTERED")
+
+    headers = [str(h).strip() for h in worksheet.row_values(1)]
+    col_number = headers.index("Status Venda Pedigree") + 1
+
+    mapa_status_planilha = {
+        "Não tem interesse": "Não tem interesse",
+        "Com transferência": "Vendido",
+        "Conversando": "Conversando",
+        "Sem Resposta": "Sem Resposta",
+        "Sem transferência": "Emitir Sem Venda",
+    }
+
+    status_para_salvar = mapa_status_planilha.get(novo_status, novo_status)
+
+    worksheet.update_cell(int(row_number), col_number, status_para_salvar)
+    st.cache_data.clear()
+
+
 def find_commission_row_by_cliente_name(cliente_nome: str):
     worksheet = get_worksheet(COMM_WORKSHEET_NAME)
     values = worksheet.get_all_values()
@@ -1407,6 +1436,231 @@ def render_realtime_table(df_table: pd.DataFrame, cols_to_show: list[str], heigh
 
     components.html(table_html, height=height, scrolling=True)
 
+
+
+def render_status_venda_editavel_table(df_table: pd.DataFrame, cols_to_show: list[str], height: int = 520):
+    """
+    Tabela visual igual à anterior, com botão Copiar no telefone/WhatsApp
+    e dropdown editável somente em Status Venda Pedigree.
+    Ao alterar o dropdown, salva automaticamente pela URL.
+    """
+    status_options = [
+        "Vendido",
+        "Vender",
+        "Não tem interesse",
+        "Sem Resposta",
+        "Emitir Sem Venda",
+        "Conversando",
+    ]
+
+    safe_rows = []
+
+    for idx_row, row in df_table.iterrows():
+        row_number = int(row.get("Linha", int(idx_row) + 2))
+        cells = []
+
+        for col in cols_to_show:
+            val = row.get(col, "")
+
+            if col == "Linha":
+                cell = html.escape(str(row_number))
+
+            elif normalize_header_name(col) in ["telefone", "whatsapp"]:
+                formatted_phone = format_phone_br(val)
+                digits = only_digits(val)
+
+                if len(digits) == 13 and digits.startswith("55"):
+                    copy_digits = digits
+                elif len(digits) in [10, 11]:
+                    copy_digits = "55" + digits
+                else:
+                    copy_digits = digits
+
+                cell = f"""
+                <div class="phone-cell">
+                    <span>{html.escape(formatted_phone)}</span>
+                    <button class="copy-btn" onclick="copyText('{html.escape(copy_digits)}', this)">Copiar</button>
+                </div>
+                """
+
+            elif normalize_header_name(col) == normalize_header_name("Status Venda Pedigree"):
+                current_status = normalize_text(val)
+
+                if current_status == "Com transferência":
+                    current_status = "Vendido"
+                elif current_status == "Sem transferência":
+                    current_status = "Emitir Sem Venda"
+
+                if current_status not in status_options:
+                    current_status = "Conversando"
+
+                options_html = "".join(
+                    [
+                        f'<option value="{html.escape(opt)}" {"selected" if opt == current_status else ""}>{html.escape(opt)}</option>'
+                        for opt in status_options
+                    ]
+                )
+
+                cell = f"""
+                <select class="status-select" onchange="saveStatus({row_number}, this.value)">
+                    {options_html}
+                </select>
+                """
+
+            else:
+                clean_val = normalize_text(val)
+
+                if "data" in normalize_header_name(col) or "nascimento" in normalize_header_name(col):
+                    clean_val = format_date(clean_val)
+
+                cell = html.escape(clean_val)
+
+            cells.append(f"<td>{cell}</td>")
+
+        safe_rows.append("<tr>" + "".join(cells) + "</tr>")
+
+    headers = "".join([f"<th>{html.escape(c)}</th>" for c in cols_to_show])
+    rows = "".join(safe_rows)
+
+    table_html = f"""
+    <html>
+    <head>
+        <style>
+            body {{
+                margin: 0;
+                font-family: Arial, sans-serif;
+                background: transparent;
+            }}
+
+            .table-wrap {{
+                border: 1px solid #E7EAF3;
+                border-radius: 18px;
+                overflow: auto;
+                background: white;
+                max-height: {height - 30}px;
+            }}
+
+            table {{
+                border-collapse: collapse;
+                width: 100%;
+                min-width: 1250px;
+                font-size: 13px;
+            }}
+
+            thead th {{
+                position: sticky;
+                top: 0;
+                background: #032450;
+                color: white;
+                padding: 12px 10px;
+                text-align: left;
+                z-index: 2;
+                white-space: nowrap;
+            }}
+
+            tbody td {{
+                border-bottom: 1px solid #EEF1F7;
+                padding: 9px 10px;
+                color: #17213A;
+                white-space: nowrap;
+                vertical-align: middle;
+            }}
+
+            tbody tr:hover {{
+                background: #F8FAFF;
+            }}
+
+            .phone-cell {{
+                display: flex;
+                align-items: center;
+                gap: 8px;
+            }}
+
+            .copy-btn {{
+                border: none;
+                border-radius: 999px;
+                padding: 5px 10px;
+                font-size: 11px;
+                font-weight: 700;
+                background: #2e6cbf;
+                color: white;
+                cursor: pointer;
+            }}
+
+            .status-select {{
+                min-width: 190px;
+                border: none;
+                border-radius: 999px;
+                padding: 6px 12px;
+                font-size: 12px;
+                font-weight: 700;
+                color: #073B7A;
+                background: #EAF2FF;
+                outline: none;
+                cursor: pointer;
+            }}
+
+            ::-webkit-scrollbar {{
+                width: 22px !important;
+                height: 22px !important;
+            }}
+
+            ::-webkit-scrollbar-track {{
+                background: #E5E7EB !important;
+                border-radius: 999px !important;
+            }}
+
+            ::-webkit-scrollbar-thumb {{
+                background: #9CA3AF !important;
+                border-radius: 999px !important;
+                border: 4px solid #E5E7EB !important;
+            }}
+
+            ::-webkit-scrollbar-thumb:hover {{
+                background: #6B7280 !important;
+            }}
+
+            * {{
+                scrollbar-width: auto;
+                scrollbar-color: #9CA3AF #E5E7EB;
+            }}
+        </style>
+    </head>
+
+    <body>
+        <div class="table-wrap">
+            <table>
+                <thead>
+                    <tr>{headers}</tr>
+                </thead>
+                <tbody>{rows}</tbody>
+            </table>
+        </div>
+
+        <script>
+            function copyText(text, btn) {{
+                navigator.clipboard.writeText(text).then(function() {{
+                    const old = btn.innerText;
+                    btn.innerText = "Copiado";
+                    setTimeout(function() {{
+                        btn.innerText = old;
+                    }}, 1200);
+                }});
+            }}
+
+            function saveStatus(rowNumber, value) {{
+                const params = new URLSearchParams(window.parent.location.search);
+                params.set("editar_status_row", rowNumber);
+                params.set("editar_status_val", value);
+                params.set("clear_auth", "ok");
+                window.parent.location.search = params.toString();
+            }}
+        </script>
+    </body>
+    </html>
+    """
+
+    components.html(table_html, height=height, scrolling=True)
 
 def render_cliente_card(cliente: pd.Series, status_opcoes: list):
     row_number = int(cliente.get("__row_number", 0))
@@ -2908,6 +3162,30 @@ if page == "Visão Geral":
             if df_detalhes_status.empty:
                 st.info("Nenhum nome encontrado para este status no mês selecionado.")
             else:
+                status_val_url = st.query_params.get("editar_status_val")
+                status_row_url = st.query_params.get("editar_status_row")
+
+                if status_row_url and status_val_url:
+                    try:
+                        atualizar_status_venda_pedigree_clear(
+                            int(status_row_url),
+                            str(status_val_url),
+                        )
+
+                        params_preservados = {}
+                        if st.query_params.get("clear_auth"):
+                            params_preservados["clear_auth"] = st.query_params.get("clear_auth")
+
+                        st.query_params.clear()
+
+                        for k, v in params_preservados.items():
+                            st.query_params[k] = v
+
+                        st.toast("Status atualizado com sucesso.")
+                        st.rerun()
+                    except Exception as e:
+                        st.error(f"Erro ao atualizar status: {e}")
+
                 colunas_prioritarias = [
                     "Nome",
                     "Telefone",
@@ -2918,8 +3196,8 @@ if page == "Visão Geral":
                     "Data Compra",
                     "Mês",
                     "Raça",
-                    "Status Venda Pedigree",
                     "Status Pedigree",
+                    "Status Venda Pedigree",
                 ]
 
                 colunas_exibir = [
@@ -2935,10 +3213,34 @@ if page == "Visão Geral":
                         if not str(col).startswith("_")
                     ]
 
-                render_realtime_table(
-                    df_detalhes_status,
-                    colunas_exibir,
-                    height=430,
+                df_tabela_status = df_detalhes_status.copy()
+                df_tabela_status["Linha"] = df_tabela_status.index.astype(int) + 2
+
+                if "Status Venda Pedigree" not in df_tabela_status.columns:
+                    df_tabela_status["Status Venda Pedigree"] = ""
+
+                colunas_tabela_status = ["Linha"] + [
+                    col
+                    for col in colunas_exibir
+                    if col != "Linha"
+                ]
+
+                st.markdown(
+                    """
+                    <div class="live-card">
+                        <div class="live-title">✏️ Alterar Status Venda Pedigree</div>
+                        <div class="live-sub">
+                            Visual em planilha, com botão copiar no telefone e salvamento automático ao mudar o status.
+                        </div>
+                    </div>
+                    """,
+                    unsafe_allow_html=True,
+                )
+
+                render_status_venda_editavel_table(
+                    df_tabela_status,
+                    colunas_tabela_status,
+                    height=520,
                 )
 
     st.markdown("<br>", unsafe_allow_html=True)
