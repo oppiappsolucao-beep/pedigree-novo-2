@@ -2640,18 +2640,48 @@ if page == "Visão Geral":
 
         total_pedigrees_vendidos = 0
 
+    # Cães vendidos agora vem da aba "Clear", coluna "Status Venda Pedigree".
+    # O card conta somente os nomes com status dentro do mês selecionado.
     df_caes_mes = (
         df[df["_mes_key"] == selected_month].copy()
         if not df.empty and "_mes_key" in df.columns
         else pd.DataFrame()
     )
 
-    if not df_caes_mes.empty and COL_NOME and COL_NOME in df_caes_mes.columns:
-        total_caes_vendidos = int(
-            (df_caes_mes[COL_NOME].astype(str).str.strip() != "").sum()
+    col_status_venda_pedigree = (
+        "Status Venda Pedigree"
+        if "Status Venda Pedigree" in df_caes_mes.columns
+        else detect_col(df_caes_mes, [["status", "venda", "pedigree"], ["status", "venda"]])
+    )
+
+    status_resumo_caes = {
+        "Não tem interesse": 0,
+        "Vendido": 0,
+        "Conversando": 0,
+        "Sem Resposta": 0,
+    }
+
+    if not df_caes_mes.empty and col_status_venda_pedigree and col_status_venda_pedigree in df_caes_mes.columns:
+
+        serie_status_caes = df_caes_mes[col_status_venda_pedigree].astype(str).apply(normalize_search_text)
+
+        status_resumo_caes["Não tem interesse"] = int(
+            serie_status_caes.eq(normalize_search_text("Não tem interesse")).sum()
         )
-    else:
-        total_caes_vendidos = 0
+
+        status_resumo_caes["Vendido"] = int(
+            serie_status_caes.eq(normalize_search_text("Vendido")).sum()
+        )
+
+        status_resumo_caes["Conversando"] = int(
+            serie_status_caes.eq(normalize_search_text("Conversando")).sum()
+        )
+
+        status_resumo_caes["Sem Resposta"] = int(
+            serie_status_caes.eq(normalize_search_text("Sem Resposta")).sum()
+        )
+
+    total_caes_vendidos = int(sum(status_resumo_caes.values()))
 
     total_col1, total_col2 = st.columns(2)
 
@@ -2672,6 +2702,56 @@ if page == "Visão Geral":
             "🐶",
             "#032450",
         )
+
+        if st.button(
+            "Ver detalhes dos status",
+            use_container_width=True,
+            key="btn_detalhes_caes_vendidos",
+        ):
+            st.session_state["mostrar_detalhes_caes_vendidos"] = not st.session_state.get(
+                "mostrar_detalhes_caes_vendidos",
+                False,
+            )
+
+    if st.session_state.get("mostrar_detalhes_caes_vendidos", False):
+
+        d1, d2, d3, d4 = st.columns(4)
+
+        with d1:
+            card_metric(
+                "Não tem interesse",
+                f"{status_resumo_caes.get('Não tem interesse', 0)}",
+                month_key_to_label(selected_month),
+                "🚫",
+                "#0F5F6A",
+            )
+
+        with d2:
+            card_metric(
+                "Vendido",
+                f"{status_resumo_caes.get('Vendido', 0)}",
+                month_key_to_label(selected_month),
+                "✅",
+                "#0E8A4A",
+            )
+
+        with d3:
+            card_metric(
+                "Conversando",
+                f"{status_resumo_caes.get('Conversando', 0)}",
+                month_key_to_label(selected_month),
+                "💬",
+                "#8B5A2B",
+            )
+
+        with d4:
+            card_metric(
+                "Sem Resposta",
+                f"{status_resumo_caes.get('Sem Resposta', 0)}",
+                month_key_to_label(selected_month),
+                "📭",
+                "#D64B3C",
+            )
 
     st.markdown("<br>", unsafe_allow_html=True)
 
