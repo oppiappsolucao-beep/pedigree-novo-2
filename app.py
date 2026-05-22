@@ -1172,6 +1172,35 @@ def atualizar_status_pedigree(row_number: int, novo_status: str):
     st.cache_data.clear()
 
 
+
+def atualizar_status_venda_pedigree_clear(row_number: int, novo_status: str):
+    """
+    Atualiza SOMENTE a coluna Status Venda Pedigree na aba Clear.
+    """
+    worksheet = get_worksheet(MAIN_WORKSHEET_NAME)
+    headers = [str(h).strip() for h in worksheet.row_values(1)]
+
+    if "Status Venda Pedigree" not in headers:
+        headers.append("Status Venda Pedigree")
+        worksheet.update("A1", [headers], value_input_option="USER_ENTERED")
+
+    headers = [str(h).strip() for h in worksheet.row_values(1)]
+    col_number = headers.index("Status Venda Pedigree") + 1
+
+    mapa_status_planilha = {
+        "Não tem interesse": "Não tem interesse",
+        "Com transferência": "Vendido",
+        "Conversando": "Conversando",
+        "Sem Resposta": "Sem Resposta",
+        "Sem transferência": "Emitir Sem Venda",
+    }
+
+    status_para_salvar = mapa_status_planilha.get(novo_status, novo_status)
+
+    worksheet.update_cell(int(row_number), col_number, status_para_salvar)
+    st.cache_data.clear()
+
+
 def find_commission_row_by_cliente_name(cliente_nome: str):
     worksheet = get_worksheet(COMM_WORKSHEET_NAME)
     values = worksheet.get_all_values()
@@ -2935,11 +2964,126 @@ if page == "Visão Geral":
                         if not str(col).startswith("_")
                     ]
 
-                render_realtime_table(
-                    df_detalhes_status,
-                    colunas_exibir,
-                    height=430,
+                status_opcoes_controle = [
+                    "Não tem interesse",
+                    "Com transferência",
+                    "Conversando",
+                    "Sem Resposta",
+                    "Sem transferência",
+                ]
+
+                mapa_status_visual = {
+                    "nao tem interesse": "Não tem interesse",
+                    "vendido": "Com transferência",
+                    "conversando": "Conversando",
+                    "sem resposta": "Sem Resposta",
+                    "emitir sem venda": "Sem transferência",
+                }
+
+                mapa_status_planilha = {
+                    "Não tem interesse": "Não tem interesse",
+                    "Com transferência": "Vendido",
+                    "Conversando": "Conversando",
+                    "Sem Resposta": "Sem Resposta",
+                    "Sem transferência": "Emitir Sem Venda",
+                }
+
+                df_editor_status = df_detalhes_status.copy()
+                df_editor_status["Linha"] = df_editor_status.index.astype(int) + 2
+
+                if "Status Venda Pedigree" not in df_editor_status.columns:
+                    df_editor_status["Status Venda Pedigree"] = ""
+
+                df_editor_status["Status Venda Pedigree"] = (
+                    df_editor_status["Status Venda Pedigree"]
+                    .astype(str)
+                    .apply(lambda v: mapa_status_visual.get(normalize_search_text(v), normalize_text(v)))
                 )
+
+                df_editor_status.loc[
+                    ~df_editor_status["Status Venda Pedigree"].isin(status_opcoes_controle),
+                    "Status Venda Pedigree",
+                ] = "Conversando"
+
+                colunas_editor = ["Linha"] + [
+                    col
+                    for col in colunas_exibir
+                    if col != "Status Venda Pedigree"
+                ] + ["Status Venda Pedigree"]
+
+                df_editor_status = df_editor_status[colunas_editor].copy()
+
+                st.markdown(
+                    """
+                    <div class="live-card">
+                        <div class="live-title">✏️ Editar Status Venda Pedigree</div>
+                        <div class="live-sub">
+                            Altere somente a coluna Status Venda Pedigree. Ao salvar, o lead já muda para a caixa correspondente.
+                        </div>
+                    </div>
+                    """,
+                    unsafe_allow_html=True,
+                )
+
+                edited_status_df = st.data_editor(
+                    df_editor_status,
+                    hide_index=True,
+                    use_container_width=True,
+                    height=430,
+                    disabled=[col for col in df_editor_status.columns if col not in ["Status Venda Pedigree"]],
+                    column_config={
+                        "Linha": st.column_config.NumberColumn(
+                            "Linha",
+                            disabled=True,
+                        ),
+                        "Status Venda Pedigree": st.column_config.SelectboxColumn(
+                            "Status Venda Pedigree",
+                            options=status_opcoes_controle,
+                            required=True,
+                        ),
+                    },
+                    key=f"editor_status_venda_pedigree_{status_card_aberto}_{selected_month[0]}_{selected_month[1]}",
+                )
+
+                if st.button(
+                    "Salvar alterações de status",
+                    use_container_width=True,
+                    key=f"salvar_status_venda_pedigree_{status_card_aberto}_{selected_month[0]}_{selected_month[1]}",
+                ):
+                    alteracoes_salvas = 0
+
+                    for _, row_editada in edited_status_df.iterrows():
+                        linha_sheet = safe_int_zero(row_editada.get("Linha", 0))
+
+                        if linha_sheet <= 1:
+                            continue
+
+                        status_visual = normalize_text(row_editada.get("Status Venda Pedigree", ""))
+                        status_para_salvar = mapa_status_planilha.get(status_visual, status_visual)
+
+                        linha_original = df_editor_status[
+                            df_editor_status["Linha"].astype(int) == int(linha_sheet)
+                        ]
+
+                        if linha_original.empty:
+                            continue
+
+                        status_original_visual = normalize_text(
+                            linha_original.iloc[0].get("Status Venda Pedigree", "")
+                        )
+
+                        if status_visual != status_original_visual:
+                            atualizar_status_venda_pedigree_clear(
+                                linha_sheet,
+                                status_visual,
+                            )
+                            alteracoes_salvas += 1
+
+                    if alteracoes_salvas:
+                        st.success(f"{alteracoes_salvas} status atualizado(s) com sucesso.")
+                        st.rerun()
+                    else:
+                        st.info("Nenhuma alteração de status foi identificada.")
 
     st.markdown("<br>", unsafe_allow_html=True)
 
