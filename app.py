@@ -1490,9 +1490,6 @@ def render_status_venda_editavel_table(df_table: pd.DataFrame, cols_to_show: lis
                 elif current_status == "Sem transferência":
                     current_status = "Emitir Sem Venda"
 
-                if current_status == "Vender":
-                    current_status = "Conversando"
-
                 if current_status not in status_options:
                     current_status = "Conversando"
 
@@ -1655,7 +1652,12 @@ def render_status_venda_editavel_table(df_table: pd.DataFrame, cols_to_show: lis
                 params.set("editar_status_row", rowNumber);
                 params.set("editar_status_val", value);
                 params.set("clear_auth", "ok");
-                window.parent.location.search = params.toString();
+
+                const newUrl =
+                    window.parent.location.pathname + "?" + params.toString();
+
+                window.parent.history.replaceState(null, "", newUrl);
+                window.parent.location.reload();
             }}
         </script>
     </body>
@@ -2500,6 +2502,38 @@ with st.sidebar:
 
 df = load_main_data().copy()
 
+# Atualização automática da coluna Status Venda Pedigree vinda do dropdown da tabela.
+# Processa antes dos cálculos da Visão Geral para o lead sair da caixa antiga e entrar na nova.
+status_row_param = st.query_params.get("editar_status_row")
+status_val_param = st.query_params.get("editar_status_val")
+
+if status_row_param and status_val_param:
+    try:
+        atualizar_status_venda_pedigree_clear(
+            int(status_row_param),
+            str(status_val_param),
+        )
+
+        if "status_card_aberto" in st.session_state:
+            st.session_state["status_card_aberto"] = ""
+
+        params_preservados = {}
+
+        if st.query_params.get("clear_auth"):
+            params_preservados["clear_auth"] = st.query_params.get("clear_auth")
+
+        st.query_params.clear()
+
+        for chave_param, valor_param in params_preservados.items():
+            st.query_params[chave_param] = valor_param
+
+        df = load_main_data().copy()
+        st.toast("Status atualizado com sucesso.")
+        st.rerun()
+
+    except Exception as e:
+        st.error(f"Erro ao atualizar status: {e}")
+
 COL_NOME = "Nome" if "Nome" in df.columns else detect_col(df, [["nome"]])
 COL_TEL = "Telefone" if "Telefone" in df.columns else detect_col(df, [["telefone"]])
 COL_CPF = "CPF" if "CPF" in df.columns else detect_col(df, [["cpf"]])
@@ -3170,12 +3204,16 @@ if page == "Visão Geral":
                         if not str(col).startswith("_")
                     ]
 
-                status_opcoes_planilha = [
-                    "Vendido",
-                    "Não tem interesse",
-                    "Sem Resposta",
-                    "Emitir Sem Venda",
-                    "Conversando",
+                df_tabela_status = df_detalhes_status.copy()
+                df_tabela_status["Linha"] = df_tabela_status.index.astype(int) + 2
+
+                if "Status Venda Pedigree" not in df_tabela_status.columns:
+                    df_tabela_status["Status Venda Pedigree"] = ""
+
+                colunas_tabela_status = ["Linha"] + [
+                    col
+                    for col in colunas_exibir
+                    if col != "Linha"
                 ]
 
                 st.markdown(
@@ -3183,98 +3221,18 @@ if page == "Visão Geral":
                     <div class="live-card">
                         <div class="live-title">✏️ Alterar Status Venda Pedigree</div>
                         <div class="live-sub">
-                            Mude o status diretamente na coluna. A alteração é salva automaticamente e o lead muda de caixa.
+                            Visual em planilha, com botão copiar no telefone e salvamento automático ao mudar o status.
                         </div>
                     </div>
                     """,
                     unsafe_allow_html=True,
                 )
 
-                df_editor_status = df_detalhes_status.copy()
-                df_editor_status["Linha"] = df_editor_status.index.astype(int) + 2
-
-                if "Status Venda Pedigree" not in df_editor_status.columns:
-                    df_editor_status["Status Venda Pedigree"] = ""
-
-                df_editor_status["Status Venda Pedigree"] = (
-                    df_editor_status["Status Venda Pedigree"]
-                    .astype(str)
-                    .apply(normalize_text)
+                render_status_venda_editavel_table(
+                    df_tabela_status,
+                    colunas_tabela_status,
+                    height=520,
                 )
-
-                df_editor_status.loc[
-                    ~df_editor_status["Status Venda Pedigree"].isin(status_opcoes_planilha),
-                    "Status Venda Pedigree",
-                ] = "Conversando"
-
-                colunas_editor = ["Linha"] + [
-                    col
-                    for col in colunas_exibir
-                    if col not in ["Linha", "Status Venda Pedigree"]
-                ] + ["Status Venda Pedigree"]
-
-                df_editor_status = df_editor_status[colunas_editor].copy()
-
-                editor_key_status = f"editor_auto_status_{status_card_aberto}_{selected_month[0]}_{selected_month[1]}"
-
-                edited_status_df = st.data_editor(
-                    df_editor_status,
-                    hide_index=True,
-                    use_container_width=True,
-                    height=430,
-                    disabled=[
-                        col
-                        for col in df_editor_status.columns
-                        if col not in ["Status Venda Pedigree"]
-                    ],
-                    column_config={
-                        "Linha": st.column_config.NumberColumn(
-                            "Linha",
-                            disabled=True,
-                            width="small",
-                        ),
-                        "Status Venda Pedigree": st.column_config.SelectboxColumn(
-                            "Status Venda Pedigree",
-                            options=status_opcoes_planilha,
-                            required=True,
-                            width="medium",
-                        ),
-                    },
-                    key=editor_key_status,
-                )
-
-                alteracoes_salvas = 0
-
-                for _, row_editada in edited_status_df.iterrows():
-                    linha_sheet = safe_int_zero(row_editada.get("Linha", 0))
-
-                    if linha_sheet <= 1:
-                        continue
-
-                    status_novo = normalize_text(row_editada.get("Status Venda Pedigree", ""))
-
-                    linha_original = df_editor_status[
-                        df_editor_status["Linha"].astype(int) == int(linha_sheet)
-                    ]
-
-                    if linha_original.empty:
-                        continue
-
-                    status_original = normalize_text(
-                        linha_original.iloc[0].get("Status Venda Pedigree", "")
-                    )
-
-                    if status_novo != status_original:
-                        atualizar_status_venda_pedigree_clear(
-                            linha_sheet,
-                            status_novo,
-                        )
-                        alteracoes_salvas += 1
-
-                if alteracoes_salvas:
-                    st.session_state["status_card_aberto"] = ""
-                    st.toast(f"{alteracoes_salvas} status atualizado(s) com sucesso.")
-                    st.rerun()
 
     st.markdown("<br>", unsafe_allow_html=True)
 
