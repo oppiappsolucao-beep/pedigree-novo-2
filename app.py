@@ -2692,31 +2692,58 @@ if page == "Visão Geral":
         "Sem transferência": 0,
     }
 
+    status_masks_caes = {
+        "Não tem interesse": pd.Series(False, index=df_caes_mes.index),
+        "Com transferência": pd.Series(False, index=df_caes_mes.index),
+        "Conversando": pd.Series(False, index=df_caes_mes.index),
+        "Sem Resposta": pd.Series(False, index=df_caes_mes.index),
+        "Sem transferência": pd.Series(False, index=df_caes_mes.index),
+    }
+
     if not df_caes_mes.empty and col_status_venda_pedigree and col_status_venda_pedigree in df_caes_mes.columns:
 
         serie_status_caes = df_caes_mes[col_status_venda_pedigree].astype(str).apply(normalize_search_text)
 
-        status_resumo_caes["Não tem interesse"] = int(
-            serie_status_caes.eq(normalize_search_text("Não tem interesse")).sum()
-        )
+        status_masks_caes["Não tem interesse"] = serie_status_caes.eq(normalize_search_text("Não tem interesse"))
+        status_masks_caes["Com transferência"] = serie_status_caes.eq(normalize_search_text("Vendido"))
+        status_masks_caes["Conversando"] = serie_status_caes.eq(normalize_search_text("Conversando"))
+        status_masks_caes["Sem Resposta"] = serie_status_caes.eq(normalize_search_text("Sem Resposta"))
+        status_masks_caes["Sem transferência"] = serie_status_caes.eq(normalize_search_text("Emitir Sem Venda"))
 
-        status_resumo_caes["Com transferência"] = int(
-            serie_status_caes.eq(normalize_search_text("Vendido")).sum()
-        )
-
-        status_resumo_caes["Conversando"] = int(
-            serie_status_caes.eq(normalize_search_text("Conversando")).sum()
-        )
-
-        status_resumo_caes["Sem Resposta"] = int(
-            serie_status_caes.eq(normalize_search_text("Sem Resposta")).sum()
-        )
-
-        status_resumo_caes["Sem transferência"] = int(
-            serie_status_caes.eq(normalize_search_text("Emitir Sem Venda")).sum()
-        )
+        for status_nome, status_mask in status_masks_caes.items():
+            status_resumo_caes[status_nome] = int(status_mask.sum())
 
     total_caes_vendidos = int(sum(status_resumo_caes.values()))
+
+    def lead_identity(row):
+        partes = []
+
+        for coluna_base in ["Nome", "Telefone", "CPF", "E-mail", "Email", "WhatsApp"]:
+            if coluna_base in row:
+                partes.append(normalize_text(row.get(coluna_base, "")))
+
+        if not any(partes):
+            partes.append(str(row.name))
+
+        return "||".join(partes)
+
+    current_lead_ids = set()
+
+    if not df_caes_mes.empty:
+        current_lead_ids = set(df_caes_mes.apply(lead_identity, axis=1).tolist())
+
+    baseline_key_novo_lead = f"baseline_novo_lead_{selected_month[0]}_{selected_month[1]}"
+
+    if baseline_key_novo_lead not in st.session_state:
+        st.session_state[baseline_key_novo_lead] = current_lead_ids
+
+    novos_leads_ids = current_lead_ids - set(st.session_state.get(baseline_key_novo_lead, set()))
+    total_novos_leads = len(novos_leads_ids)
+
+    if not df_caes_mes.empty and novos_leads_ids:
+        mask_novos_leads = df_caes_mes.apply(lambda row: lead_identity(row) in novos_leads_ids, axis=1)
+    else:
+        mask_novos_leads = pd.Series(False, index=df_caes_mes.index)
 
     total_col1, total_col2 = st.columns(2)
 
@@ -2750,6 +2777,9 @@ if page == "Visão Geral":
 
     if st.session_state.get("mostrar_detalhes_caes_vendidos", False):
 
+        def selecionar_card_status(nome_status):
+            st.session_state["status_card_aberto"] = nome_status
+
         d1, d2, d3, d4, d5, d6 = st.columns(6, gap="small")
 
         with d1:
@@ -2760,6 +2790,13 @@ if page == "Visão Geral":
                 "🚫",
                 "#0F5F6A",
             )
+            st.button(
+                "Ver nomes",
+                use_container_width=True,
+                key="btn_card_nao_tem_interesse",
+                on_click=selecionar_card_status,
+                args=("Não tem interesse",),
+            )
 
         with d2:
             card_metric(
@@ -2768,6 +2805,13 @@ if page == "Visão Geral":
                 month_key_to_label(selected_month),
                 "✅",
                 "#0E8A4A",
+            )
+            st.button(
+                "Ver nomes",
+                use_container_width=True,
+                key="btn_card_com_transferencia",
+                on_click=selecionar_card_status,
+                args=("Com transferência",),
             )
 
         with d3:
@@ -2778,6 +2822,13 @@ if page == "Visão Geral":
                 "💬",
                 "#8B5A2B",
             )
+            st.button(
+                "Ver nomes",
+                use_container_width=True,
+                key="btn_card_conversando",
+                on_click=selecionar_card_status,
+                args=("Conversando",),
+            )
 
         with d4:
             card_metric(
@@ -2786,6 +2837,13 @@ if page == "Visão Geral":
                 month_key_to_label(selected_month),
                 "📭",
                 "#D64B3C",
+            )
+            st.button(
+                "Ver nomes",
+                use_container_width=True,
+                key="btn_card_sem_resposta",
+                on_click=selecionar_card_status,
+                args=("Sem Resposta",),
             )
 
         with d5:
@@ -2796,15 +2854,92 @@ if page == "Visão Geral":
                 "📄",
                 "#6D4C9F",
             )
+            st.button(
+                "Ver nomes",
+                use_container_width=True,
+                key="btn_card_sem_transferencia",
+                on_click=selecionar_card_status,
+                args=("Sem transferência",),
+            )
 
         with d6:
             card_metric(
                 "Novo Lead",
-                f"{len(df_caes_mes)}",
+                f"{total_novos_leads}",
                 month_key_to_label(selected_month),
                 "🆕",
                 "#2e6cbf",
             )
+            st.button(
+                "Ver nomes",
+                use_container_width=True,
+                key="btn_card_novo_lead",
+                on_click=selecionar_card_status,
+                args=("Novo Lead",),
+            )
+
+        status_card_aberto = st.session_state.get("status_card_aberto", "")
+
+        if status_card_aberto:
+
+            st.markdown("<br>", unsafe_allow_html=True)
+
+            if status_card_aberto == "Novo Lead":
+                df_detalhes_status = df_caes_mes[mask_novos_leads].copy() if not df_caes_mes.empty else pd.DataFrame()
+            else:
+                mask_status_aberto = status_masks_caes.get(
+                    status_card_aberto,
+                    pd.Series(False, index=df_caes_mes.index),
+                )
+                df_detalhes_status = df_caes_mes[mask_status_aberto].copy() if not df_caes_mes.empty else pd.DataFrame()
+
+            st.markdown(
+                f"""
+                <div class="live-card">
+                    <div class="live-title">📋 {status_card_aberto}</div>
+                    <div class="live-sub">
+                        {len(df_detalhes_status)} nome(s) encontrado(s) em {month_key_to_label(selected_month)}.
+                    </div>
+                </div>
+                """,
+                unsafe_allow_html=True,
+            )
+
+            if df_detalhes_status.empty:
+                st.info("Nenhum nome encontrado para este status no mês selecionado.")
+            else:
+                colunas_prioritarias = [
+                    "Nome",
+                    "Telefone",
+                    "WhatsApp",
+                    "CPF",
+                    "E-mail",
+                    "Email",
+                    "Data Compra",
+                    "Mês",
+                    "Raça",
+                    "Status Venda Pedigree",
+                    "Status Pedigree",
+                ]
+
+                colunas_exibir = [
+                    col
+                    for col in colunas_prioritarias
+                    if col in df_detalhes_status.columns
+                ]
+
+                if not colunas_exibir:
+                    colunas_exibir = [
+                        col
+                        for col in df_detalhes_status.columns
+                        if not str(col).startswith("_")
+                    ]
+
+                render_realtime_table(
+                    df_detalhes_status,
+                    colunas_exibir,
+                    height=430,
+                )
 
     st.markdown("<br>", unsafe_allow_html=True)
 
