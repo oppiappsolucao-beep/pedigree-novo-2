@@ -2287,13 +2287,43 @@ if page == "Visão Geral":
 
     month_df = df[df["_mes_key"] == selected_month].copy() if not df.empty and "_mes_key" in df.columns else pd.DataFrame()
 
-    semanas = [
-        "Todas",
-        "Primeira",
-        "Segunda",
-        "Terceira",
-        "Quarta",
-    ]
+    def semanas_do_calendario_mes(ano: int, mes: int):
+        nomes_semana = [
+            "Primeira",
+            "Segunda",
+            "Terceira",
+            "Quarta",
+            "Quinta",
+            "Sexta",
+        ]
+
+        ultimo_dia = (dt.date(ano + (1 if mes == 12 else 0), 1 if mes == 12 else mes + 1, 1) - dt.timedelta(days=1)).day
+        semanas_mes = []
+        inicio = 1
+        ordem = 1
+
+        while inicio <= ultimo_dia and ordem <= len(nomes_semana):
+            data_inicio = dt.date(ano, mes, inicio)
+            dias_ate_sabado = (5 - data_inicio.weekday()) % 7
+            fim = min(inicio + dias_ate_sabado, ultimo_dia)
+
+            semanas_mes.append(
+                {
+                    "Semana": nomes_semana[ordem - 1],
+                    "Ordem": ordem,
+                    "Inicio": inicio,
+                    "Fim": fim,
+                    "Label": f"{nomes_semana[ordem - 1]} ({inicio:02d}/{mes:02d} a {fim:02d}/{mes:02d})",
+                }
+            )
+
+            inicio = fim + 1
+            ordem += 1
+
+        return semanas_mes
+
+    semanas_calendario = semanas_do_calendario_mes(selected_month[0], selected_month[1])
+    semanas = ["Todas"] + [item["Semana"] for item in semanas_calendario]
 
     filter_col1, filter_col2 = st.columns([1.2, 1.2])
 
@@ -2326,32 +2356,72 @@ if page == "Visão Geral":
 
     # ============================================
     # GRÁFICO VENDAS DA SEMANA
-    # Fonte: aba "Pedigree Comissão Ju", coluna "Cliente"
+    # Fonte: aba "Pedigree Comissão Ju"
+    # Regras:
+    # - Conta a coluna Cliente
+    # - Usa Data da Venda para posicionar na semana do calendário
+    # - Usa Mês da Compra do Cliente para filtrar o mês selecionado
     # ============================================
 
-    def semana_do_mes(data_ref):
+    def mes_nome_para_numero(valor):
+        texto = normalize_search_text(valor)
+
+        mapa_meses = {
+            "janeiro": 1,
+            "fevereiro": 2,
+            "marco": 3,
+            "março": 3,
+            "abril": 4,
+            "maio": 5,
+            "junho": 6,
+            "julho": 7,
+            "agosto": 8,
+            "setembro": 9,
+            "outubro": 10,
+            "novembro": 11,
+            "dezembro": 12,
+        }
+
+        for nome_mes, numero_mes in mapa_meses.items():
+            if normalize_search_text(nome_mes) in texto:
+                return numero_mes
+
+        data_parseada = parse_date_any(valor)
+        if data_parseada:
+            return data_parseada.month
+
+        m = re.search(r"\b(\d{1,2})\b", texto)
+        if m:
+            numero = int(m.group(1))
+            if 1 <= numero <= 12:
+                return numero
+
+        return None
+
+    def semana_calendario_por_data(data_ref, semanas_mes):
         if not data_ref:
-            return "Sem data"
+            return None
 
         try:
             dia = int(data_ref.day)
         except Exception:
-            return "Sem data"
+            return None
 
-        if dia <= 7:
-            return "Primeira"
-        elif dia <= 14:
-            return "Segunda"
-        elif dia <= 21:
-            return "Terceira"
-        else:
-            return "Quarta"
+        for item in semanas_mes:
+            if item["Inicio"] <= dia <= item["Fim"]:
+                return item["Semana"]
+
+        return None
 
     semanas_base = pd.DataFrame(
-        {
-            "Semana": ["Primeira", "Segunda", "Terceira", "Quarta"],
-            "Ordem": [1, 2, 3, 4],
-        }
+        [
+            {
+                "Semana": item["Semana"],
+                "Ordem": item["Ordem"],
+                "Período": item["Label"],
+            }
+            for item in semanas_calendario
+        ]
     )
 
     df_comissao_vendas = load_commission_data().copy()
@@ -2370,10 +2440,13 @@ if page == "Visão Geral":
             else detect_col(df_comissao_vendas, [["data", "venda"], ["data"]])
         )
 
-        col_mes_venda_comissao = (
-            "Mês da Venda"
-            if "Mês da Venda" in df_comissao_vendas.columns
-            else detect_col(df_comissao_vendas, [["mês", "venda"], ["mes", "venda"], ["mês"], ["mes"]])
+        col_mes_compra_cliente = (
+            "Mês da Compra do Cliente"
+            if "Mês da Compra do Cliente" in df_comissao_vendas.columns
+            else detect_col(
+                df_comissao_vendas,
+                [["mês", "compra", "cliente"], ["mes", "compra", "cliente"], ["compra", "cliente"]]
+            )
         )
 
         df_comissao_vendas["_data_venda"] = (
@@ -2382,17 +2455,19 @@ if page == "Visão Geral":
             else None
         )
 
-        df_comissao_vendas["_mes_key"] = df_comissao_vendas.apply(
-            lambda row: build_month_key(
-                row,
-                col_mes_venda_comissao,
-                col_data_venda_comissao,
-            ),
-            axis=1,
+        df_comissao_vendas["_mes_compra_num"] = (
+            df_comissao_vendas[col_mes_compra_cliente].apply(mes_nome_para_numero)
+            if col_mes_compra_cliente and col_mes_compra_cliente in df_comissao_vendas.columns
+            else None
         )
 
         df_comissao_mes = df_comissao_vendas[
-            df_comissao_vendas["_mes_key"] == selected_month
+            (df_comissao_vendas["_mes_compra_num"] == selected_month[1])
+            & (
+                df_comissao_vendas["_data_venda"].apply(
+                    lambda d: bool(d and d.year == selected_month[0] and d.month == selected_month[1])
+                )
+            )
         ].copy()
 
         if col_cliente_comissao and col_cliente_comissao in df_comissao_mes.columns:
@@ -2400,27 +2475,21 @@ if page == "Visão Geral":
                 df_comissao_mes[col_cliente_comissao].astype(str).str.strip() != ""
             ].copy()
 
-        if not df_comissao_mes.empty and "_data_venda" in df_comissao_mes.columns:
-            df_comissao_mes["_semana_label"] = df_comissao_mes["_data_venda"].apply(semana_do_mes)
-        elif not df_comissao_mes.empty:
-            df_comissao_mes["_semana_label"] = "Sem data"
+        if not df_comissao_mes.empty:
+            df_comissao_mes["_semana_label"] = df_comissao_mes["_data_venda"].apply(
+                lambda d: semana_calendario_por_data(d, semanas_calendario)
+            )
+        else:
+            df_comissao_mes["_semana_label"] = None
 
-        if (
-            selected_week != "Todas"
-            and not df_comissao_mes.empty
-            and "_semana_label" in df_comissao_mes.columns
-        ):
+        if selected_week != "Todas" and not df_comissao_mes.empty:
             df_comissao_mes = df_comissao_mes[
                 df_comissao_mes["_semana_label"] == selected_week
             ].copy()
 
-        if not df_comissao_mes.empty and "_semana_label" in df_comissao_mes.columns:
+        if not df_comissao_mes.empty:
             vendas_semana = (
-                df_comissao_mes[
-                    df_comissao_mes["_semana_label"].isin(
-                        ["Primeira", "Segunda", "Terceira", "Quarta"]
-                    )
-                ]
+                df_comissao_mes
                 .groupby("_semana_label")
                 .size()
                 .reset_index(name="Vendas")
@@ -2447,7 +2516,7 @@ if page == "Visão Geral":
         <div class="live-card">
             <div class="live-title">📊 Vendas da semana</div>
             <div class="live-sub">
-                Total de clientes da aba Pedigree Comissão Ju por semana, considerando a coluna Cliente.
+                Total de clientes da aba Pedigree Comissão Ju por semana real do calendário.
             </div>
         </div>
         """,
@@ -2456,13 +2525,13 @@ if page == "Visão Geral":
 
     fig_vendas_semana = px.bar(
         vendas_semana,
-        x="Semana",
+        x="Período",
         y="Vendas",
         text="Vendas",
     )
 
     fig_vendas_semana.update_layout(
-        height=360,
+        height=380,
         paper_bgcolor="white",
         plot_bgcolor="white",
         margin=dict(l=10, r=10, t=10, b=10),
