@@ -1660,48 +1660,60 @@ st.markdown(
         background: var(--card);
         border: 1px solid var(--line);
         border-radius: 22px;
-        padding: 1rem 1.1rem;
+        padding: 1rem 0.9rem;
         box-shadow: 0 10px 28px rgba(15, 23, 42, 0.05);
-        min-height: 126px;
+        min-height: 132px;
+        height: 132px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        box-sizing: border-box;
     }
 
     .metric-wrap {
-        display: flex;
-        gap: 14px;
+        width: 100%;
+        display: grid;
+        grid-template-columns: 50px 1fr;
+        gap: 10px;
         align-items: center;
     }
 
     .metric-icon {
-        width: 58px;
-        height: 58px;
-        min-width: 58px;
-        border-radius: 18px;
+        width: 50px;
+        height: 50px;
+        min-width: 50px;
+        border-radius: 16px;
         display: flex;
         align-items: center;
         justify-content: center;
         color: white;
-        font-size: 24px;
+        font-size: 21px;
         font-weight: 800;
     }
 
     .metric-label {
         color: #55627A;
-        font-size: 0.98rem;
-        font-weight: 600;
+        font-size: 0.82rem;
+        font-weight: 700;
         margin-bottom: 0.1rem;
+        line-height: 1.15;
+        min-height: 30px;
+        display: flex;
+        align-items: flex-end;
     }
 
     .metric-value {
         color: var(--text);
-        font-size: 2rem;
+        font-size: 1.85rem;
         font-weight: 800;
         line-height: 1.05;
     }
 
     .metric-sub {
         color: var(--muted);
-        font-size: 0.92rem;
+        font-size: 0.78rem;
         margin-top: 0.15rem;
+        white-space: nowrap;
     }
 
     .metric-card-big {
@@ -2738,7 +2750,7 @@ if page == "Visão Geral":
 
     if st.session_state.get("mostrar_detalhes_caes_vendidos", False):
 
-        d1, d2, d3, d4, d5, d6 = st.columns(6)
+        d1, d2, d3, d4, d5, d6 = st.columns(6, gap="small")
 
         with d1:
             card_metric(
