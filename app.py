@@ -1651,6 +1651,10 @@ def render_status_venda_editavel_table(df_table: pd.DataFrame, cols_to_show: lis
                 const selectEl = event.target;
                 const rowEl = selectEl.closest("tr");
 
+                selectEl.disabled = true;
+                selectEl.style.background = "#DCFCE7";
+                selectEl.style.color = "#166534";
+
                 const params = new URLSearchParams(window.parent.location.search);
                 params.set("editar_status_row", rowNumber);
                 params.set("editar_status_val", value);
@@ -1669,21 +1673,21 @@ def render_status_venda_editavel_table(df_table: pd.DataFrame, cols_to_show: lis
                 hiddenFrame.style.height = "0";
                 hiddenFrame.style.border = "0";
 
-                hiddenFrame.onload = function() {{
-                    setTimeout(function() {{
-                        hiddenFrame.remove();
-                    }}, 1500);
-                }};
-
                 document.body.appendChild(hiddenFrame);
 
-                selectEl.style.background = "#DCFCE7";
-                selectEl.style.color = "#166534";
-
                 if (rowEl) {{
-                    rowEl.style.transition = "opacity 0.25s ease";
-                    rowEl.style.opacity = "0.45";
+                    rowEl.style.transition = "all 0.35s ease";
+                    rowEl.style.opacity = "0";
+                    rowEl.style.transform = "translateX(18px)";
+
+                    setTimeout(function() {{
+                        rowEl.remove();
+                    }}, 380);
                 }}
+
+                setTimeout(function() {{
+                    hiddenFrame.remove();
+                }}, 3500);
             }}
         </script>
     </body>
