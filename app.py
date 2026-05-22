@@ -24,21 +24,7 @@ st.set_page_config(
     initial_sidebar_state="expanded",
 )
 
-# Atualização automática do dashboard.
-# A página recarrega a cada 20 segundos e o cache das planilhas expira em 10 segundos.
-# Assim, novos nomes adicionados na planilha entram automaticamente no dashboard.
-components.html(
-    """
-    <script>
-        setTimeout(function() {
-            window.parent.location.reload();
-        }, 20000);
-    </script>
-    """,
-    height=0,
-)
-
-CACHE_TTL_SECONDS = 10
+CACHE_TTL_SECONDS = 15
 SHEET_ID = "1Q0mLvOBxEGCojUITBLxCXRtpXVMAHE3ngvGsa2Cgf9Q"
 
 MAIN_WORKSHEET_NAME = "Clear"
@@ -2282,6 +2268,19 @@ else:
 
 
 if page == "Visão Geral":
+    # Atualização automática SOMENTE na Visão Geral.
+    # A página recarrega sozinha para buscar novos nomes na planilha.
+    components.html(
+        """
+        <script>
+            setTimeout(function() {
+                window.parent.location.reload();
+            }, 30000);
+        </script>
+        """,
+        height=0,
+    )
+
     header_left, header_right = st.columns([3.2, 1.2])
 
     with header_left:
