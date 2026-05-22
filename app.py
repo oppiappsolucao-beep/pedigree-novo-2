@@ -2730,6 +2730,9 @@ if page == "Visão Geral":
         if texto_status == normalize_search_text("Vender"):
             return "Novo Lead"
 
+        if texto_status == "" or texto_status == normalize_search_text("(Espaços em branco)") or texto_status == normalize_search_text("Espaços em branco"):
+            return "Novo Lead"
+
         return "Sem caixa definida"
 
     if search_top.strip():
@@ -3178,7 +3181,12 @@ if page == "Visão Geral":
         status_masks_caes["Conversando"] = serie_status_caes.eq(normalize_search_text("Conversando"))
         status_masks_caes["Sem Resposta"] = serie_status_caes.eq(normalize_search_text("Sem Resposta"))
         status_masks_caes["Sem transferência"] = serie_status_caes.eq(normalize_search_text("Emitir Sem Venda"))
-        status_masks_caes["Novo Lead"] = serie_status_caes.eq(normalize_search_text("Vender"))
+        status_masks_caes["Novo Lead"] = (
+            serie_status_caes.eq(normalize_search_text("Vender"))
+            | serie_status_caes.eq("")
+            | serie_status_caes.eq(normalize_search_text("(Espaços em branco)"))
+            | serie_status_caes.eq(normalize_search_text("Espaços em branco"))
+        )
 
         for status_nome, status_mask in status_masks_caes.items():
             status_resumo_caes[status_nome] = int(status_mask.sum())
