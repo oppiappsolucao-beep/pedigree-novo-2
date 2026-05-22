@@ -1188,6 +1188,8 @@ def atualizar_status_venda_pedigree_clear(row_number: int, novo_status: str):
     col_number = headers.index("Status Venda Pedigree") + 1
 
     mapa_status_planilha = {
+        "": "",
+        "Novo Lead": "",
         "Não tem interesse": "Não tem interesse",
         "Com transferência": "Vendido",
         "Conversando": "Conversando",
@@ -1445,6 +1447,7 @@ def render_status_venda_editavel_table(df_table: pd.DataFrame, cols_to_show: lis
     Ao alterar o dropdown, salva automaticamente pela URL.
     """
     status_options = [
+        "",
         "Vendido",
         "Não tem interesse",
         "Sem Resposta",
@@ -1490,8 +1493,11 @@ def render_status_venda_editavel_table(df_table: pd.DataFrame, cols_to_show: lis
                 elif current_status == "Sem transferência":
                     current_status = "Emitir Sem Venda"
 
+                if current_status == "Vender":
+                    current_status = ""
+
                 if current_status not in status_options:
-                    current_status = "Conversando"
+                    current_status = ""
 
                 options_html = "".join(
                     [
@@ -3406,7 +3412,7 @@ if page == "Visão Geral":
                     <div class="live-card">
                         <div class="live-title">✏️ Alterar Status Venda Pedigree</div>
                         <div class="live-sub">
-                            Visual em planilha, com botão copiar no telefone e salvamento automático ao mudar o status.
+                            Visual em planilha, com botão copiar no telefone. Novo Lead fica em branco até escolher um status.
                         </div>
                     </div>
                     """,
