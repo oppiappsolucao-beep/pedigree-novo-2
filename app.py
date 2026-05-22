@@ -2656,9 +2656,10 @@ if page == "Visão Geral":
 
     status_resumo_caes = {
         "Não tem interesse": 0,
-        "Vendido": 0,
+        "Com transferência": 0,
         "Conversando": 0,
         "Sem Resposta": 0,
+        "Sem transferência": 0,
     }
 
     if not df_caes_mes.empty and col_status_venda_pedigree and col_status_venda_pedigree in df_caes_mes.columns:
@@ -2669,7 +2670,7 @@ if page == "Visão Geral":
             serie_status_caes.eq(normalize_search_text("Não tem interesse")).sum()
         )
 
-        status_resumo_caes["Vendido"] = int(
+        status_resumo_caes["Com transferência"] = int(
             serie_status_caes.eq(normalize_search_text("Vendido")).sum()
         )
 
@@ -2679,6 +2680,10 @@ if page == "Visão Geral":
 
         status_resumo_caes["Sem Resposta"] = int(
             serie_status_caes.eq(normalize_search_text("Sem Resposta")).sum()
+        )
+
+        status_resumo_caes["Sem transferência"] = int(
+            serie_status_caes.eq(normalize_search_text("Emitir Sem Venda")).sum()
         )
 
     total_caes_vendidos = int(sum(status_resumo_caes.values()))
@@ -2715,7 +2720,7 @@ if page == "Visão Geral":
 
     if st.session_state.get("mostrar_detalhes_caes_vendidos", False):
 
-        d1, d2, d3, d4 = st.columns(4)
+        d1, d2, d3, d4, d5 = st.columns(5)
 
         with d1:
             card_metric(
@@ -2728,8 +2733,8 @@ if page == "Visão Geral":
 
         with d2:
             card_metric(
-                "Vendido",
-                f"{status_resumo_caes.get('Vendido', 0)}",
+                "Com transferência",
+                f"{status_resumo_caes.get('Com transferência', 0)}",
                 month_key_to_label(selected_month),
                 "✅",
                 "#0E8A4A",
@@ -2751,6 +2756,15 @@ if page == "Visão Geral":
                 month_key_to_label(selected_month),
                 "📭",
                 "#D64B3C",
+            )
+
+        with d5:
+            card_metric(
+                "Sem transferência",
+                f"{status_resumo_caes.get('Sem transferência', 0)}",
+                month_key_to_label(selected_month),
+                "📄",
+                "#6D4C9F",
             )
 
     st.markdown("<br>", unsafe_allow_html=True)
