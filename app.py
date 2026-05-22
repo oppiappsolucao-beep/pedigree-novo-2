@@ -2738,7 +2738,7 @@ if page == "Visão Geral":
 
     if st.session_state.get("mostrar_detalhes_caes_vendidos", False):
 
-        d1, d2, d3, d4, d5 = st.columns(5)
+        d1, d2, d3, d4, d5, d6 = st.columns(6)
 
         with d1:
             card_metric(
@@ -2783,6 +2783,15 @@ if page == "Visão Geral":
                 month_key_to_label(selected_month),
                 "📄",
                 "#6D4C9F",
+            )
+
+        with d6:
+            card_metric(
+                "Novo Lead",
+                f"{len(df_caes_mes)}",
+                month_key_to_label(selected_month),
+                "🆕",
+                "#2e6cbf",
             )
 
     st.markdown("<br>", unsafe_allow_html=True)
