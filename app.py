@@ -2567,26 +2567,84 @@ if page == "Visão Geral":
             axis=1,
         )
 
-    df_ped_mes = (
-        df_ped_visao[df_ped_visao["_mes_key"] == selected_month].copy()
-        if not df_ped_visao.empty and "_mes_key" in df_ped_visao.columns
-        else pd.DataFrame()
-    )
+    def mes_nome_para_numero_card(valor):
+        texto = normalize_search_text(valor)
+
+        mapa_meses = {
+            "janeiro": 1,
+            "fevereiro": 2,
+            "marco": 3,
+            "março": 3,
+            "abril": 4,
+            "maio": 5,
+            "junho": 6,
+            "julho": 7,
+            "agosto": 8,
+            "setembro": 9,
+            "outubro": 10,
+            "novembro": 11,
+            "dezembro": 12,
+        }
+
+        for nome_mes, numero_mes in mapa_meses.items():
+            if normalize_search_text(nome_mes) in texto:
+                return numero_mes
+
+        data_parseada = parse_date_any(valor)
+        if data_parseada:
+            return data_parseada.month
+
+        m = re.search(r"\b(\d{1,2})\b", texto)
+        if m:
+            numero = int(m.group(1))
+            if 1 <= numero <= 12:
+                return numero
+
+        return None
+
+    # Total de Pedigrees agora vem da aba "Pedigree Comissão Ju",
+    # contando somente as linhas preenchidas na coluna "Produtos" dentro do mês selecionado.
+    df_comissao_card = load_commission_data().copy()
+
+    if not df_comissao_card.empty:
+
+        col_produtos_card = (
+            "Produtos"
+            if "Produtos" in df_comissao_card.columns
+            else detect_col(df_comissao_card, [["produtos"], ["produto"]])
+        )
+
+        col_mes_compra_card = (
+            "Mês da Compra do Cliente"
+            if "Mês da Compra do Cliente" in df_comissao_card.columns
+            else detect_col(
+                df_comissao_card,
+                [["mês", "compra", "cliente"], ["mes", "compra", "cliente"], ["compra", "cliente"]]
+            )
+        )
+
+        if col_mes_compra_card and col_mes_compra_card in df_comissao_card.columns:
+            df_comissao_card["_mes_compra_num_card"] = df_comissao_card[col_mes_compra_card].apply(mes_nome_para_numero_card)
+            df_comissao_card = df_comissao_card[
+                df_comissao_card["_mes_compra_num_card"] == selected_month[1]
+            ].copy()
+
+        if col_produtos_card and col_produtos_card in df_comissao_card.columns:
+            total_pedigrees_vendidos = int(
+                (df_comissao_card[col_produtos_card].astype(str).str.strip() != "").sum()
+            )
+        else:
+            total_pedigrees_vendidos = 0
+
+    else:
+
+        total_pedigrees_vendidos = 0
 
     df_caes_mes = (
         df[df["_mes_key"] == selected_month].copy()
         if not df.empty and "_mes_key" in df.columns
         else pd.DataFrame()
     )
-
-    if not df_ped_mes.empty and "Nome" in df_ped_mes.columns:
-        total_pedigrees_vendidos = int(
-            (df_ped_mes["Nome"].astype(str).str.strip() != "").sum()
-        )
-    elif not df_ped_mes.empty:
-        total_pedigrees_vendidos = int(len(df_ped_mes))
-    else:
-        total_pedigrees_vendidos = 0
 
     if not df_caes_mes.empty and COL_NOME and COL_NOME in df_caes_mes.columns:
         total_caes_vendidos = int(
