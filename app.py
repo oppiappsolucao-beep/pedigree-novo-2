@@ -10,6 +10,11 @@ import pandas as pd
 import streamlit as st
 import streamlit.components.v1 as components
 import plotly.express as px
+
+try:
+    from streamlit_autorefresh import st_autorefresh
+except Exception:
+    st_autorefresh = None
 import gspread
 from google.oauth2.service_account import Credentials
 
@@ -2273,17 +2278,13 @@ else:
 
 if page == "Visão Geral":
     # Atualização automática SOMENTE na Visão Geral.
-    # Recarrega a Visão Geral para buscar novos nomes, mantendo o login ativo.
-    components.html(
-        """
-        <script>
-            setTimeout(function() {
-                window.parent.location.reload();
-            }, 30000);
-        </script>
-        """,
-        height=0,
-    )
+    # Usa o refresh interno do Streamlit para não sair do dashboard e não voltar ao login.
+    if st_autorefresh is not None:
+        st_autorefresh(
+            interval=30000,
+            limit=None,
+            key="visao_geral_auto_refresh",
+        )
 
     header_left, header_right = st.columns([3.2, 1.2])
 
