@@ -1648,16 +1648,42 @@ def render_status_venda_editavel_table(df_table: pd.DataFrame, cols_to_show: lis
             }}
 
             function saveStatus(rowNumber, value) {{
+                const selectEl = event.target;
+                const rowEl = selectEl.closest("tr");
+
                 const params = new URLSearchParams(window.parent.location.search);
                 params.set("editar_status_row", rowNumber);
                 params.set("editar_status_val", value);
                 params.set("clear_auth", "ok");
 
-                const newUrl =
-                    window.parent.location.pathname + "?" + params.toString();
+                const updateUrl =
+                    window.parent.location.origin +
+                    window.parent.location.pathname +
+                    "?" +
+                    params.toString();
 
-                window.parent.history.replaceState(null, "", newUrl);
-                window.parent.location.reload();
+                const hiddenFrame = document.createElement("iframe");
+                hiddenFrame.src = updateUrl;
+                hiddenFrame.style.display = "none";
+                hiddenFrame.style.width = "0";
+                hiddenFrame.style.height = "0";
+                hiddenFrame.style.border = "0";
+
+                hiddenFrame.onload = function() {{
+                    setTimeout(function() {{
+                        hiddenFrame.remove();
+                    }}, 1500);
+                }};
+
+                document.body.appendChild(hiddenFrame);
+
+                selectEl.style.background = "#DCFCE7";
+                selectEl.style.color = "#166534";
+
+                if (rowEl) {{
+                    rowEl.style.transition = "opacity 0.25s ease";
+                    rowEl.style.opacity = "0.45";
+                }}
             }}
         </script>
     </body>
