@@ -2705,6 +2705,153 @@ if page == "Visão Geral":
             filtered_df = filtered_df[mask].copy()
 
     # ============================================
+    # BUSCA RÁPIDA INTELIGENTE
+    # Mostra em qual caixa/status o lead está e exibe os dados completos.
+    # ============================================
+
+    def status_venda_para_caixa(valor):
+        texto_status = normalize_search_text(valor)
+
+        if texto_status == normalize_search_text("Não tem interesse"):
+            return "Não tem interesse"
+
+        if texto_status == normalize_search_text("Vendido"):
+            return "Com transferência"
+
+        if texto_status == normalize_search_text("Conversando"):
+            return "Conversando"
+
+        if texto_status == normalize_search_text("Sem Resposta"):
+            return "Sem Resposta"
+
+        if texto_status == normalize_search_text("Emitir Sem Venda"):
+            return "Sem transferência"
+
+        if texto_status == normalize_search_text("Vender"):
+            return "Novo Lead"
+
+        return "Sem caixa definida"
+
+    if search_top.strip():
+
+        busca_resultado_df = month_df.copy()
+
+        if not busca_resultado_df.empty:
+
+            q_busca = normalize_search_text(search_top)
+            q_digits_busca = re.sub(r"\D", "", search_top)
+
+            mask_busca = pd.Series(False, index=busca_resultado_df.index)
+
+            if COL_NOME and COL_NOME in busca_resultado_df.columns:
+                mask_busca = mask_busca | busca_resultado_df[COL_NOME].astype(str).apply(normalize_search_text).str.contains(q_busca, na=False)
+
+            if COL_TEL and COL_TEL in busca_resultado_df.columns and q_digits_busca:
+                mask_busca = mask_busca | busca_resultado_df[COL_TEL].astype(str).apply(only_digits).str.contains(q_digits_busca, na=False)
+
+            if COL_CPF and COL_CPF in busca_resultado_df.columns and q_digits_busca:
+                mask_busca = mask_busca | busca_resultado_df[COL_CPF].astype(str).apply(only_digits).str.contains(q_digits_busca, na=False)
+
+            if COL_EMAIL and COL_EMAIL in busca_resultado_df.columns:
+                mask_busca = mask_busca | busca_resultado_df[COL_EMAIL].astype(str).apply(normalize_search_text).str.contains(q_busca, na=False)
+
+            col_whatsapp_busca = "WhatsApp" if "WhatsApp" in busca_resultado_df.columns else detect_col(busca_resultado_df, [["whatsapp"], ["whats"]])
+
+            if col_whatsapp_busca and col_whatsapp_busca in busca_resultado_df.columns and q_digits_busca:
+                mask_busca = mask_busca | busca_resultado_df[col_whatsapp_busca].astype(str).apply(only_digits).str.contains(q_digits_busca, na=False)
+
+            busca_resultado_df = busca_resultado_df[mask_busca].copy()
+
+        if busca_resultado_df.empty:
+
+            st.markdown(
+                f"""
+                <div class="live-card">
+                    <div class="live-title">🔎 Busca rápida</div>
+                    <div class="live-sub">
+                        Nenhum lead encontrado para: <b>{html.escape(search_top)}</b>
+                    </div>
+                </div>
+                """,
+                unsafe_allow_html=True,
+            )
+
+        else:
+
+            col_status_busca = (
+                "Status Venda Pedigree"
+                if "Status Venda Pedigree" in busca_resultado_df.columns
+                else detect_col(busca_resultado_df, [["status", "venda", "pedigree"], ["status", "venda"]])
+            )
+
+            if col_status_busca and col_status_busca in busca_resultado_df.columns:
+                busca_resultado_df["Caixa atual"] = busca_resultado_df[col_status_busca].apply(status_venda_para_caixa)
+            else:
+                busca_resultado_df["Caixa atual"] = "Sem caixa definida"
+
+            resumo_caixas_busca = (
+                busca_resultado_df["Caixa atual"]
+                .value_counts()
+                .reset_index()
+            )
+            resumo_caixas_busca.columns = ["Caixa", "Quantidade"]
+
+            caixas_texto_busca = " • ".join(
+                [
+                    f"{row['Caixa']}: {row['Quantidade']}"
+                    for _, row in resumo_caixas_busca.iterrows()
+                ]
+            )
+
+            st.markdown(
+                f"""
+                <div class="live-card">
+                    <div class="live-title">🔎 Resultado da Busca Rápida</div>
+                    <div class="live-sub">
+                        {len(busca_resultado_df)} lead(s) encontrado(s). Caixa/status: <b>{html.escape(caixas_texto_busca)}</b>
+                    </div>
+                </div>
+                """,
+                unsafe_allow_html=True,
+            )
+
+            colunas_busca_prioritarias = [
+                "Caixa atual",
+                "Nome",
+                "Telefone",
+                "WhatsApp",
+                "CPF",
+                "E-mail",
+                "Email",
+                "Data Compra",
+                "Mês",
+                "Raça",
+                "Status Venda Pedigree",
+                "Status Pedigree",
+            ]
+
+            colunas_busca_exibir = [
+                col
+                for col in colunas_busca_prioritarias
+                if col in busca_resultado_df.columns
+            ]
+
+            if not colunas_busca_exibir:
+                colunas_busca_exibir = [
+                    col
+                    for col in busca_resultado_df.columns
+                    if not str(col).startswith("_")
+                ]
+
+            render_realtime_table(
+                busca_resultado_df,
+                colunas_busca_exibir,
+                height=360,
+            )
+
+            st.markdown("<br>", unsafe_allow_html=True)
+
+    # ============================================
     # GRÁFICO VENDAS DA SEMANA
     # Fonte: aba "Pedigree Comissão Ju"
     # Regras:
