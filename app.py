@@ -2172,6 +2172,7 @@ def render_login_screen():
     if entrar:
         if usuario.strip() == "clear" and senha.strip() == "Clear@2026!":
             st.session_state["clear_logged_in"] = True
+            st.query_params["clear_auth"] = "ok"
             st.rerun()
         else:
             st.markdown('<div class="login-error">Usuário ou senha incorretos.</div>', unsafe_allow_html=True)
@@ -2181,6 +2182,9 @@ def render_login_screen():
 
 if "clear_logged_in" not in st.session_state:
     st.session_state["clear_logged_in"] = False
+
+if st.query_params.get("clear_auth") == "ok":
+    st.session_state["clear_logged_in"] = True
 
 if not st.session_state["clear_logged_in"]:
     render_login_screen()
@@ -2269,7 +2273,7 @@ else:
 
 if page == "Visão Geral":
     # Atualização automática SOMENTE na Visão Geral.
-    # A página recarrega sozinha para buscar novos nomes na planilha.
+    # Recarrega a Visão Geral para buscar novos nomes, mantendo o login ativo.
     components.html(
         """
         <script>
