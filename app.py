@@ -2948,6 +2948,7 @@ if page == "Visão Geral":
                     "Mês",
                     "Raça",
                     "Status Pedigree",
+                    "Status Venda Pedigree",
                 ]
 
                 colunas_exibir = [
@@ -2963,103 +2964,132 @@ if page == "Visão Geral":
                         if not str(col).startswith("_")
                     ]
 
-                status_opcoes_controle = [
+                status_opcoes_planilha = [
+                    "Vendido",
+                    "Vender",
                     "Não tem interesse",
-                    "Com transferência",
-                    "Conversando",
                     "Sem Resposta",
-                    "Sem transferência",
+                    "Emitir Sem Venda",
+                    "Conversando",
+                    "Morte",
+                    "Devolução",
                 ]
-
-                mapa_status_visual = {
-                    "nao tem interesse": "Não tem interesse",
-                    "vendido": "Com transferência",
-                    "conversando": "Conversando",
-                    "sem resposta": "Sem Resposta",
-                    "emitir sem venda": "Sem transferência",
-                }
 
                 st.markdown(
                     """
                     <div class="live-card">
                         <div class="live-title">✏️ Alterar Status Venda Pedigree</div>
                         <div class="live-sub">
-                            Visualização igual antes, com alteração somente do status pelo seletor ao lado de cada nome.
+                            Edite direto na linha, igual planilha. Somente a coluna Status Venda Pedigree fica liberada.
                         </div>
                     </div>
                     """,
                     unsafe_allow_html=True,
                 )
 
-                for idx_linha, row_status in df_detalhes_status.iterrows():
-                    linha_sheet = int(idx_linha) + 2
+                df_editor_status = df_detalhes_status.copy()
+                df_editor_status["Linha"] = df_editor_status.index.astype(int) + 2
 
-                    nome_linha = normalize_text(row_status.get("Nome", ""))
-                    telefone_linha = format_phone_br(row_status.get("Telefone", ""))
-                    whatsapp_linha = format_phone_br(row_status.get("WhatsApp", ""))
-                    cpf_linha = normalize_text(row_status.get("CPF", ""))
-                    email_linha = normalize_text(row_status.get("E-mail", row_status.get("Email", "")))
-                    data_compra_linha = format_date(row_status.get("Data Compra", ""))
-                    mes_linha = normalize_text(row_status.get("Mês", ""))
-                    raca_linha = normalize_text(row_status.get("Raça", ""))
-                    status_pedigree_linha = normalize_text(row_status.get("Status Pedigree", ""))
-                    status_venda_atual_raw = normalize_text(row_status.get("Status Venda Pedigree", ""))
+                if "Status Venda Pedigree" not in df_editor_status.columns:
+                    df_editor_status["Status Venda Pedigree"] = ""
 
-                    status_venda_visual = mapa_status_visual.get(
-                        normalize_search_text(status_venda_atual_raw),
-                        status_venda_atual_raw,
+                df_editor_status["Status Venda Pedigree"] = (
+                    df_editor_status["Status Venda Pedigree"]
+                    .astype(str)
+                    .apply(normalize_text)
+                )
+
+                df_editor_status.loc[
+                    ~df_editor_status["Status Venda Pedigree"].isin(status_opcoes_planilha),
+                    "Status Venda Pedigree",
+                ] = "Conversando"
+
+                colunas_editor = ["Linha"] + [
+                    col
+                    for col in colunas_exibir
+                    if col != "Status Venda Pedigree"
+                ] + ["Status Venda Pedigree"]
+
+                df_editor_status = df_editor_status[colunas_editor].copy()
+
+                column_config_status = {
+                    "Linha": st.column_config.NumberColumn(
+                        "Linha",
+                        disabled=True,
+                        width="small",
+                    ),
+                    "Status Venda Pedigree": st.column_config.SelectboxColumn(
+                        "Status Venda Pedigree",
+                        options=status_opcoes_planilha,
+                        required=True,
+                        width="medium",
+                    ),
+                }
+
+                if "Telefone" in df_editor_status.columns:
+                    column_config_status["Telefone"] = st.column_config.TextColumn(
+                        "Telefone",
+                        width="medium",
                     )
 
-                    if status_venda_visual not in status_opcoes_controle:
-                        status_venda_visual = "Conversando"
-
-                    st.markdown(
-                        f"""
-                        <div class="ped-ficha">
-                            <div class="ped-ficha-title">{html.escape(nome_linha)}</div>
-                            <div class="ped-ficha-sub">
-                                Telefone: {html.escape(telefone_linha)}
-                                &nbsp; | &nbsp; WhatsApp: {html.escape(whatsapp_linha)}
-                                &nbsp; | &nbsp; CPF: {html.escape(cpf_linha)}
-                                &nbsp; | &nbsp; E-mail: {html.escape(email_linha)}
-                            </div>
-                            <div class="ped-ficha-sub">
-                                Data Compra: {html.escape(data_compra_linha)}
-                                &nbsp; | &nbsp; Mês: {html.escape(mes_linha)}
-                                &nbsp; | &nbsp; Raça: {html.escape(raca_linha)}
-                                &nbsp; | &nbsp; Status Pedigree: {html.escape(status_pedigree_linha)}
-                            </div>
-                        </div>
-                        """,
-                        unsafe_allow_html=True,
+                if "WhatsApp" in df_editor_status.columns:
+                    column_config_status["WhatsApp"] = st.column_config.TextColumn(
+                        "WhatsApp",
+                        width="medium",
                     )
 
-                    col_status_edit, col_status_btn = st.columns([3, 1])
+                edited_status_df = st.data_editor(
+                    df_editor_status,
+                    hide_index=True,
+                    use_container_width=True,
+                    height=430,
+                    disabled=[
+                        col
+                        for col in df_editor_status.columns
+                        if col not in ["Status Venda Pedigree"]
+                    ],
+                    column_config=column_config_status,
+                    key=f"editor_status_linha_{status_card_aberto}_{selected_month[0]}_{selected_month[1]}",
+                )
 
-                    with col_status_edit:
-                        novo_status_visual = st.selectbox(
-                            "Status Venda Pedigree",
-                            status_opcoes_controle,
-                            index=status_opcoes_controle.index(status_venda_visual),
-                            key=f"select_status_venda_{linha_sheet}_{status_card_aberto}_{selected_month[0]}_{selected_month[1]}",
+                if st.button(
+                    "Salvar alterações de status",
+                    use_container_width=True,
+                    key=f"salvar_status_linha_{status_card_aberto}_{selected_month[0]}_{selected_month[1]}",
+                ):
+                    alteracoes_salvas = 0
+
+                    for _, row_editada in edited_status_df.iterrows():
+                        linha_sheet = safe_int_zero(row_editada.get("Linha", 0))
+
+                        if linha_sheet <= 1:
+                            continue
+
+                        status_novo = normalize_text(row_editada.get("Status Venda Pedigree", ""))
+
+                        linha_original = df_editor_status[
+                            df_editor_status["Linha"].astype(int) == int(linha_sheet)
+                        ]
+
+                        if linha_original.empty:
+                            continue
+
+                        status_original = normalize_text(
+                            linha_original.iloc[0].get("Status Venda Pedigree", "")
                         )
 
-                    with col_status_btn:
-                        st.markdown("<br>", unsafe_allow_html=True)
-
-                        if st.button(
-                            "Salvar",
-                            use_container_width=True,
-                            key=f"salvar_status_venda_{linha_sheet}_{status_card_aberto}_{selected_month[0]}_{selected_month[1]}",
-                        ):
+                        if status_novo != status_original:
                             atualizar_status_venda_pedigree_clear(
                                 linha_sheet,
-                                novo_status_visual,
+                                status_novo,
                             )
-                            st.success("Status atualizado com sucesso.")
-                            st.rerun()
+                            alteracoes_salvas += 1
 
-                    st.markdown("<div style='height:12px'></div>", unsafe_allow_html=True)
+                    if alteracoes_salvas:
+                        st.success(f"{alteracoes_salvas} status atualizado(s) com sucesso.")
+                        st.rerun()
+                    else:
+                        st.info("Nenhuma alteração de status foi identificada.")
 
     st.markdown("<br>", unsafe_allow_html=True)
 
