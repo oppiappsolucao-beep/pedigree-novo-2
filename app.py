@@ -2326,6 +2326,7 @@ if page == "Visão Geral":
 
     # ============================================
     # GRÁFICO VENDAS DA SEMANA
+    # Fonte: aba "Pedigree Comissão Ju", coluna "Cliente"
     # ============================================
 
     def semana_do_mes(data_ref):
@@ -2346,19 +2347,6 @@ if page == "Visão Geral":
         else:
             return "Quarta"
 
-    if not month_df.empty and "_data_compra" in month_df.columns:
-        month_df["_semana_label"] = month_df["_data_compra"].apply(semana_do_mes)
-    elif not month_df.empty:
-        month_df["_semana_label"] = "Sem data"
-
-    if not filtered_df.empty and "_data_compra" in filtered_df.columns:
-        filtered_df["_semana_label"] = filtered_df["_data_compra"].apply(semana_do_mes)
-    elif not filtered_df.empty:
-        filtered_df["_semana_label"] = "Sem data"
-
-    if selected_week != "Todas" and not filtered_df.empty and "_semana_label" in filtered_df.columns:
-        filtered_df = filtered_df[filtered_df["_semana_label"] == selected_week].copy()
-
     semanas_base = pd.DataFrame(
         {
             "Semana": ["Primeira", "Segunda", "Terceira", "Quarta"],
@@ -2366,15 +2354,83 @@ if page == "Visão Geral":
         }
     )
 
-    if not month_df.empty and "_semana_label" in month_df.columns:
-        vendas_semana = (
-            month_df[month_df["_semana_label"].isin(["Primeira", "Segunda", "Terceira", "Quarta"])]
-            .groupby("_semana_label")
-            .size()
-            .reset_index(name="Vendas")
-            .rename(columns={"_semana_label": "Semana"})
+    df_comissao_vendas = load_commission_data().copy()
+
+    if not df_comissao_vendas.empty:
+
+        col_cliente_comissao = (
+            "Cliente"
+            if "Cliente" in df_comissao_vendas.columns
+            else detect_col(df_comissao_vendas, [["cliente"]])
         )
+
+        col_data_venda_comissao = (
+            "Data da Venda"
+            if "Data da Venda" in df_comissao_vendas.columns
+            else detect_col(df_comissao_vendas, [["data", "venda"], ["data"]])
+        )
+
+        col_mes_venda_comissao = (
+            "Mês da Venda"
+            if "Mês da Venda" in df_comissao_vendas.columns
+            else detect_col(df_comissao_vendas, [["mês", "venda"], ["mes", "venda"], ["mês"], ["mes"]])
+        )
+
+        df_comissao_vendas["_data_venda"] = (
+            df_comissao_vendas[col_data_venda_comissao].apply(parse_date_any)
+            if col_data_venda_comissao and col_data_venda_comissao in df_comissao_vendas.columns
+            else None
+        )
+
+        df_comissao_vendas["_mes_key"] = df_comissao_vendas.apply(
+            lambda row: build_month_key(
+                row,
+                col_mes_venda_comissao,
+                col_data_venda_comissao,
+            ),
+            axis=1,
+        )
+
+        df_comissao_mes = df_comissao_vendas[
+            df_comissao_vendas["_mes_key"] == selected_month
+        ].copy()
+
+        if col_cliente_comissao and col_cliente_comissao in df_comissao_mes.columns:
+            df_comissao_mes = df_comissao_mes[
+                df_comissao_mes[col_cliente_comissao].astype(str).str.strip() != ""
+            ].copy()
+
+        if not df_comissao_mes.empty and "_data_venda" in df_comissao_mes.columns:
+            df_comissao_mes["_semana_label"] = df_comissao_mes["_data_venda"].apply(semana_do_mes)
+        elif not df_comissao_mes.empty:
+            df_comissao_mes["_semana_label"] = "Sem data"
+
+        if (
+            selected_week != "Todas"
+            and not df_comissao_mes.empty
+            and "_semana_label" in df_comissao_mes.columns
+        ):
+            df_comissao_mes = df_comissao_mes[
+                df_comissao_mes["_semana_label"] == selected_week
+            ].copy()
+
+        if not df_comissao_mes.empty and "_semana_label" in df_comissao_mes.columns:
+            vendas_semana = (
+                df_comissao_mes[
+                    df_comissao_mes["_semana_label"].isin(
+                        ["Primeira", "Segunda", "Terceira", "Quarta"]
+                    )
+                ]
+                .groupby("_semana_label")
+                .size()
+                .reset_index(name="Vendas")
+                .rename(columns={"_semana_label": "Semana"})
+            )
+        else:
+            vendas_semana = pd.DataFrame(columns=["Semana", "Vendas"])
+
     else:
+
         vendas_semana = pd.DataFrame(columns=["Semana", "Vendas"])
 
     vendas_semana = semanas_base.merge(
@@ -2391,7 +2447,7 @@ if page == "Visão Geral":
         <div class="live-card">
             <div class="live-title">📊 Vendas da semana</div>
             <div class="live-sub">
-                Total de vendas por semana dentro do mês selecionado.
+                Total de clientes da aba Pedigree Comissão Ju por semana, considerando a coluna Cliente.
             </div>
         </div>
         """,
@@ -2423,7 +2479,7 @@ if page == "Visão Geral":
         use_container_width=True,
     )
 
-    
+
     st.markdown("<br><br>", unsafe_allow_html=True)
 
     # ============================================
