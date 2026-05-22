@@ -24,7 +24,21 @@ st.set_page_config(
     initial_sidebar_state="expanded",
 )
 
-CACHE_TTL_SECONDS = 60
+# Atualização automática do dashboard.
+# A página recarrega a cada 20 segundos e o cache das planilhas expira em 10 segundos.
+# Assim, novos nomes adicionados na planilha entram automaticamente no dashboard.
+components.html(
+    """
+    <script>
+        setTimeout(function() {
+            window.parent.location.reload();
+        }, 20000);
+    </script>
+    """,
+    height=0,
+)
+
+CACHE_TTL_SECONDS = 10
 SHEET_ID = "1Q0mLvOBxEGCojUITBLxCXRtpXVMAHE3ngvGsa2Cgf9Q"
 
 MAIN_WORKSHEET_NAME = "Clear"
