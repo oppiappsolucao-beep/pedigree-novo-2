@@ -2617,105 +2617,199 @@ if page == "Visão Geral":
 
     st.markdown("<br>", unsafe_allow_html=True)
 
-    ano_selecionado = selected_month[0]
+    # ============================================
+    # GRÁFICO PRODUTOS VENDIDOS
+    # Fonte: aba "Pedigree Comissão Ju", coluna "Produtos"
+    # Regras:
+    # - Filtra pelo Mês da Compra do Cliente
+    # - Usa Data da Venda para identificar a semana real do calendário
+    # - Conta os produtos vendidos no mês e semana selecionados
+    # ============================================
 
-    meses_base = pd.DataFrame(
+    def produto_tem_rg(valor):
+        texto = normalize_search_text(valor)
+        return bool(re.search(r"\brg\b", texto))
+
+    def produto_tem_certidao(valor):
+        texto = normalize_search_text(valor)
+        return "certidao" in texto or "certidão" in texto
+
+    def produto_tem_airtag(valor):
+        texto = normalize_search_text(valor)
+        return "airtag" in texto or "air tag" in texto
+
+    def produto_tem_pedigree_sem_transferencia(valor):
+        return is_produto_sem_transferencia(valor)
+
+    def produto_tem_pedigree_com_transferencia(valor):
+        texto = normalize_search_text(valor)
+
+        if "pedigree" not in texto:
+            return False
+
+        if produto_tem_pedigree_sem_transferencia(valor):
+            return False
+
+        return True
+
+    produtos_base = pd.DataFrame(
         {
-            "_mes_num": list(range(1, 13)),
-            "Mês": [
-                "Janeiro",
-                "Fevereiro",
-                "Março",
-                "Abril",
-                "Maio",
-                "Junho",
-                "Julho",
-                "Agosto",
-                "Setembro",
-                "Outubro",
-                "Novembro",
-                "Dezembro",
+            "Produto": [
+                "Pedigree com transferência",
+                "Pedigree Sem Transferência",
+                "RG",
+                "Certidão",
+                "Airtag",
             ],
+            "Ordem": [1, 2, 3, 4, 5],
         }
     )
 
-    if not df_ped_visao.empty and "_mes_key" in df_ped_visao.columns:
+    df_produtos_vendidos = load_commission_data().copy()
 
-        df_grafico_ped = df_ped_visao.copy()
+    if not df_produtos_vendidos.empty:
 
-        df_grafico_ped["_ano"] = df_grafico_ped["_mes_key"].apply(
-            lambda x: x[0] if isinstance(x, tuple) and len(x) == 2 else None
+        col_cliente_produtos = (
+            "Cliente"
+            if "Cliente" in df_produtos_vendidos.columns
+            else detect_col(df_produtos_vendidos, [["cliente"]])
         )
 
-        df_grafico_ped["_mes_num"] = df_grafico_ped["_mes_key"].apply(
-            lambda x: x[1] if isinstance(x, tuple) and len(x) == 2 else None
+        col_produtos_vendidos = (
+            "Produtos"
+            if "Produtos" in df_produtos_vendidos.columns
+            else detect_col(df_produtos_vendidos, [["produtos"], ["produto"]])
         )
 
-        if "Nome" in df_grafico_ped.columns:
-            df_grafico_ped = df_grafico_ped[
-                (df_grafico_ped["_ano"] == ano_selecionado)
-                & (df_grafico_ped["Nome"].astype(str).str.strip() != "")
+        col_data_venda_produtos = (
+            "Data da Venda"
+            if "Data da Venda" in df_produtos_vendidos.columns
+            else detect_col(df_produtos_vendidos, [["data", "venda"], ["data"]])
+        )
+
+        col_mes_compra_produtos = (
+            "Mês da Compra do Cliente"
+            if "Mês da Compra do Cliente" in df_produtos_vendidos.columns
+            else detect_col(
+                df_produtos_vendidos,
+                [["mês", "compra", "cliente"], ["mes", "compra", "cliente"], ["compra", "cliente"]]
+            )
+        )
+
+        df_produtos_vendidos["_data_venda"] = (
+            df_produtos_vendidos[col_data_venda_produtos].apply(parse_date_any)
+            if col_data_venda_produtos and col_data_venda_produtos in df_produtos_vendidos.columns
+            else None
+        )
+
+        df_produtos_vendidos["_mes_compra_num"] = (
+            df_produtos_vendidos[col_mes_compra_produtos].apply(mes_nome_para_numero)
+            if col_mes_compra_produtos and col_mes_compra_produtos in df_produtos_vendidos.columns
+            else None
+        )
+
+        df_produtos_mes = df_produtos_vendidos[
+            (df_produtos_vendidos["_mes_compra_num"] == selected_month[1])
+            & (
+                df_produtos_vendidos["_data_venda"].apply(
+                    lambda d: bool(d and d.year == selected_month[0] and d.month == selected_month[1])
+                )
+            )
+        ].copy()
+
+        if col_cliente_produtos and col_cliente_produtos in df_produtos_mes.columns:
+            df_produtos_mes = df_produtos_mes[
+                df_produtos_mes[col_cliente_produtos].astype(str).str.strip() != ""
             ].copy()
+
+        if not df_produtos_mes.empty:
+            df_produtos_mes["_semana_label"] = df_produtos_mes["_data_venda"].apply(
+                lambda d: semana_calendario_por_data(d, semanas_calendario)
+            )
+
+        if selected_week != "Todas" and not df_produtos_mes.empty:
+            df_produtos_mes = df_produtos_mes[
+                df_produtos_mes["_semana_label"] == selected_week
+            ].copy()
+
+        if col_produtos_vendidos and col_produtos_vendidos in df_produtos_mes.columns:
+
+            resumo_produtos = {
+                "Pedigree com transferência": int(
+                    df_produtos_mes[col_produtos_vendidos].apply(produto_tem_pedigree_com_transferencia).sum()
+                ),
+                "Pedigree Sem Transferência": int(
+                    df_produtos_mes[col_produtos_vendidos].apply(produto_tem_pedigree_sem_transferencia).sum()
+                ),
+                "RG": int(
+                    df_produtos_mes[col_produtos_vendidos].apply(produto_tem_rg).sum()
+                ),
+                "Certidão": int(
+                    df_produtos_mes[col_produtos_vendidos].apply(produto_tem_certidao).sum()
+                ),
+                "Airtag": int(
+                    df_produtos_mes[col_produtos_vendidos].apply(produto_tem_airtag).sum()
+                ),
+            }
+
+            produtos_vendidos = pd.DataFrame(
+                [
+                    {"Produto": produto, "Quantidade": quantidade}
+                    for produto, quantidade in resumo_produtos.items()
+                ]
+            )
+
         else:
-            df_grafico_ped = df_grafico_ped[
-                df_grafico_ped["_ano"] == ano_selecionado
-            ].copy()
 
-        resumo_mensal = (
-            df_grafico_ped.groupby("_mes_num")
-            .size()
-            .reset_index(name="Pedigrees feitos")
-        )
-
-        resumo_mensal = meses_base.merge(
-            resumo_mensal,
-            on="_mes_num",
-            how="left",
-        )
-
-        resumo_mensal["Pedigrees feitos"] = (
-            resumo_mensal["Pedigrees feitos"]
-            .fillna(0)
-            .astype(int)
-        )
+            produtos_vendidos = pd.DataFrame(columns=["Produto", "Quantidade"])
 
     else:
 
-        resumo_mensal = meses_base.copy()
-        resumo_mensal["Pedigrees feitos"] = 0
+        produtos_vendidos = pd.DataFrame(columns=["Produto", "Quantidade"])
+
+    produtos_vendidos = produtos_base.merge(
+        produtos_vendidos,
+        on="Produto",
+        how="left",
+    )
+
+    produtos_vendidos["Quantidade"] = produtos_vendidos["Quantidade"].fillna(0).astype(int)
+    produtos_vendidos = produtos_vendidos.sort_values("Ordem")
 
     st.markdown(
-        f"""
+        """
         <div class="live-card">
-            <div class="live-title">⚖️ Pedigrees feitos no ano</div>
+            <div class="live-title">📦 Produtos vendidos</div>
             <div class="live-sub">
-                Total mensal de pedigrees feitos em {ano_selecionado}.
+                Quantidade de produtos vendidos no mês e semana selecionados, com base na aba Pedigree Comissão Ju.
             </div>
         </div>
         """,
         unsafe_allow_html=True,
     )
 
-    fig_pedigree = px.bar(
-        resumo_mensal,
-        x="Mês",
-        y="Pedigrees feitos",
-        text="Pedigrees feitos",
+    fig_produtos_vendidos = px.bar(
+        produtos_vendidos,
+        x="Produto",
+        y="Quantidade",
+        text="Quantidade",
     )
 
-    fig_pedigree.update_layout(
+    fig_produtos_vendidos.update_layout(
         height=420,
         paper_bgcolor="white",
         plot_bgcolor="white",
         margin=dict(l=10, r=10, t=10, b=10),
+        xaxis_title="",
+        yaxis_title="Quantidade vendida",
     )
 
-    fig_pedigree.update_tsemanas(
+    fig_produtos_vendidos.update_traces(
         textposition="outside",
     )
 
     st.plotly_chart(
-        fig_pedigree,
+        fig_produtos_vendidos,
         use_container_width=True,
     )
 
