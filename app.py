@@ -2696,9 +2696,9 @@ if page == "Visão Geral":
 
     with total_col2:
         card_metric_big(
-            "Cães vendidos",
+            "Controle Geral",
             f"{total_caes_vendidos}",
-            f"no mês de {month_key_to_label(selected_month)}",
+            f"nomes no mês de {month_key_to_label(selected_month)}",
             "🐶",
             "#032450",
         )
