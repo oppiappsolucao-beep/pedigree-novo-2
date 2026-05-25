@@ -3906,109 +3906,7 @@ elif page == "Pedigree":
         else:
             st.warning("Nenhum cliente encontrado com essa busca.")
 
-    st.markdown('<div class="ped-btn-title">Ações do Pedigree</div>', unsafe_allow_html=True)
-
-    if "acao_ped" not in st.session_state:
-        st.session_state.acao_ped = None
-
-    def set_acao_ped(nome):
-        st.session_state.acao_ped = nome
-
-    def titulo_responsavel(nome, subtitulo, cor):
-        st.markdown(
-            f"""
-            <div style="
-                margin: 18px 0 10px 0;
-                padding: 12px 16px;
-                border-radius: 16px;
-                background: linear-gradient(90deg, rgba(3,36,80,0.06), rgba(46,108,191,0.04));
-                border: 1px solid #D8E2F3;
-                border-left: 8px solid {cor};
-                box-shadow: 0 8px 24px rgba(15, 23, 42, 0.04);
-            ">
-                <div style="font-weight: 900; color: #032450; font-size: 1rem;">
-                    {html.escape(nome)}
-                </div>
-                <div style="color: #6B7280; font-size: 0.82rem; margin-top: 2px;">
-                    {html.escape(subtitulo)}
-                </div>
-            </div>
-            """,
-            unsafe_allow_html=True,
-        )
-
-    # =========================
-    # JULLIA
-    # =========================
-    titulo_responsavel(
-        "Jullia",
-        "Entrada, transferência, problemas e aprovação com cliente.",
-        "#032450",
-    )
-
-    jullia_linha1 = st.columns(4)
-    jullia_linha2 = st.columns(4)
-
-    with jullia_linha1[0]:
-        st.button("Novo", use_container_width=True, on_click=set_acao_ped, args=("Novo",))
-    with jullia_linha1[1]:
-        st.button("Transferência", use_container_width=True, on_click=set_acao_ped, args=("Transferência",))
-    with jullia_linha1[2]:
-        st.button("Sem transferência", use_container_width=True, on_click=set_acao_ped, args=("Sem transferência",))
-    with jullia_linha1[3]:
-        st.button("Problemas", use_container_width=True, on_click=set_acao_ped, args=("Problemas",))
-
-    with jullia_linha2[0]:
-        st.button("Aprovação Cliente", use_container_width=True, on_click=set_acao_ped, args=("Aprovação Cliente",))
-
-    # =========================
-    # VALÉRIA
-    # =========================
-    titulo_responsavel(
-        "Valéria",
-        "Aprovação interna e preparação/impressão dos documentos.",
-        "#0D3D7A",
-    )
-
-    valeria_linha1 = st.columns(4)
-    valeria_linha2 = st.columns(4)
-
-    with valeria_linha1[0]:
-        st.button("Aprovação Interna", use_container_width=True, on_click=set_acao_ped, args=("Aprovação Interna",))
-    with valeria_linha1[1]:
-        st.button("Imprimir Pedigree", use_container_width=True, on_click=set_acao_ped, args=("Imprimir Pedigree",))
-    with valeria_linha1[2]:
-        st.button("Imprimir RG+ Certidão", use_container_width=True, on_click=set_acao_ped, args=("Imprimir RG+ Certidão",))
-    with valeria_linha1[3]:
-        st.button("Imprimir Etiqueta", use_container_width=True, on_click=set_acao_ped, args=("Imprimir Etiqueta",))
-
-    with valeria_linha2[0]:
-        st.button("Airtag", use_container_width=True, on_click=set_acao_ped, args=("Airtag",))
-
-    # =========================
-    # MAYRA
-    # =========================
-    titulo_responsavel(
-        "Mayra",
-        "RG/Certidão, envio e confirmação com o cliente.",
-        "#2e6cbf",
-    )
-
-    mayra_linha1 = st.columns(4)
-
-    with mayra_linha1[0]:
-        st.button("RG E CERTIDÃO", use_container_width=True, on_click=set_acao_ped, args=("RG E CERTIDÃO",))
-    with mayra_linha1[1]:
-        st.button("Envio", use_container_width=True, on_click=set_acao_ped, args=("Envio",))
-    with mayra_linha1[2]:
-        st.button("Enviado Cliente", use_container_width=True, on_click=set_acao_ped, args=("Enviado Cliente",))
-
-    if st.session_state.acao_ped:
-        if st.session_state.acao_ped == "Aprovação":
-            st.session_state.acao_ped = "Aprovação Interna"
-
-        acao_atual = st.session_state.acao_ped
-
+    def render_area_acao_ped(acao_atual):
         st.markdown(
             f"""
             <div class="ped-action-card">
@@ -4384,6 +4282,139 @@ elif page == "Pedigree":
                 render_cliente_card(cliente, status_opcoes)
             else:
                 st.info("Nenhum formulário nesta ação no momento.")
+
+
+
+    st.markdown('<div class="ped-btn-title">Ações do Pedigree</div>', unsafe_allow_html=True)
+
+    if "acao_ped" not in st.session_state:
+        st.session_state.acao_ped = None
+
+    def set_acao_ped(nome):
+        if nome == "Aprovação":
+            nome = "Aprovação Interna"
+        st.session_state.acao_ped = nome
+
+    def titulo_responsavel(nome, subtitulo, cor):
+        st.markdown(
+            f"""
+            <div style="
+                margin: 18px 0 10px 0;
+                padding: 12px 16px;
+                border-radius: 16px;
+                background: linear-gradient(90deg, rgba(3,36,80,0.06), rgba(46,108,191,0.04));
+                border: 1px solid #D8E2F3;
+                border-left: 8px solid {cor};
+                box-shadow: 0 8px 24px rgba(15, 23, 42, 0.04);
+            ">
+                <div style="font-weight: 900; color: #032450; font-size: 1rem;">
+                    {html.escape(nome)}
+                </div>
+                <div style="color: #6B7280; font-size: 0.82rem; margin-top: 2px;">
+                    {html.escape(subtitulo)}
+                </div>
+            </div>
+            """,
+            unsafe_allow_html=True,
+        )
+
+    # =========================
+    # JULLIA
+    # =========================
+    titulo_responsavel(
+        "Jullia",
+        "Entrada, transferência, problemas e aprovação com cliente.",
+        "#032450",
+    )
+
+    jullia_linha1 = st.columns(4)
+    jullia_linha2 = st.columns(4)
+
+    with jullia_linha1[0]:
+        st.button("Novo", use_container_width=True, on_click=set_acao_ped, args=("Novo",))
+    with jullia_linha1[1]:
+        st.button("Transferência", use_container_width=True, on_click=set_acao_ped, args=("Transferência",))
+    with jullia_linha1[2]:
+        st.button("Sem transferência", use_container_width=True, on_click=set_acao_ped, args=("Sem transferência",))
+    with jullia_linha1[3]:
+        st.button("Problemas", use_container_width=True, on_click=set_acao_ped, args=("Problemas",))
+
+    with jullia_linha2[0]:
+        st.button("Aprovação Cliente", use_container_width=True, on_click=set_acao_ped, args=("Aprovação Cliente",))
+
+    jullia_acoes = [
+        "Novo",
+        "Transferência",
+        "Sem transferência",
+        "Problemas",
+        "Aprovação Cliente",
+    ]
+
+    if st.session_state.acao_ped in jullia_acoes:
+        render_area_acao_ped(st.session_state.acao_ped)
+
+    # =========================
+    # VALÉRIA
+    # =========================
+    titulo_responsavel(
+        "Valéria",
+        "Aprovação interna e preparação/impressão dos documentos.",
+        "#0D3D7A",
+    )
+
+    valeria_linha1 = st.columns(4)
+    valeria_linha2 = st.columns(4)
+
+    with valeria_linha1[0]:
+        st.button("Aprovação Interna", use_container_width=True, on_click=set_acao_ped, args=("Aprovação Interna",))
+    with valeria_linha1[1]:
+        st.button("Imprimir Pedigree", use_container_width=True, on_click=set_acao_ped, args=("Imprimir Pedigree",))
+    with valeria_linha1[2]:
+        st.button("Imprimir RG+ Certidão", use_container_width=True, on_click=set_acao_ped, args=("Imprimir RG+ Certidão",))
+    with valeria_linha1[3]:
+        st.button("Imprimir Etiqueta", use_container_width=True, on_click=set_acao_ped, args=("Imprimir Etiqueta",))
+
+    with valeria_linha2[0]:
+        st.button("Airtag", use_container_width=True, on_click=set_acao_ped, args=("Airtag",))
+
+    valeria_acoes = [
+        "Aprovação Interna",
+        "Imprimir Pedigree",
+        "Imprimir RG+ Certidão",
+        "Imprimir Etiqueta",
+        "Airtag",
+    ]
+
+    if st.session_state.acao_ped in valeria_acoes:
+        render_area_acao_ped(st.session_state.acao_ped)
+
+    # =========================
+    # MAYRA
+    # =========================
+    titulo_responsavel(
+        "Mayra",
+        "RG/Certidão, envio e confirmação com o cliente.",
+        "#2e6cbf",
+    )
+
+    mayra_linha1 = st.columns(4)
+
+    with mayra_linha1[0]:
+        st.button("RG E CERTIDÃO", use_container_width=True, on_click=set_acao_ped, args=("RG E CERTIDÃO",))
+    with mayra_linha1[1]:
+        st.button("Envio", use_container_width=True, on_click=set_acao_ped, args=("Envio",))
+    with mayra_linha1[2]:
+        st.button("Enviado Cliente", use_container_width=True, on_click=set_acao_ped, args=("Enviado Cliente",))
+
+    mayra_acoes = [
+        "RG E CERTIDÃO",
+        "Envio",
+        "Enviado Cliente",
+    ]
+
+    if st.session_state.acao_ped in mayra_acoes:
+        render_area_acao_ped(st.session_state.acao_ped)
+
 
     # Cards e gráfico de Pedigree foram removidos desta aba.
     # Eles permanecem somente na aba Visão Geral, conforme solicitado.
