@@ -1,6 +1,8 @@
 import re
 import base64
 import html
+import json
+import mimetypes
 import unicodedata
 import datetime as dt
 from pathlib import Path
@@ -16,6 +18,8 @@ try:
 except Exception:
     st_autorefresh = None
 import gspread
+import requests
+from google.auth.transport.requests import Request
 from google.oauth2.service_account import Credentials
 
 
@@ -36,6 +40,8 @@ MAIN_WORKSHEET_NAME = "Clear"
 PED_WORKSHEET_NAME = "Planilha Dash Valéria sem mayra"
 COMM_WORKSHEET_NAME = "Pedigree Comissão Ju"
 
+DRIVE_FOTOS_PET_FOLDER_ID = "1WOGlbyCR5KIi-VieVfSXUChjWU52DPWR"
+
 SCOPES = [
     "https://www.googleapis.com/auth/spreadsheets",
     "https://www.googleapis.com/auth/drive",
@@ -55,6 +61,81 @@ def get_worksheet(worksheet_name: str):
     client = get_gsheet_client()
     sheet = client.open_by_key(SHEET_ID)
     return sheet.worksheet(worksheet_name)
+
+
+
+def sanitize_drive_filename(value: str) -> str:
+    name = normalize_text(value)
+    name = re.sub(r"[\\/:*?\"<>|]+", " ", name)
+    name = re.sub(r"\s+", " ", name).strip()
+
+    if not name:
+        name = "Sem nome"
+
+    return name[:120]
+
+
+def upload_foto_pet_to_drive(foto_pet, tutor_nome: str) -> str:
+    """
+    Envia a foto do pet para a pasta do Google Drive e usa o nome do tutor no arquivo.
+    Retorna o link do arquivo no Drive.
+    """
+    if not foto_pet:
+        return ""
+
+    creds = Credentials.from_service_account_info(
+        dict(st.secrets["gcp_service_account"]),
+        scopes=SCOPES,
+    )
+
+    creds.refresh(Request())
+
+    original_name = normalize_text(getattr(foto_pet, "name", "foto_pet.jpg"))
+    extension = Path(original_name).suffix.lower()
+
+    if extension not in [".png", ".jpg", ".jpeg"]:
+        guessed_ext = mimetypes.guess_extension(getattr(foto_pet, "type", "") or "")
+        extension = guessed_ext if guessed_ext in [".png", ".jpg", ".jpeg"] else ".jpg"
+
+    tutor_filename = sanitize_drive_filename(tutor_nome)
+    timestamp = dt.datetime.now().strftime("%Y%m%d_%H%M%S")
+    final_filename = f"{tutor_filename}_{timestamp}{extension}"
+
+    file_bytes = foto_pet.getvalue()
+    mime_type = getattr(foto_pet, "type", None) or mimetypes.guess_type(final_filename)[0] or "application/octet-stream"
+
+    metadata = {
+        "name": final_filename,
+        "parents": [DRIVE_FOTOS_PET_FOLDER_ID],
+    }
+
+    response = requests.post(
+        "https://www.googleapis.com/upload/drive/v3/files"
+        "?uploadType=multipart&supportsAllDrives=true&fields=id,name,webViewLink",
+        headers={
+            "Authorization": f"Bearer {creds.token}",
+        },
+        files={
+            "metadata": (
+                "metadata",
+                json.dumps(metadata),
+                "application/json; charset=UTF-8",
+            ),
+            "file": (
+                final_filename,
+                file_bytes,
+                mime_type,
+            ),
+        },
+        timeout=60,
+    )
+
+    if response.status_code not in [200, 201]:
+        raise Exception(f"Erro ao enviar imagem para o Drive: {response.text}")
+
+    file_info = response.json()
+    return file_info.get("webViewLink", "")
+
 
 
 @st.cache_data(show_spinner=False, ttl=CACHE_TTL_SECONDS)
@@ -1136,6 +1217,7 @@ def salvar_formulario_pedigree(dados):
         "Pelagem",
         "Microchip",
         "Observações gerais",
+        "Foto Pet Drive",
         "Linha Clear Origem",
     ]
 
@@ -4256,6 +4338,18 @@ elif page == "Pedigree":
                 if salvar:
                     hoje = dt.date.today()
 
+                    foto_pet_drive_url = ""
+
+                    try:
+                        if foto_pet:
+                            foto_pet_drive_url = upload_foto_pet_to_drive(
+                                foto_pet,
+                                tutor_nome,
+                            )
+                    except Exception as e:
+                        st.error(f"Erro ao enviar a foto do pet para o Drive: {e}")
+                        st.stop()
+
                     dados_formulario = {
                         "Nome": tutor_nome,
                         "Telefone": tutor_telefone,
@@ -4274,6 +4368,7 @@ elif page == "Pedigree":
                         "Pelagem": pelagem,
                         "Microchip": microchip,
                         "Observações gerais": observacoes,
+                        "Foto Pet Drive": foto_pet_drive_url,
                         "Linha Clear Origem": linha_clear_origem_default,
                     }
 
