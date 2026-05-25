@@ -3429,7 +3429,7 @@ if page == "Visão Geral":
                     "Data Compra",
                     "Mês",
                     "Raça",
-                    "Status Pedigree",
+                    "Microchip",
                     "Status Venda Pedigree",
                 ]
 
@@ -3449,13 +3449,29 @@ if page == "Visão Geral":
                 df_tabela_status = df_detalhes_status.copy()
                 df_tabela_status["Linha"] = df_tabela_status.index.astype(int) + 2
 
+                col_microchip_tabela = (
+                    "Microchip"
+                    if "Microchip" in df_tabela_status.columns
+                    else detect_col(df_tabela_status, [["microchip"], ["micro", "chip"]])
+                )
+
+                if col_microchip_tabela and col_microchip_tabela in df_tabela_status.columns and col_microchip_tabela != "Microchip":
+                    df_tabela_status["Microchip"] = df_tabela_status[col_microchip_tabela]
+
                 if "Status Venda Pedigree" not in df_tabela_status.columns:
                     df_tabela_status["Status Venda Pedigree"] = ""
+
+                if "Microchip" in df_tabela_status.columns and "Microchip" not in colunas_exibir:
+                    if "Status Venda Pedigree" in colunas_exibir:
+                        pos_status_venda = colunas_exibir.index("Status Venda Pedigree")
+                        colunas_exibir.insert(pos_status_venda, "Microchip")
+                    else:
+                        colunas_exibir.append("Microchip")
 
                 colunas_tabela_status = ["Linha"] + [
                     col
                     for col in colunas_exibir
-                    if col != "Linha"
+                    if col != "Linha" and col != "Status Pedigree"
                 ]
 
                 st.markdown(
