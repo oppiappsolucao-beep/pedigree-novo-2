@@ -3947,48 +3947,105 @@ elif page == "Pedigree":
                 [["endereço"], ["endereco"], ["rua"], ["bairro"], ["cidade"]],
             )
 
-            contrato_opcoes = []
-
-            if not df_contratos_form.empty:
-                for idx_contrato, row_contrato in df_contratos_form.iterrows():
-                    nome_label = normalize_text(row_contrato.get(COL_NOME, "")) if COL_NOME and COL_NOME in df_contratos_form.columns else ""
-                    tel_label = format_phone_br(row_contrato.get(COL_TEL, "")) if COL_TEL and COL_TEL in df_contratos_form.columns else ""
-                    cpf_label = normalize_text(row_contrato.get(COL_CPF, "")) if COL_CPF and COL_CPF in df_contratos_form.columns else ""
-
-                    if nome_label or tel_label or cpf_label:
-                        contrato_opcoes.append(
-                            {
-                                "label": f"{nome_label or 'Sem nome'} — {tel_label or 'Sem telefone'} — {cpf_label or 'Sem CPF'}",
-                                "idx": idx_contrato,
-                            }
-                        )
-
-            contrato_labels = ["Selecionar contrato/lead da aba Clear"] + [
-                item["label"]
-                for item in contrato_opcoes
-            ]
-
-            contrato_selecionado_label = st.selectbox(
-                "Contrato/lead para preencher automaticamente",
-                contrato_labels,
-                index=0,
-                key="contrato_lead_formulario_pedigree",
-            )
-
             contrato_row = None
 
-            if contrato_selecionado_label != "Selecionar contrato/lead da aba Clear":
-                contrato_idx = next(
-                    (
-                        item["idx"]
-                        for item in contrato_opcoes
-                        if item["label"] == contrato_selecionado_label
-                    ),
-                    None,
+            # Agora o formulário pega automaticamente o Novo Lead mais recente da aba Clear.
+            # Novo Lead para o formulário = nova entrada de contrato com Status Venda Pedigree "Vendido" e ainda não lançada na aba Pedigree.
+            if not df_contratos_form.empty:
+
+                col_status_venda_form = (
+                    "Status Venda Pedigree"
+                    if "Status Venda Pedigree" in df_contratos_form.columns
+                    else detect_col(df_contratos_form, [["status", "venda", "pedigree"], ["status", "venda"]])
                 )
 
-                if contrato_idx is not None:
-                    contrato_row = df_contratos_form.loc[contrato_idx]
+                if col_status_venda_form and col_status_venda_form in df_contratos_form.columns:
+                    serie_status_form = df_contratos_form[col_status_venda_form].astype(str).apply(normalize_search_text)
+
+                    mask_novo_lead_form = (
+                        serie_status_form.eq(normalize_search_text("Vendido"))
+                    )
+
+                    df_novos_leads_form = df_contratos_form[mask_novo_lead_form].copy()
+                else:
+                    df_novos_leads_form = pd.DataFrame()
+
+                # Nova entrada de contrato:
+                # considera apenas contratos VENDIDOS que ainda NÃO existem na aba de Pedigree.
+                # Assim não fica puxando contratos antigos já lançados no formulário.
+                df_pedigree_existente_form = load_pedigree_data().copy()
+
+                if not df_novos_leads_form.empty and not df_pedigree_existente_form.empty:
+
+                    telefones_pedigree_existentes = set()
+                    cpfs_pedigree_existentes = set()
+
+                    if "Telefone" in df_pedigree_existente_form.columns:
+                        telefones_pedigree_existentes = set(
+                            df_pedigree_existente_form["Telefone"]
+                            .astype(str)
+                            .apply(only_digits)
+                            .replace("", pd.NA)
+                            .dropna()
+                            .tolist()
+                        )
+
+                    if "CPF" in df_pedigree_existente_form.columns:
+                        cpfs_pedigree_existentes = set(
+                            df_pedigree_existente_form["CPF"]
+                            .astype(str)
+                            .apply(only_digits)
+                            .replace("", pd.NA)
+                            .dropna()
+                            .tolist()
+                        )
+
+                    def contrato_ainda_nao_lancado(row):
+                        telefone_row = only_digits(row.get(COL_TEL, "")) if COL_TEL and COL_TEL in row.index else ""
+                        cpf_row = only_digits(row.get(COL_CPF, "")) if COL_CPF and COL_CPF in row.index else ""
+
+                        if telefone_row and telefone_row in telefones_pedigree_existentes:
+                            return False
+
+                        if cpf_row and cpf_row in cpfs_pedigree_existentes:
+                            return False
+
+                        return True
+
+                    df_novos_leads_form = df_novos_leads_form[
+                        df_novos_leads_form.apply(contrato_ainda_nao_lancado, axis=1)
+                    ].copy()
+
+                if "_data_compra" in df_novos_leads_form.columns:
+                    df_novos_leads_form = df_novos_leads_form.sort_values(
+                        by=["_data_compra", "__linha_clear"],
+                        ascending=[False, False],
+                    )
+                elif "__linha_clear" in df_novos_leads_form.columns:
+                    df_novos_leads_form = df_novos_leads_form.sort_values(
+                        by="__linha_clear",
+                        ascending=False,
+                    )
+
+                if not df_novos_leads_form.empty:
+                    contrato_row = df_novos_leads_form.iloc[0]
+
+                    nome_lead_auto = normalize_text(contrato_row.get(COL_NOME, "")) if COL_NOME and COL_NOME in df_contratos_form.columns else ""
+                    telefone_lead_auto = format_phone_br(contrato_row.get(COL_TEL, "")) if COL_TEL and COL_TEL in df_contratos_form.columns else ""
+
+                    st.markdown(
+                        f"""
+                        <div class="live-card">
+                            <div class="live-title">🆕 Novo lead carregado automaticamente</div>
+                            <div class="live-sub">
+                                {html.escape(nome_lead_auto or "Sem nome")} — {html.escape(telefone_lead_auto or "Sem telefone")}
+                            </div>
+                        </div>
+                        """,
+                        unsafe_allow_html=True,
+                    )
+                else:
+                    st.info("Nenhuma nova entrada de contrato vendida disponível para preencher automaticamente no momento.")
 
             tutor_nome_default = normalize_text(contrato_row.get(COL_NOME, "")) if contrato_row is not None and COL_NOME and COL_NOME in df_contratos_form.columns else ""
             tutor_telefone_default = normalize_text(contrato_row.get(COL_TEL, "")) if contrato_row is not None and COL_TEL and COL_TEL in df_contratos_form.columns else ""
