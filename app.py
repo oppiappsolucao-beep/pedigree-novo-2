@@ -3891,17 +3891,158 @@ elif page == "Pedigree":
         if acao_atual == "Novo":
             st.markdown("### Formulário Pedigree")
 
+            # Busca automática das informações do contrato/lead na aba Clear.
+            df_contratos_form = df.copy()
+
+            if not df_contratos_form.empty:
+                df_contratos_form = df_contratos_form.copy()
+                df_contratos_form["__linha_clear"] = df_contratos_form.index + 2
+
+            def valor_coluna_form(row, opcoes_colunas):
+                if row is None:
+                    return ""
+
+                for nome_coluna in opcoes_colunas:
+                    if nome_coluna in row.index:
+                        return normalize_text(row.get(nome_coluna, ""))
+
+                return ""
+
+            def detectar_coluna_form(df_base, grupos):
+                coluna = detect_col(df_base, grupos) if df_base is not None and not df_base.empty else None
+                return coluna
+
+            col_nome_pet_clear = detectar_coluna_form(
+                df_contratos_form,
+                [["nome", "pet"], ["nome", "cao"], ["nome", "cão"], ["nome", "cachorro"]],
+            )
+
+            col_data_nascimento_clear = detectar_coluna_form(
+                df_contratos_form,
+                [["data", "nascimento"], ["nascimento"]],
+            )
+
+            col_pelagem_clear = detectar_coluna_form(
+                df_contratos_form,
+                [["pelagem"]],
+            )
+
+            col_raca_clear = COL_RACA if COL_RACA and COL_RACA in df_contratos_form.columns else detectar_coluna_form(
+                df_contratos_form,
+                [["raça"], ["raca"]],
+            )
+
+            col_sexo_clear = detectar_coluna_form(
+                df_contratos_form,
+                [["sexo"]],
+            )
+
+            col_cor_clear = detectar_coluna_form(
+                df_contratos_form,
+                [["cor"]],
+            )
+
+            col_endereco_clear = detectar_coluna_form(
+                df_contratos_form,
+                [["endereço"], ["endereco"], ["rua"], ["bairro"], ["cidade"]],
+            )
+
+            contrato_opcoes = []
+
+            if not df_contratos_form.empty:
+                for idx_contrato, row_contrato in df_contratos_form.iterrows():
+                    nome_label = normalize_text(row_contrato.get(COL_NOME, "")) if COL_NOME and COL_NOME in df_contratos_form.columns else ""
+                    tel_label = format_phone_br(row_contrato.get(COL_TEL, "")) if COL_TEL and COL_TEL in df_contratos_form.columns else ""
+                    cpf_label = normalize_text(row_contrato.get(COL_CPF, "")) if COL_CPF and COL_CPF in df_contratos_form.columns else ""
+
+                    if nome_label or tel_label or cpf_label:
+                        contrato_opcoes.append(
+                            {
+                                "label": f"{nome_label or 'Sem nome'} — {tel_label or 'Sem telefone'} — {cpf_label or 'Sem CPF'}",
+                                "idx": idx_contrato,
+                            }
+                        )
+
+            contrato_labels = ["Selecionar contrato/lead da aba Clear"] + [
+                item["label"]
+                for item in contrato_opcoes
+            ]
+
+            contrato_selecionado_label = st.selectbox(
+                "Contrato/lead para preencher automaticamente",
+                contrato_labels,
+                index=0,
+                key="contrato_lead_formulario_pedigree",
+            )
+
+            contrato_row = None
+
+            if contrato_selecionado_label != "Selecionar contrato/lead da aba Clear":
+                contrato_idx = next(
+                    (
+                        item["idx"]
+                        for item in contrato_opcoes
+                        if item["label"] == contrato_selecionado_label
+                    ),
+                    None,
+                )
+
+                if contrato_idx is not None:
+                    contrato_row = df_contratos_form.loc[contrato_idx]
+
+            tutor_nome_default = normalize_text(contrato_row.get(COL_NOME, "")) if contrato_row is not None and COL_NOME and COL_NOME in df_contratos_form.columns else ""
+            tutor_telefone_default = normalize_text(contrato_row.get(COL_TEL, "")) if contrato_row is not None and COL_TEL and COL_TEL in df_contratos_form.columns else ""
+            tutor_cpf_default = normalize_text(contrato_row.get(COL_CPF, "")) if contrato_row is not None and COL_CPF and COL_CPF in df_contratos_form.columns else ""
+            tutor_email_default = normalize_text(contrato_row.get(COL_EMAIL, "")) if contrato_row is not None and COL_EMAIL and COL_EMAIL in df_contratos_form.columns else ""
+            tutor_endereco_default = valor_coluna_form(contrato_row, [col_endereco_clear]) if contrato_row is not None and col_endereco_clear else ""
+
+            nome_pet_default = valor_coluna_form(contrato_row, [col_nome_pet_clear]) if contrato_row is not None and col_nome_pet_clear else ""
+            pelagem_default = valor_coluna_form(contrato_row, [col_pelagem_clear]) if contrato_row is not None and col_pelagem_clear else ""
+            raca_default = valor_coluna_form(contrato_row, [col_raca_clear]) if contrato_row is not None and col_raca_clear else ""
+            sexo_default = valor_coluna_form(contrato_row, [col_sexo_clear]) if contrato_row is not None and col_sexo_clear else ""
+            cor_default = valor_coluna_form(contrato_row, [col_cor_clear]) if contrato_row is not None and col_cor_clear else ""
+
+            nascimento_default = dt.date.today()
+
+            if contrato_row is not None and col_data_nascimento_clear:
+                nascimento_clear = parse_date_any(contrato_row.get(col_data_nascimento_clear, ""))
+                if nascimento_clear:
+                    nascimento_default = nascimento_clear
+
             with st.form("formulario_pedigree_novo"):
                 st.markdown("#### Informações Tutor")
 
                 col1, col2 = st.columns(2)
 
                 with col1:
-                    tutor_nome = st.text_input("Nome do tutor")
-                    tutor_telefone = st.text_input("Telefone")
-                    tutor_cpf = st.text_input("CPF")
-                    tutor_email = st.text_input("E-mail")
-                    tutor_endereco = st.text_input("Endereço completo")
+                    tutor_nome = st.text_input(
+                        "Nome do tutor",
+                        value=tutor_nome_default,
+                    )
+
+                    tutor_telefone = st.text_input(
+                        "Telefone",
+                        value=tutor_telefone_default,
+                        disabled=True,
+                    )
+
+                    tutor_cpf = st.text_input(
+                        "CPF",
+                        value=tutor_cpf_default,
+                        disabled=True,
+                    )
+
+                    tutor_email = st.text_input(
+                        "E-mail",
+                        value=tutor_email_default,
+                        disabled=True,
+                    )
+
+                    tutor_endereco = st.text_input(
+                        "Endereço completo",
+                        value=tutor_endereco_default,
+                        disabled=True,
+                    )
 
                 with col2:
                     status_cliente = st.selectbox("Status do Pedigree", status_opcoes)
@@ -3913,12 +4054,52 @@ elif page == "Pedigree":
                 col3, col4 = st.columns(2)
 
                 with col3:
-                    cao_nome = st.text_input("Nome do cão")
-                    nascimento = st.date_input("Data de nascimento")
-                    pelagem = st.text_input("Pelagem")
-                    raca = st.text_input("Raça do pet")
-                    sexo = st.selectbox("Sexo", ["", "MACHO", "FÊMEA"])
-                    cor = st.text_input("Cor")
+                    cao_nome = st.text_input(
+                        "Nome do pet",
+                        value=nome_pet_default,
+                    )
+
+                    nascimento = st.date_input(
+                        "Data de nascimento",
+                        value=nascimento_default,
+                    )
+
+                    pelagem = st.text_input(
+                        "Pelagem",
+                        value=pelagem_default,
+                        disabled=True,
+                    )
+
+                    raca = st.text_input(
+                        "Raça do pet",
+                        value=raca_default,
+                        disabled=True,
+                    )
+
+                    sexo_opcoes = ["", "MACHO", "FÊMEA"]
+
+                    sexo_default_norm = normalize_search_text(sexo_default)
+
+                    if sexo_default_norm in ["macho", "masculino", "m"]:
+                        sexo_default_visual = "MACHO"
+                    elif sexo_default_norm in ["femea", "fêmea", "feminino", "f"]:
+                        sexo_default_visual = "FÊMEA"
+                    else:
+                        sexo_default_visual = ""
+
+                    sexo = st.selectbox(
+                        "Sexo",
+                        sexo_opcoes,
+                        index=sexo_opcoes.index(sexo_default_visual) if sexo_default_visual in sexo_opcoes else 0,
+                        disabled=True,
+                    )
+
+                    cor = st.text_input(
+                        "Cor",
+                        value=cor_default,
+                        disabled=True,
+                    )
+
                     microchip = st.text_input("Microchip")
 
                 with col4:
