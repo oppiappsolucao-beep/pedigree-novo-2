@@ -1136,6 +1136,7 @@ def salvar_formulario_pedigree(dados):
         "Pelagem",
         "Microchip",
         "Observações gerais",
+        "Linha Clear Origem",
     ]
 
     headers = ensure_columns(worksheet, required_cols)
@@ -1176,16 +1177,33 @@ def atualizar_status_pedigree(row_number: int, novo_status: str):
 def atualizar_status_venda_pedigree_clear(row_number: int, novo_status: str):
     """
     Atualiza SOMENTE a coluna Status Venda Pedigree na aba Clear.
+    Quando a alteração for feita pelo dashboard para Vendido,
+    marca a linha como Novo Formulário Pedigree = Pendente.
+    Assim o formulário pega só vendas novas feitas pelo dashboard,
+    sem puxar todos os vendidos antigos da planilha.
     """
     worksheet = get_worksheet(MAIN_WORKSHEET_NAME)
     headers = [str(h).strip() for h in worksheet.row_values(1)]
 
-    if "Status Venda Pedigree" not in headers:
-        headers.append("Status Venda Pedigree")
+    required_headers = [
+        "Status Venda Pedigree",
+        "Novo Formulário Pedigree",
+    ]
+
+    mudou_header = False
+
+    for header in required_headers:
+        if header not in headers:
+            headers.append(header)
+            mudou_header = True
+
+    if mudou_header:
         worksheet.update("A1", [headers], value_input_option="USER_ENTERED")
 
     headers = [str(h).strip() for h in worksheet.row_values(1)]
-    col_number = headers.index("Status Venda Pedigree") + 1
+
+    col_status_number = headers.index("Status Venda Pedigree") + 1
+    col_novo_form_number = headers.index("Novo Formulário Pedigree") + 1
 
     mapa_status_planilha = {
         "": "",
@@ -1199,7 +1217,40 @@ def atualizar_status_venda_pedigree_clear(row_number: int, novo_status: str):
 
     status_para_salvar = mapa_status_planilha.get(novo_status, novo_status)
 
-    worksheet.update_cell(int(row_number), col_number, status_para_salvar)
+    worksheet.update_cell(int(row_number), col_status_number, status_para_salvar)
+
+    if normalize_search_text(status_para_salvar) == normalize_search_text("Vendido"):
+        worksheet.update_cell(int(row_number), col_novo_form_number, "Pendente")
+    else:
+        valor_atual_flag = normalize_text(
+            worksheet.cell(int(row_number), col_novo_form_number).value
+        )
+
+        if normalize_search_text(valor_atual_flag) != normalize_search_text("Feito"):
+            worksheet.update_cell(int(row_number), col_novo_form_number, "")
+
+    st.cache_data.clear()
+
+
+
+def marcar_novo_formulario_pedigree_feito(row_number: int):
+    """
+    Marca a linha da aba Clear como já lançada no formulário de Pedigree.
+    """
+    if not row_number:
+        return
+
+    worksheet = get_worksheet(MAIN_WORKSHEET_NAME)
+    headers = [str(h).strip() for h in worksheet.row_values(1)]
+
+    if "Novo Formulário Pedigree" not in headers:
+        headers.append("Novo Formulário Pedigree")
+        worksheet.update("A1", [headers], value_input_option="USER_ENTERED")
+
+    headers = [str(h).strip() for h in worksheet.row_values(1)]
+    col_number = headers.index("Novo Formulário Pedigree") + 1
+
+    worksheet.update_cell(int(row_number), col_number, "Feito")
     st.cache_data.clear()
 
 
@@ -3950,7 +4001,7 @@ elif page == "Pedigree":
             contrato_row = None
 
             # Agora o formulário pega automaticamente o Novo Lead mais recente da aba Clear.
-            # Novo Lead para o formulário = nova entrada de contrato com status "Vendido" em qualquer coluna de status relevante da aba Clear e ainda não lançada na aba Pedigree.
+            # Novo Lead para o formulário = linha marcada como "Pendente" quando o status vira Vendido pela Visão Geral.
             if not df_contratos_form.empty:
 
                 col_status_venda_form = (
@@ -3960,93 +4011,54 @@ elif page == "Pedigree":
                 )
 
                 # Nova entrada de contrato:
-                # considera contratos com status VENDIDO.
-                # Robusto para casos em que o "Vendido" esteja em outra coluna de status da aba Clear.
-                status_cols_form = []
+                # O formulário só deve puxar vendas novas feitas na Visão Geral.
+                # Quando o status é alterado no dashboard para "Vendido",
+                # a função atualizar_status_venda_pedigree_clear marca:
+                # Novo Formulário Pedigree = Pendente.
+                col_novo_formulario_clear = (
+                    "Novo Formulário Pedigree"
+                    if "Novo Formulário Pedigree" in df_contratos_form.columns
+                    else detect_col(
+                        df_contratos_form,
+                        [["novo", "formulário", "pedigree"], ["novo", "formulario", "pedigree"]]
+                    )
+                )
 
-                candidatos_status_form = [
-                    "Status Venda Pedigree",
-                    "Status Pedigree",
-                    "Clear",
-                    "Status",
-                    "Status Venda",
-                ]
+                if col_novo_formulario_clear and col_novo_formulario_clear in df_contratos_form.columns:
+                    serie_novo_formulario = (
+                        df_contratos_form[col_novo_formulario_clear]
+                        .astype(str)
+                        .apply(normalize_search_text)
+                    )
 
-                for coluna_status_candidata in candidatos_status_form:
-                    if coluna_status_candidata in df_contratos_form.columns:
-                        status_cols_form.append(coluna_status_candidata)
-
-                for coluna_existente in df_contratos_form.columns:
-                    nome_col_norm = normalize_search_text(coluna_existente)
-
-                    if (
-                        "status" in nome_col_norm
-                        or nome_col_norm == "clear"
-                    ) and coluna_existente not in status_cols_form:
-                        status_cols_form.append(coluna_existente)
-
-                if status_cols_form:
-                    mask_novo_lead_form = pd.Series(False, index=df_contratos_form.index)
-
-                    for coluna_status_form in status_cols_form:
-                        serie_status_form = (
-                            df_contratos_form[coluna_status_form]
-                            .astype(str)
-                            .apply(normalize_search_text)
-                        )
-
-                        mask_novo_lead_form = mask_novo_lead_form | serie_status_form.eq(
-                            normalize_search_text("Vendido")
-                        )
-
-                    df_novos_leads_form = df_contratos_form[mask_novo_lead_form].copy()
+                    df_novos_leads_form = df_contratos_form[
+                        serie_novo_formulario.eq(normalize_search_text("Pendente"))
+                    ].copy()
                 else:
                     df_novos_leads_form = pd.DataFrame()
 
-                # Evita puxar contratos antigos já lançados na aba Pedigree,
-                # mas só quando telefone/CPF estiverem realmente preenchidos nas duas abas.
+                # Segurança extra: se a linha da Clear já foi lançada na aba Pedigree,
+                # ela não aparece novamente, mas outra linha do mesmo cliente pode aparecer normalmente.
                 df_pedigree_existente_form = load_pedigree_data().copy()
 
                 if not df_novos_leads_form.empty and not df_pedigree_existente_form.empty:
 
-                    telefones_pedigree_existentes = set()
-                    cpfs_pedigree_existentes = set()
+                    linhas_clear_ja_lancadas = set()
 
-                    if "Telefone" in df_pedigree_existente_form.columns:
-                        telefones_pedigree_existentes = set(
-                            df_pedigree_existente_form["Telefone"]
+                    if "Linha Clear Origem" in df_pedigree_existente_form.columns:
+                        linhas_clear_ja_lancadas = set(
+                            df_pedigree_existente_form["Linha Clear Origem"]
                             .astype(str)
-                            .apply(only_digits)
+                            .str.strip()
                             .replace("", pd.NA)
                             .dropna()
                             .tolist()
                         )
 
-                    if "CPF" in df_pedigree_existente_form.columns:
-                        cpfs_pedigree_existentes = set(
-                            df_pedigree_existente_form["CPF"]
-                            .astype(str)
-                            .apply(only_digits)
-                            .replace("", pd.NA)
-                            .dropna()
-                            .tolist()
-                        )
-
-                    def contrato_ainda_nao_lancado(row):
-                        telefone_row = only_digits(row.get(COL_TEL, "")) if COL_TEL and COL_TEL in row.index else ""
-                        cpf_row = only_digits(row.get(COL_CPF, "")) if COL_CPF and COL_CPF in row.index else ""
-
-                        if telefone_row and telefones_pedigree_existentes and telefone_row in telefones_pedigree_existentes:
-                            return False
-
-                        if cpf_row and cpfs_pedigree_existentes and cpf_row in cpfs_pedigree_existentes:
-                            return False
-
-                        return True
-
-                    df_novos_leads_form = df_novos_leads_form[
-                        df_novos_leads_form.apply(contrato_ainda_nao_lancado, axis=1)
-                    ].copy()
+                    if linhas_clear_ja_lancadas and "__linha_clear" in df_novos_leads_form.columns:
+                        df_novos_leads_form = df_novos_leads_form[
+                            ~df_novos_leads_form["__linha_clear"].astype(str).isin(linhas_clear_ja_lancadas)
+                        ].copy()
 
                 if "_data_compra" in df_novos_leads_form.columns:
                     df_novos_leads_form = df_novos_leads_form.sort_values(
@@ -4077,7 +4089,9 @@ elif page == "Pedigree":
                         unsafe_allow_html=True,
                     )
                 else:
-                    st.info("Nenhuma nova entrada de contrato vendida disponível para preencher automaticamente no momento.")
+                    st.info("Nenhuma venda nova marcada pela Visão Geral disponível para preencher automaticamente no momento.")
+
+            linha_clear_origem_default = normalize_text(contrato_row.get("__linha_clear", "")) if contrato_row is not None and "__linha_clear" in contrato_row.index else ""
 
             tutor_nome_default = normalize_text(contrato_row.get(COL_NOME, "")) if contrato_row is not None and COL_NOME and COL_NOME in df_contratos_form.columns else ""
             tutor_telefone_default = normalize_text(contrato_row.get(COL_TEL, "")) if contrato_row is not None and COL_TEL and COL_TEL in df_contratos_form.columns else ""
@@ -4222,10 +4236,17 @@ elif page == "Pedigree":
                         "Pelagem": pelagem,
                         "Microchip": microchip,
                         "Observações gerais": observacoes,
+                        "Linha Clear Origem": linha_clear_origem_default,
                     }
 
                     try:
                         salvar_formulario_pedigree(dados_formulario)
+
+                        if linha_clear_origem_default:
+                            marcar_novo_formulario_pedigree_feito(
+                                safe_int_zero(linha_clear_origem_default)
+                            )
+
                         st.session_state["novo_pedigree_form"] = dados_formulario
                         st.success("Formulário salvo/atualizado na planilha com sucesso.")
                         st.rerun()
