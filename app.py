@@ -3711,6 +3711,7 @@ elif page == "Pedigree":
         "Fazer rg e certidão",
         "Pendência / Problemas",
         "Pendências / Problemas",
+        "Aprovação Interna",
         "Aprovação Cliente",
         "Para Imprimir Pedigree",
         "Imprimir Pedigree",
@@ -3736,7 +3737,9 @@ elif page == "Pedigree":
         "fazer rg e certidao": "RG E CERTIDÃO",
         "pendencia / problemas": "Problemas",
         "pendencias / problemas": "Problemas",
-        "aprovacao cliente": "Aprovação",
+        "aprovacao interna": "Aprovação Interna",
+        "aprovacao cliente": "Aprovação Cliente",
+        "aprovacao": "Aprovação Interna",
         "para imprimir pedigree": "Imprimir Pedigree",
         "imprimir pedigree": "Imprimir Pedigree",
         "imprimir rg e certidao": "Imprimir RG+ Certidão",
@@ -3911,38 +3914,99 @@ elif page == "Pedigree":
     def set_acao_ped(nome):
         st.session_state.acao_ped = nome
 
-    linha1 = st.columns(4)
-    linha2 = st.columns(4)
-    linha3 = st.columns(4)
+    def titulo_responsavel(nome, subtitulo, cor):
+        st.markdown(
+            f"""
+            <div style="
+                margin: 18px 0 10px 0;
+                padding: 12px 16px;
+                border-radius: 16px;
+                background: #FFFFFF;
+                border: 1px solid #E7EAF3;
+                border-left: 8px solid {cor};
+                box-shadow: 0 8px 24px rgba(15, 23, 42, 0.04);
+            ">
+                <div style="font-weight: 900; color: #032450; font-size: 1rem;">
+                    {html.escape(nome)}
+                </div>
+                <div style="color: #6B7280; font-size: 0.82rem; margin-top: 2px;">
+                    {html.escape(subtitulo)}
+                </div>
+            </div>
+            """,
+            unsafe_allow_html=True,
+        )
 
-    with linha1[0]:
+    # =========================
+    # JULLIA
+    # =========================
+    titulo_responsavel(
+        "Jullia",
+        "Entrada, transferência, problemas e aprovação com cliente.",
+        "#7C3AED",
+    )
+
+    jullia_linha1 = st.columns(4)
+    jullia_linha2 = st.columns(4)
+
+    with jullia_linha1[0]:
         st.button("Novo", use_container_width=True, on_click=set_acao_ped, args=("Novo",))
-    with linha1[1]:
+    with jullia_linha1[1]:
         st.button("Transferência", use_container_width=True, on_click=set_acao_ped, args=("Transferência",))
-    with linha1[2]:
+    with jullia_linha1[2]:
         st.button("Sem transferência", use_container_width=True, on_click=set_acao_ped, args=("Sem transferência",))
-    with linha1[3]:
-        st.button("RG E CERTIDÃO", use_container_width=True, on_click=set_acao_ped, args=("RG E CERTIDÃO",))
-
-    with linha2[0]:
+    with jullia_linha1[3]:
         st.button("Problemas", use_container_width=True, on_click=set_acao_ped, args=("Problemas",))
-    with linha2[1]:
-        st.button("Aprovação", use_container_width=True, on_click=set_acao_ped, args=("Aprovação",))
-    with linha2[2]:
-        st.button("Imprimir Pedigree", use_container_width=True, on_click=set_acao_ped, args=("Imprimir Pedigree",))
-    with linha2[3]:
-        st.button("Imprimir RG+ Certidão", use_container_width=True, on_click=set_acao_ped, args=("Imprimir RG+ Certidão",))
 
-    with linha3[0]:
+    with jullia_linha2[0]:
+        st.button("Aprovação Cliente", use_container_width=True, on_click=set_acao_ped, args=("Aprovação Cliente",))
+
+    # =========================
+    # VALÉRIA
+    # =========================
+    titulo_responsavel(
+        "Valéria",
+        "Aprovação interna e preparação/impressão dos documentos.",
+        "#EC4899",
+    )
+
+    valeria_linha1 = st.columns(4)
+    valeria_linha2 = st.columns(4)
+
+    with valeria_linha1[0]:
+        st.button("Aprovação Interna", use_container_width=True, on_click=set_acao_ped, args=("Aprovação Interna",))
+    with valeria_linha1[1]:
+        st.button("Imprimir Pedigree", use_container_width=True, on_click=set_acao_ped, args=("Imprimir Pedigree",))
+    with valeria_linha1[2]:
+        st.button("Imprimir RG+ Certidão", use_container_width=True, on_click=set_acao_ped, args=("Imprimir RG+ Certidão",))
+    with valeria_linha1[3]:
         st.button("Imprimir Etiqueta", use_container_width=True, on_click=set_acao_ped, args=("Imprimir Etiqueta",))
-    with linha3[1]:
+
+    with valeria_linha2[0]:
         st.button("Airtag", use_container_width=True, on_click=set_acao_ped, args=("Airtag",))
-    with linha3[2]:
+
+    # =========================
+    # MAYRA
+    # =========================
+    titulo_responsavel(
+        "Mayra",
+        "RG/Certidão, envio e confirmação com o cliente.",
+        "#F2C94C",
+    )
+
+    mayra_linha1 = st.columns(4)
+
+    with mayra_linha1[0]:
+        st.button("RG E CERTIDÃO", use_container_width=True, on_click=set_acao_ped, args=("RG E CERTIDÃO",))
+    with mayra_linha1[1]:
         st.button("Envio", use_container_width=True, on_click=set_acao_ped, args=("Envio",))
-    with linha3[3]:
+    with mayra_linha1[2]:
         st.button("Enviado Cliente", use_container_width=True, on_click=set_acao_ped, args=("Enviado Cliente",))
 
     if st.session_state.acao_ped:
+        if st.session_state.acao_ped == "Aprovação":
+            st.session_state.acao_ped = "Aprovação Interna"
+
         acao_atual = st.session_state.acao_ped
 
         st.markdown(
