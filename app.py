@@ -1783,7 +1783,43 @@ def render_cliente_card(cliente: pd.Series, status_opcoes: list):
         unsafe_allow_html=True,
     )
 
-    status_index = status_opcoes.index(status_atual) if status_atual in status_opcoes else 0
+    MAP_STATUS_SELECTBOX = {
+        "fazer pedigree venda": "Transferência",
+        "fazer pedigree s/ trans": "Sem transferência",
+        "fazer pedrigree s/ trans": "Sem transferência",
+        "fazer rg/certidao": "RG E CERTIDÃO",
+        "fazer rg e certidao": "RG E CERTIDÃO",
+        "pendencia / problemas": "Problemas",
+        "pendencias / problemas": "Problemas",
+        "aprovacao": "Aprovação Interna",
+        "aprovacao interna": "Aprovação Interna",
+        "aprovacao cliente": "Aprovação Cliente",
+        "para imprimir pedigree": "Imprimir Pedigree",
+        "imprimir pedigree": "Imprimir Pedigree",
+        "imprimir rg e certidao": "Imprimir RG+ Certidão",
+        "imprimir rg + certidao": "Imprimir RG+ Certidão",
+        "imprimir etiqueta": "Imprimir Etiqueta",
+        "airtag": "Airtag",
+        "envio correio": "Envio",
+        "postado/enviado correio": "Enviado Cliente",
+        "postado/enviado corr": "Enviado Cliente",
+        "postado/ enviado loja": "Enviado Cliente",
+        "pendencia cliente": "Problemas",
+        "sem matriz": "Problemas",
+        "transferencia": "Transferência",
+        "sem transferencia": "Sem transferência",
+        "rg e certidao": "RG E CERTIDÃO",
+        "problemas": "Problemas",
+        "envio": "Envio",
+        "enviado cliente": "Enviado Cliente",
+    }
+
+    status_atual_visual = MAP_STATUS_SELECTBOX.get(
+        normalize_search_text(status_atual),
+        status_atual,
+    )
+
+    status_index = status_opcoes.index(status_atual_visual) if status_atual_visual in status_opcoes else 0
 
     col_status_1, col_status_2, col_status_3 = st.columns([3, 1, 1])
 
@@ -3703,28 +3739,18 @@ elif page == "Pedigree":
     )
 
     status_opcoes = [
-        "Fazer Pedigree Venda",
-        "Fazer Pedigree venda",
-        "Fazer Pedigree s/ trans",
-        "Fazer Pedrigree s/ trans",
-        "Fazer RG/Certidão",
-        "Fazer rg e certidão",
-        "Pendência / Problemas",
-        "Pendências / Problemas",
+        "Transferência",
+        "Sem transferência",
+        "RG E CERTIDÃO",
+        "Problemas",
         "Aprovação Interna",
         "Aprovação Cliente",
-        "Para Imprimir Pedigree",
         "Imprimir Pedigree",
+        "Imprimir RG+ Certidão",
         "Imprimir Etiqueta",
-        "Imprimir RG E CERTIDÃO",
-        "Imprimir RG + Certidão",
         "Airtag",
-        "Envio Correio",
-        "Postado/Enviado Correio",
-        "Postado/Enviado Corr",
-        "Postado/ enviado loja",
-        "Pendência Cliente",
-        "Sem Matriz",
+        "Envio",
+        "Enviado Cliente",
     ]
 
     # Interpretação automática do texto da coluna "Status Pedigree" para abrir a área correta.
@@ -3752,6 +3778,19 @@ elif page == "Pedigree":
         "postado/ enviado loja": "Enviado Cliente",
         "pendencia cliente": "Problemas",
         "sem matriz": "Problemas",
+        "transferencia": "Transferência",
+        "sem transferencia": "Sem transferência",
+        "rg e certidao": "RG E CERTIDÃO",
+        "problemas": "Problemas",
+        "aprovacao interna": "Aprovação Interna",
+        "aprovacao cliente": "Aprovação Cliente",
+        "imprimir pedigree": "Imprimir Pedigree",
+        "imprimir rg+ certidao": "Imprimir RG+ Certidão",
+        "imprimir rg + certidao": "Imprimir RG+ Certidão",
+        "imprimir etiqueta": "Imprimir Etiqueta",
+        "airtag": "Airtag",
+        "envio": "Envio",
+        "enviado cliente": "Enviado Cliente",
     }
 
     def map_status_para_acao(status):
@@ -4293,7 +4332,11 @@ elif page == "Pedigree":
     def set_acao_ped(nome):
         if nome == "Aprovação":
             nome = "Aprovação Interna"
-        st.session_state.acao_ped = nome
+
+        if st.session_state.get("acao_ped") == nome:
+            st.session_state.acao_ped = None
+        else:
+            st.session_state.acao_ped = nome
 
     def titulo_responsavel(nome, subtitulo, cor):
         st.markdown(
