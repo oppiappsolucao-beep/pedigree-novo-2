@@ -78,38 +78,26 @@ def sanitize_drive_filename(value: str) -> str:
 
 def upload_foto_pet_to_drive(foto_pet, tutor_nome: str) -> str:
     """
-    Envia a foto do pet para a pasta do Google Drive e usa o nome do tutor no arquivo.
-    Retorna o link do arquivo no Drive.
+    Envia a foto do pet para o Google Drive usando um Google Apps Script Web App.
+
+    Motivo:
+    Service Account não possui quota própria de armazenamento no My Drive.
+    Por isso, o upload direto pela Drive API pode retornar:
+    "Service Accounts do not have storage quota".
+
+    O Apps Script roda como o dono do Drive e salva o arquivo na pasta correta.
+    Configure no Streamlit Secrets:
+    DRIVE_UPLOAD_WEBAPP_URL = "URL_DO_SEU_APPS_SCRIPT_WEB_APP"
     """
     if not foto_pet:
         return ""
 
-    service_account_info = dict(st.secrets["gcp_service_account"])
-    service_email = service_account_info.get("client_email", "")
+    upload_url = st.secrets.get("DRIVE_UPLOAD_WEBAPP_URL", "")
 
-    creds = Credentials.from_service_account_info(
-        service_account_info,
-        scopes=SCOPES,
-    )
-
-    creds.refresh(Request())
-
-    headers_auth = {
-        "Authorization": f"Bearer {creds.token}",
-    }
-
-    folder_check = requests.get(
-        f"https://www.googleapis.com/drive/v3/files/{DRIVE_FOTOS_PET_FOLDER_ID}"
-        "?supportsAllDrives=true&fields=id,name,mimeType",
-        headers=headers_auth,
-        timeout=30,
-    )
-
-    if folder_check.status_code != 200:
+    if not upload_url:
         raise Exception(
-            "A service account não conseguiu acessar a pasta do Drive. "
-            f"Confirme se a pasta foi compartilhada como EDITOR com: {service_email}. "
-            f"Detalhe técnico: {folder_check.text}"
+            "Falta configurar DRIVE_UPLOAD_WEBAPP_URL no Streamlit Secrets. "
+            "Crie o Google Apps Script Web App e cole a URL nos Secrets."
         )
 
     original_name = normalize_text(getattr(foto_pet, "name", "foto_pet.jpg"))
@@ -124,41 +112,33 @@ def upload_foto_pet_to_drive(foto_pet, tutor_nome: str) -> str:
     final_filename = f"{tutor_filename}_{timestamp}{extension}"
 
     file_bytes = foto_pet.getvalue()
+    file_b64 = base64.b64encode(file_bytes).decode("utf-8")
     mime_type = getattr(foto_pet, "type", None) or mimetypes.guess_type(final_filename)[0] or "application/octet-stream"
 
-    metadata = {
-        "name": final_filename,
-        "parents": [DRIVE_FOTOS_PET_FOLDER_ID],
+    payload = {
+        "filename": final_filename,
+        "mimeType": mime_type,
+        "base64": file_b64,
     }
 
     response = requests.post(
-        "https://www.googleapis.com/upload/drive/v3/files"
-        "?uploadType=multipart&supportsAllDrives=true&fields=id,name,webViewLink",
-        headers=headers_auth,
-        files={
-            "metadata": (
-                "metadata",
-                json.dumps(metadata),
-                "application/json; charset=UTF-8",
-            ),
-            "file": (
-                final_filename,
-                file_bytes,
-                mime_type,
-            ),
-        },
-        timeout=60,
+        upload_url,
+        json=payload,
+        timeout=90,
     )
 
     if response.status_code not in [200, 201]:
-        raise Exception(
-            "Erro ao enviar imagem para o Drive. "
-            f"Service account usada: {service_email}. "
-            f"Detalhe técnico: {response.text}"
-        )
+        raise Exception(f"Erro no Apps Script ao enviar imagem: {response.text}")
 
-    file_info = response.json()
-    return file_info.get("webViewLink", "")
+    try:
+        data = response.json()
+    except Exception:
+        raise Exception(f"Resposta inválida do Apps Script: {response.text}")
+
+    if not data.get("ok"):
+        raise Exception(f"Apps Script retornou erro: {data}")
+
+    return data.get("url", "")
 
 
 
