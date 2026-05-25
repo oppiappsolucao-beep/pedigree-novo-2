@@ -3921,8 +3921,8 @@ elif page == "Pedigree":
                 margin: 18px 0 10px 0;
                 padding: 12px 16px;
                 border-radius: 16px;
-                background: #FFFFFF;
-                border: 1px solid #E7EAF3;
+                background: linear-gradient(90deg, rgba(3,36,80,0.06), rgba(46,108,191,0.04));
+                border: 1px solid #D8E2F3;
                 border-left: 8px solid {cor};
                 box-shadow: 0 8px 24px rgba(15, 23, 42, 0.04);
             ">
@@ -3943,7 +3943,7 @@ elif page == "Pedigree":
     titulo_responsavel(
         "Jullia",
         "Entrada, transferência, problemas e aprovação com cliente.",
-        "#7C3AED",
+        "#032450",
     )
 
     jullia_linha1 = st.columns(4)
@@ -3967,7 +3967,7 @@ elif page == "Pedigree":
     titulo_responsavel(
         "Valéria",
         "Aprovação interna e preparação/impressão dos documentos.",
-        "#EC4899",
+        "#0D3D7A",
     )
 
     valeria_linha1 = st.columns(4)
@@ -3991,7 +3991,7 @@ elif page == "Pedigree":
     titulo_responsavel(
         "Mayra",
         "RG/Certidão, envio e confirmação com o cliente.",
-        "#F2C94C",
+        "#2e6cbf",
     )
 
     mayra_linha1 = st.columns(4)
