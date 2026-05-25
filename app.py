@@ -78,16 +78,8 @@ def sanitize_drive_filename(value: str) -> str:
 
 def upload_foto_pet_to_drive(foto_pet, tutor_nome: str) -> str:
     """
-    Envia a foto do pet para o Google Drive usando um Google Apps Script Web App.
-
-    Motivo:
-    Service Account não possui quota própria de armazenamento no My Drive.
-    Por isso, o upload direto pela Drive API pode retornar:
-    "Service Accounts do not have storage quota".
-
-    O Apps Script roda como o dono do Drive e salva o arquivo na pasta correta.
-    Configure no Streamlit Secrets:
-    DRIVE_UPLOAD_WEBAPP_URL = "URL_DO_SEU_APPS_SCRIPT_WEB_APP"
+    Envia a foto do pet para o Google Drive usando Google Apps Script Web App.
+    Corrigido para lidar com redirecionamento do Apps Script.
     """
     if not foto_pet:
         return ""
@@ -121,11 +113,29 @@ def upload_foto_pet_to_drive(foto_pet, tutor_nome: str) -> str:
         "base64": file_b64,
     }
 
+    # Apps Script às vezes redireciona. Se o requests seguir sozinho,
+    # pode transformar POST em GET e devolver HTML. Por isso tratamos manualmente.
     response = requests.post(
         upload_url,
         json=payload,
         timeout=90,
+        allow_redirects=False,
     )
+
+    if response.status_code in [301, 302, 303, 307, 308]:
+        redirect_url = response.headers.get("Location", "")
+
+        if not redirect_url:
+            raise Exception(
+                "Apps Script redirecionou, mas não retornou URL de destino."
+            )
+
+        response = requests.post(
+            redirect_url,
+            json=payload,
+            timeout=90,
+            allow_redirects=False,
+        )
 
     if response.status_code not in [200, 201]:
         raise Exception(f"Erro no Apps Script ao enviar imagem: {response.text}")
@@ -133,7 +143,11 @@ def upload_foto_pet_to_drive(foto_pet, tutor_nome: str) -> str:
     try:
         data = response.json()
     except Exception:
-        raise Exception(f"Resposta inválida do Apps Script: {response.text}")
+        raise Exception(
+            "Resposta inválida do Apps Script. "
+            "Isso geralmente indica que o link ainda está retornando HTML do Google. "
+            f"Resposta recebida: {response.text[:800]}"
+        )
 
     if not data.get("ok"):
         raise Exception(f"Apps Script retornou erro: {data}")
