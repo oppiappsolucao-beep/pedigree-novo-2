@@ -3950,7 +3950,7 @@ elif page == "Pedigree":
             contrato_row = None
 
             # Agora o formulário pega automaticamente o Novo Lead mais recente da aba Clear.
-            # Novo Lead para o formulário = nova entrada de contrato com Status Venda Pedigree "Vendido" e ainda não lançada na aba Pedigree.
+            # Novo Lead para o formulário = nova entrada de contrato com status "Vendido" em qualquer coluna de status relevante da aba Clear e ainda não lançada na aba Pedigree.
             if not df_contratos_form.empty:
 
                 col_status_venda_form = (
@@ -3959,20 +3959,52 @@ elif page == "Pedigree":
                     else detect_col(df_contratos_form, [["status", "venda", "pedigree"], ["status", "venda"]])
                 )
 
-                if col_status_venda_form and col_status_venda_form in df_contratos_form.columns:
-                    serie_status_form = df_contratos_form[col_status_venda_form].astype(str).apply(normalize_search_text)
+                # Nova entrada de contrato:
+                # considera contratos com status VENDIDO.
+                # Robusto para casos em que o "Vendido" esteja em outra coluna de status da aba Clear.
+                status_cols_form = []
 
-                    mask_novo_lead_form = (
-                        serie_status_form.eq(normalize_search_text("Vendido"))
-                    )
+                candidatos_status_form = [
+                    "Status Venda Pedigree",
+                    "Status Pedigree",
+                    "Clear",
+                    "Status",
+                    "Status Venda",
+                ]
+
+                for coluna_status_candidata in candidatos_status_form:
+                    if coluna_status_candidata in df_contratos_form.columns:
+                        status_cols_form.append(coluna_status_candidata)
+
+                for coluna_existente in df_contratos_form.columns:
+                    nome_col_norm = normalize_search_text(coluna_existente)
+
+                    if (
+                        "status" in nome_col_norm
+                        or nome_col_norm == "clear"
+                    ) and coluna_existente not in status_cols_form:
+                        status_cols_form.append(coluna_existente)
+
+                if status_cols_form:
+                    mask_novo_lead_form = pd.Series(False, index=df_contratos_form.index)
+
+                    for coluna_status_form in status_cols_form:
+                        serie_status_form = (
+                            df_contratos_form[coluna_status_form]
+                            .astype(str)
+                            .apply(normalize_search_text)
+                        )
+
+                        mask_novo_lead_form = mask_novo_lead_form | serie_status_form.eq(
+                            normalize_search_text("Vendido")
+                        )
 
                     df_novos_leads_form = df_contratos_form[mask_novo_lead_form].copy()
                 else:
                     df_novos_leads_form = pd.DataFrame()
 
-                # Nova entrada de contrato:
-                # considera apenas contratos VENDIDOS que ainda NÃO existem na aba de Pedigree.
-                # Assim não fica puxando contratos antigos já lançados no formulário.
+                # Evita puxar contratos antigos já lançados na aba Pedigree,
+                # mas só quando telefone/CPF estiverem realmente preenchidos nas duas abas.
                 df_pedigree_existente_form = load_pedigree_data().copy()
 
                 if not df_novos_leads_form.empty and not df_pedigree_existente_form.empty:
@@ -4004,10 +4036,10 @@ elif page == "Pedigree":
                         telefone_row = only_digits(row.get(COL_TEL, "")) if COL_TEL and COL_TEL in row.index else ""
                         cpf_row = only_digits(row.get(COL_CPF, "")) if COL_CPF and COL_CPF in row.index else ""
 
-                        if telefone_row and telefone_row in telefones_pedigree_existentes:
+                        if telefone_row and telefones_pedigree_existentes and telefone_row in telefones_pedigree_existentes:
                             return False
 
-                        if cpf_row and cpf_row in cpfs_pedigree_existentes:
+                        if cpf_row and cpfs_pedigree_existentes and cpf_row in cpfs_pedigree_existentes:
                             return False
 
                         return True
