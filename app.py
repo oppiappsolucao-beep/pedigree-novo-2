@@ -4173,7 +4173,19 @@ elif page == "Pedigree":
                 with col2:
                     status_cliente = st.selectbox("Status do Pedigree", status_opcoes)
                     transferencia = st.radio("Houve pedido de transferência?", ["Sim", "Não"], horizontal=True)
-                    observacoes_status = st.text_area("Observações do status")
+                    observacoes_status_lista = st.multiselect(
+                        "Itens escolhidos",
+                        [
+                            "Pedigree",
+                            "Pedigree sem transferência",
+                            "RG",
+                            "Certidão",
+                            "Airtag",
+                        ],
+                        default=[],
+                    )
+
+                    observacoes_status = ", ".join(observacoes_status_lista)
 
                 st.markdown("#### Informações Cão")
 
