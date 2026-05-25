@@ -4249,7 +4249,6 @@ elif page == "Pedigree":
                     tutor_endereco = st.text_input(
                         "Endereço completo",
                         value=tutor_endereco_default,
-                        disabled=True,
                     )
 
                 with col2:
@@ -4347,8 +4346,12 @@ elif page == "Pedigree":
                                 tutor_nome,
                             )
                     except Exception as e:
-                        st.error(f"Erro ao enviar a foto do pet para o Drive: {e}")
-                        st.stop()
+                        st.warning(
+                            "A foto não foi enviada para o Drive. "
+                            "O formulário será salvo normalmente, mas sem o link da foto. "
+                            "Para salvar no Drive, ative a Google Drive API no projeto do Google Cloud da credencial."
+                        )
+                        foto_pet_drive_url = ""
 
                     dados_formulario = {
                         "Nome": tutor_nome,
