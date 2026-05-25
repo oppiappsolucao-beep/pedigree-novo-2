@@ -79,7 +79,11 @@ def sanitize_drive_filename(value: str) -> str:
 def upload_foto_pet_to_drive(foto_pet, tutor_nome: str) -> str:
     """
     Envia a foto do pet para o Google Drive usando Google Apps Script Web App.
-    Corrigido para lidar com redirecionamento do Apps Script.
+
+    Nesta versão o envio vai como formulário simples:
+    payload = JSON em texto.
+    Isso evita o erro de HTML/Page Not Found que o Apps Script pode devolver
+    quando recebe JSON puro em alguns redirecionamentos.
     """
     if not foto_pet:
         return ""
@@ -113,40 +117,25 @@ def upload_foto_pet_to_drive(foto_pet, tutor_nome: str) -> str:
         "base64": file_b64,
     }
 
-    # Apps Script às vezes redireciona. Se o requests seguir sozinho,
-    # pode transformar POST em GET e devolver HTML. Por isso tratamos manualmente.
     response = requests.post(
         upload_url,
-        json=payload,
-        timeout=90,
-        allow_redirects=False,
+        data={
+            "payload": json.dumps(payload),
+        },
+        timeout=120,
     )
 
-    if response.status_code in [301, 302, 303, 307, 308]:
-        redirect_url = response.headers.get("Location", "")
-
-        if not redirect_url:
-            raise Exception(
-                "Apps Script redirecionou, mas não retornou URL de destino."
-            )
-
-        response = requests.post(
-            redirect_url,
-            json=payload,
-            timeout=90,
-            allow_redirects=False,
-        )
-
     if response.status_code not in [200, 201]:
-        raise Exception(f"Erro no Apps Script ao enviar imagem: {response.text}")
+        raise Exception(f"Erro no Apps Script ao enviar imagem: {response.text[:1000]}")
 
     try:
         data = response.json()
     except Exception:
         raise Exception(
-            "Resposta inválida do Apps Script. "
-            "Isso geralmente indica que o link ainda está retornando HTML do Google. "
-            f"Resposta recebida: {response.text[:800]}"
+            "O Apps Script respondeu HTML em vez de JSON. "
+            "Confirme se você implantou uma NOVA VERSÃO do Apps Script depois de trocar o código, "
+            "e se a URL do Secrets termina com /exec. "
+            f"Resposta recebida: {response.text[:1000]}"
         )
 
     if not data.get("ok"):
