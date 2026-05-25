@@ -2886,8 +2886,8 @@ if page == "Visão Geral":
                 "Data Compra",
                 "Mês",
                 "Raça",
+                "Microchip",
                 "Status Venda Pedigree",
-                "Status Pedigree",
             ]
 
             colunas_busca_exibir = [
@@ -3993,6 +3993,11 @@ elif page == "Pedigree":
                 [["cor"]],
             )
 
+            col_microchip_clear = detectar_coluna_form(
+                df_contratos_form,
+                [["microchip"], ["micro", "chip"]],
+            )
+
             col_endereco_clear = detectar_coluna_form(
                 df_contratos_form,
                 [["endereço"], ["endereco"], ["rua"], ["bairro"], ["cidade"]],
@@ -4104,6 +4109,7 @@ elif page == "Pedigree":
             raca_default = valor_coluna_form(contrato_row, [col_raca_clear]) if contrato_row is not None and col_raca_clear else ""
             sexo_default = valor_coluna_form(contrato_row, [col_sexo_clear]) if contrato_row is not None and col_sexo_clear else ""
             cor_default = valor_coluna_form(contrato_row, [col_cor_clear]) if contrato_row is not None and col_cor_clear else ""
+            microchip_default = valor_coluna_form(contrato_row, [col_microchip_clear]) if contrato_row is not None and col_microchip_clear else ""
 
             nascimento_default = dt.date.today()
 
@@ -4203,7 +4209,10 @@ elif page == "Pedigree":
                         disabled=True,
                     )
 
-                    microchip = st.text_input("Microchip")
+                    microchip = st.text_input(
+                        "Microchip",
+                        value=microchip_default,
+                    )
 
                 with col4:
                     foto_pet = st.file_uploader("Foto do pet", type=["png", "jpg", "jpeg"])
