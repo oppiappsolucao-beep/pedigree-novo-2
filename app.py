@@ -436,6 +436,7 @@ def salvar_pedigree_na_comissao(dados):
     """
     TRAVA DE SEGURANÇA:
     Não grava automaticamente na aba Pedigree Comissão Ju.
+    A aba Pedigree apenas LÊ a Pedigree Comissão Ju para calcular as caixas.
     """
     return None
 
@@ -1949,6 +1950,11 @@ def render_status_venda_editavel_table(df_table: pd.DataFrame, cols_to_show: lis
 
 def render_cliente_card(cliente: pd.Series, status_opcoes: list):
     row_number = int(cliente.get("__row_number", 0))
+    source_ficha = normalize_text(cliente.get("__source", "Pedigree"))
+    ficha_virtual_sem_edicao = normalize_search_text(source_ficha) in [
+        normalize_search_text("Comissão"),
+        normalize_search_text("Clear"),
+    ]
 
     nome = normalize_text(cliente.get("Nome", ""))
     telefone = format_phone_br(cliente.get("Telefone", ""))
@@ -2029,32 +2035,38 @@ def render_cliente_card(cliente: pd.Series, status_opcoes: list):
 
     status_index = status_opcoes.index(status_atual_visual) if status_atual_visual in status_opcoes else 0
 
-    col_status_1, col_status_2, col_status_3 = st.columns([3, 1, 1])
-
-    with col_status_1:
-        novo_status = st.selectbox(
-            "Status do Pedigree",
-            status_opcoes,
-            index=status_index,
-            key=f"status_pedigree_{row_number}",
+    if ficha_virtual_sem_edicao:
+        st.info(
+            "Esta ficha está sendo exibida a partir da base de compra/comissão. "
+            "Ela é somente visual aqui para não alterar nenhuma linha errada."
         )
+    else:
+        col_status_1, col_status_2, col_status_3 = st.columns([3, 1, 1])
 
-    with col_status_2:
-        st.markdown("<br>", unsafe_allow_html=True)
+        with col_status_1:
+            novo_status = st.selectbox(
+                "Status do Pedigree",
+                status_opcoes,
+                index=status_index,
+                key=f"status_pedigree_{row_number}",
+            )
 
-        if st.button("Atualizar status", use_container_width=True, key=f"btn_status_{row_number}"):
-            try:
-                atualizar_status_pedigree(row_number, novo_status)
-                st.success("Status atualizado com sucesso.")
-                st.rerun()
-            except Exception as e:
-                st.error(f"Erro ao atualizar status: {e}")
+        with col_status_2:
+            st.markdown("<br>", unsafe_allow_html=True)
 
-    with col_status_3:
-        st.markdown("<br>", unsafe_allow_html=True)
+            if st.button("Atualizar status", use_container_width=True, key=f"btn_status_{row_number}"):
+                try:
+                    atualizar_status_pedigree(row_number, novo_status)
+                    st.success("Status atualizado com sucesso.")
+                    st.rerun()
+                except Exception as e:
+                    st.error(f"Erro ao atualizar status: {e}")
 
-        if st.button("🗑️ Excluir ficha", use_container_width=True, key=f"btn_excluir_{row_number}"):
-            st.session_state[f"confirmar_exclusao_{row_number}"] = True
+        with col_status_3:
+            st.markdown("<br>", unsafe_allow_html=True)
+
+            if st.button("🗑️ Excluir ficha", use_container_width=True, key=f"btn_excluir_{row_number}"):
+                st.session_state[f"confirmar_exclusao_{row_number}"] = True
 
     if st.session_state.get(f"confirmar_exclusao_{row_number}", False):
 
@@ -4014,7 +4026,6 @@ elif page == "Pedigree":
             "Cor",
             "Endereço completo",
             "Status Pedigree",
-            "Status Venda Pedigree",
             "Transferência",
             "Observações Status",
             "Nome Cachorro",
@@ -4045,52 +4056,6 @@ elif page == "Pedigree":
         df_ped["_search_all"] = df_ped.apply(normalize_full_row, axis=1)
         df_ped["_tel_digits_ped"] = df_ped["Telefone"].apply(only_digits)
         df_ped["ACAO"] = df_ped["Status Pedigree"].apply(map_status_para_acao)
-
-        # Regra correta dos cards da aba Pedigree:
-        # usa SOMENTE a aba Pedigree e se baseia também na coluna Status Venda Pedigree.
-        # Não usa Clear e não usa Pedigree Comissão Ju para montar essas caixas.
-        def map_status_venda_pedigree_para_acao(status_venda):
-            status_norm = normalize_search_text(status_venda)
-
-            if status_norm in [
-                normalize_search_text("Vendido"),
-                normalize_search_text("Com transferência"),
-                normalize_search_text("Com transferencia"),
-            ]:
-                return "Transferência"
-
-            if status_norm in [
-                normalize_search_text("Emitir Sem Venda"),
-                normalize_search_text("Sem transferência"),
-                normalize_search_text("Sem transferencia"),
-            ]:
-                return "Sem transferência"
-
-            if status_norm in [
-                normalize_search_text("Conversando"),
-                normalize_search_text("Novo Lead"),
-                "",
-            ]:
-                return "Novo"
-
-            if status_norm in [
-                normalize_search_text("Não tem interesse"),
-                normalize_search_text("Nao tem interesse"),
-                normalize_search_text("Sem Resposta"),
-            ]:
-                return "Problemas"
-
-            return ""
-
-        if "Status Venda Pedigree" in df_ped.columns:
-            acao_por_status_venda = df_ped["Status Venda Pedigree"].apply(map_status_venda_pedigree_para_acao)
-
-            # Quando a coluna Status Venda Pedigree tiver um status válido,
-            # ela manda no card. Caso esteja vazia/sem mapeamento, mantém Status Pedigree.
-            df_ped["ACAO"] = acao_por_status_venda.where(
-                acao_por_status_venda.astype(str).str.strip() != "",
-                df_ped["ACAO"],
-            )
     else:
         df_ped = pd.DataFrame(
             columns=[
@@ -4104,7 +4069,6 @@ elif page == "Pedigree":
                 "Cor",
                 "Endereço completo",
                 "Status Pedigree",
-                "Status Venda Pedigree",
                 "Transferência",
                 "Observações Status",
                 "Nome Cachorro",
@@ -4119,6 +4083,14 @@ elif page == "Pedigree":
                 "_mes_key",
             ]
         )
+
+    # Fonte de compradores reais para os cards da aba Pedigree:
+    # SOMENTE leitura da aba Pedigree Comissão Ju.
+    # Não usa a aba Clear e não escreve nada na comissão.
+    try:
+        df_comm_ped_source = load_commission_data().copy()
+    except Exception:
+        df_comm_ped_source = pd.DataFrame()
 
     ped_months_from_sheet = []
 
@@ -4626,15 +4598,166 @@ elif page == "Pedigree":
             st.session_state.responsavel_ped_aberto = nome
             st.session_state.acao_ped = None
 
+    def contar_novo_pendente():
+        """
+        Novo = somente quando a Visão Geral marcou como Vendido
+        e a linha ficou com Novo Formulário Pedigree = Pendente.
+        """
+        try:
+            if df is None or df.empty:
+                return 0
+
+            col_novo_form = (
+                "Novo Formulário Pedigree"
+                if "Novo Formulário Pedigree" in df.columns
+                else detect_col(df, [["novo", "formulário", "pedigree"], ["novo", "formulario", "pedigree"]])
+            )
+
+            if not col_novo_form or col_novo_form not in df.columns:
+                return 0
+
+            serie = df[col_novo_form].astype(str).apply(normalize_search_text)
+            return int(serie.eq(normalize_search_text("Pendente")).sum())
+        except Exception:
+            return 0
+
+    def preparar_compras_comissao_para_pedigree():
+        """
+        Base das caixas da aba Pedigree.
+
+        Regra:
+        - Novo: vem da Visão Geral quando vira Vendido/Pendente;
+        - Transferência, Sem transferência, RG E CERTIDÃO e Airtag:
+          vêm da aba Pedigree Comissão Ju;
+        - Tudo filtrado pelo Mês de referência selecionado;
+        - NÃO escreve, NÃO apaga e NÃO altera nada na comissão.
+        """
+        if df_comm_ped_source is None or df_comm_ped_source.empty:
+            return pd.DataFrame()
+
+        dfc = df_comm_ped_source.copy()
+
+        col_data_venda_c = "Data da Venda" if "Data da Venda" in dfc.columns else detect_col(dfc, [["data", "venda"], ["data"]])
+        col_mes_venda_c = "Mês da Venda" if "Mês da Venda" in dfc.columns else detect_col(dfc, [["mês", "venda"], ["mes", "venda"], ["mês"], ["mes"]])
+        col_cliente_c = "Cliente" if "Cliente" in dfc.columns else detect_col(dfc, [["cliente"], ["nome"]])
+        col_produtos_c = "Produtos" if "Produtos" in dfc.columns else detect_col(dfc, [["produto"]])
+
+        if not col_cliente_c:
+            return pd.DataFrame()
+
+        dfc["_mes_key"] = dfc.apply(
+            lambda row: build_month_key(row, col_mes_venda_c, col_data_venda_c),
+            axis=1,
+        )
+
+        if selected_ped_month:
+            dfc = dfc[dfc["_mes_key"] == selected_ped_month].copy()
+
+        if dfc.empty:
+            return pd.DataFrame()
+
+        def acao_por_produto_comissao(v):
+            produto_norm = normalize_search_text(v)
+
+            if not produto_norm:
+                return ""
+
+            if (
+                "pedigree s/ troca" in produto_norm
+                or "pedigree sem troca" in produto_norm
+                or "pedigree sem transferencia" in produto_norm
+                or "sem transferencia" in produto_norm
+                or "s/ trans" in produto_norm
+            ):
+                return "Sem transferência"
+
+            if "airtag" in produto_norm or "air tag" in produto_norm:
+                return "Airtag"
+
+            if "rg" in produto_norm or "certidao" in produto_norm or "certidão" in produto_norm:
+                return "RG E CERTIDÃO"
+
+            if "pedigree" in produto_norm:
+                return "Transferência"
+
+            return ""
+
+        dfc["ACAO"] = dfc[col_produtos_c].apply(acao_por_produto_comissao) if col_produtos_c else ""
+
+        out = pd.DataFrame()
+        out["Nome"] = dfc[col_cliente_c].astype(str).str.strip()
+        out["Telefone"] = ""
+        out["CPF"] = ""
+        out["E-mail"] = ""
+        out["Mês"] = dfc[col_mes_venda_c] if col_mes_venda_c and col_mes_venda_c in dfc.columns else ""
+        out["Raça"] = ""
+        out["Sexo"] = ""
+        out["Cor"] = ""
+        out["Endereço completo"] = ""
+        out["Status Pedigree"] = dfc["ACAO"]
+        out["Transferência"] = ""
+        out["Observações Status"] = dfc[col_produtos_c] if col_produtos_c and col_produtos_c in dfc.columns else ""
+        out["Nome Cachorro"] = ""
+        out["Data Nascimento"] = ""
+        out["Pelagem"] = ""
+        out["Microchip"] = ""
+        out["Observações gerais"] = ""
+        out["ACAO"] = dfc["ACAO"]
+        out["_mes_key"] = dfc["_mes_key"]
+        out["__row_number"] = dfc.index + 2
+        out["__source"] = "Comissão"
+
+        # Se já tiver ficha completa na aba Pedigree, usa os dados dela para exibir.
+        if df_ped is not None and not df_ped.empty and "Nome" in df_ped.columns:
+            dfp_lookup = df_ped.copy()
+            dfp_lookup["_nome_lookup"] = dfp_lookup["Nome"].apply(normalize_search_text)
+
+            for idx_out, row_out in out.iterrows():
+                nome_lookup = normalize_search_text(row_out.get("Nome", ""))
+
+                if not nome_lookup:
+                    continue
+
+                match = dfp_lookup[dfp_lookup["_nome_lookup"] == nome_lookup]
+
+                if not match.empty:
+                    ficha = match.iloc[0]
+
+                    for col_info in [
+                        "Telefone",
+                        "CPF",
+                        "E-mail",
+                        "Mês",
+                        "Raça",
+                        "Sexo",
+                        "Cor",
+                        "Endereço completo",
+                        "Transferência",
+                        "Nome Cachorro",
+                        "Data Nascimento",
+                        "Pelagem",
+                        "Microchip",
+                        "Observações gerais",
+                    ]:
+                        if col_info in ficha.index and normalize_text(ficha.get(col_info, "")):
+                            out.at[idx_out, col_info] = ficha.get(col_info, "")
+
+                    if "__row_number" in ficha.index:
+                        out.at[idx_out, "__row_number"] = ficha.get("__row_number", out.at[idx_out, "__row_number"])
+                        out.at[idx_out, "__source"] = "Pedigree"
+
+        out = out[out["Nome"].astype(str).str.strip() != ""].copy()
+        out = out[out["ACAO"].astype(str).str.strip() != ""].copy()
+
+        return out
+
+    def df_compras_pedigree_mes():
+        return preparar_compras_comissao_para_pedigree()
+
     def df_ped_mes_atual():
         """
-        Cards da aba Pedigree.
-
-        Regra correta:
-        - usa SOMENTE a aba Pedigree;
-        - filtra pelo Mês de referência;
-        - divide os formulários pela coluna Status Venda Pedigree quando ela existir;
-        - se Status Venda Pedigree estiver vazio, usa Status Pedigree como apoio.
+        Etapas operacionais que não vêm da comissão continuam vindo da aba Pedigree,
+        respeitando o mês selecionado.
         """
         if df_ped is None or df_ped.empty:
             return pd.DataFrame()
@@ -4647,6 +4770,17 @@ elif page == "Pedigree":
         return df_mes
 
     def df_acao_filtrado(acao):
+        if acao == "Novo":
+            return pd.DataFrame()
+
+        if acao in ["Transferência", "Sem transferência", "RG E CERTIDÃO", "Airtag"]:
+            df_comp = df_compras_pedigree_mes()
+
+            if df_comp.empty or "ACAO" not in df_comp.columns:
+                return pd.DataFrame()
+
+            return df_comp[df_comp["ACAO"] == acao].copy()
+
         if df_ped is None or df_ped.empty or "ACAO" not in df_ped.columns:
             return pd.DataFrame()
 
@@ -4658,6 +4792,9 @@ elif page == "Pedigree":
         return df_mes[df_mes["ACAO"] == acao].copy()
 
     def contar_acao_ped(acao):
+        if acao == "Novo":
+            return contar_novo_pendente()
+
         return int(len(df_acao_filtrado(acao)))
 
     def titulo_responsavel(nome, subtitulo, cor):
