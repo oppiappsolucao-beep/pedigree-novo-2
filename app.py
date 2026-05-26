@@ -1446,6 +1446,25 @@ def atualizar_status_pedigree(row_number: int, novo_status: str):
     st.cache_data.clear()
 
 
+def atualizar_observacoes_gerais_pedigree(row_number: int, nova_observacao: str):
+    """
+    Atualiza SOMENTE a coluna Observações gerais da ficha de Pedigree.
+    Funciona em qualquer aba/status em que a ficha estiver aberta.
+    """
+    worksheet = get_worksheet(PED_WORKSHEET_NAME)
+    headers = [str(h).strip() for h in worksheet.row_values(1)]
+
+    if "Observações gerais" not in headers:
+        headers.append("Observações gerais")
+        worksheet.update("A1", [headers], value_input_option="USER_ENTERED")
+
+    headers = [str(h).strip() for h in worksheet.row_values(1)]
+    col_number = headers.index("Observações gerais") + 1
+
+    worksheet.update_cell(int(row_number), col_number, nova_observacao)
+    st.cache_data.clear()
+
+
 
 def atualizar_status_venda_pedigree_clear(row_number: int, novo_status: str):
     """
@@ -2243,7 +2262,25 @@ def render_cliente_card(cliente: pd.Series, status_opcoes: list):
         st.write("**Sexo:**", sexo)
         st.write("**Cor:**", cor)
         st.write("**Microchip:**", microchip)
-        st.write("**Observações gerais:**", obs)
+
+        nova_obs = st.text_area(
+            "Observações gerais",
+            value=obs,
+            key=f"obs_gerais_{row_number}",
+            height=110,
+        )
+
+        if st.button(
+            "Salvar observações gerais",
+            use_container_width=True,
+            key=f"btn_obs_gerais_{row_number}",
+        ):
+            try:
+                atualizar_observacoes_gerais_pedigree(row_number, nova_obs)
+                st.success("Observações gerais atualizadas com sucesso.")
+                st.rerun()
+            except Exception as e:
+                st.error(f"Erro ao salvar observações gerais: {e}")
 
 
 st.markdown(
@@ -3680,103 +3717,72 @@ if page == "Visão Geral":
         def selecionar_card_status(nome_status):
             st.session_state["status_card_aberto"] = nome_status
 
-        d1, d2, d3, d4, d5, d6 = st.columns(6, gap="small")
+        # Ordem solicitada:
+        # 1 Novo Lead | 2 Conversando | 3 Sem Resposta | 4 Não tem interesse | 5 Com transferência | 6 Sem transferência
+        status_cards_ordem = [
+            {
+                "nome": "Novo Lead",
+                "valor": total_novos_leads,
+                "emoji": "🆕",
+                "cor": "#2e6cbf",
+                "key": "btn_card_novo_lead",
+            },
+            {
+                "nome": "Conversando",
+                "valor": status_resumo_caes.get("Conversando", 0),
+                "emoji": "💬",
+                "cor": "#8B5A2B",
+                "key": "btn_card_conversando",
+            },
+            {
+                "nome": "Sem Resposta",
+                "valor": status_resumo_caes.get("Sem Resposta", 0),
+                "emoji": "📭",
+                "cor": "#D64B3C",
+                "key": "btn_card_sem_resposta",
+            },
+            {
+                "nome": "Não tem interesse",
+                "valor": status_resumo_caes.get("Não tem interesse", 0),
+                "emoji": "🚫",
+                "cor": "#0F5F6A",
+                "key": "btn_card_nao_tem_interesse",
+            },
+            {
+                "nome": "Com transferência",
+                "valor": status_resumo_caes.get("Com transferência", 0),
+                "emoji": "✅",
+                "cor": "#0E8A4A",
+                "key": "btn_card_com_transferencia",
+            },
+            {
+                "nome": "Sem transferência",
+                "valor": status_resumo_caes.get("Sem transferência", 0),
+                "emoji": "📄",
+                "cor": "#6D4C9F",
+                "key": "btn_card_sem_transferencia",
+            },
+        ]
 
-        with d1:
-            card_metric(
-                "Não tem interesse",
-                f"{status_resumo_caes.get('Não tem interesse', 0)}",
-                month_key_to_label(selected_month),
-                "🚫",
-                "#0F5F6A",
-            )
-            st.button(
-                "Ver nomes",
-                use_container_width=True,
-                key="btn_card_nao_tem_interesse",
-                on_click=selecionar_card_status,
-                args=("Não tem interesse",),
-            )
+        cols_status_cards = st.columns(6, gap="small")
 
-        with d2:
-            card_metric(
-                "Com transferência",
-                f"{status_resumo_caes.get('Com transferência', 0)}",
-                month_key_to_label(selected_month),
-                "✅",
-                "#0E8A4A",
-            )
-            st.button(
-                "Ver nomes",
-                use_container_width=True,
-                key="btn_card_com_transferencia",
-                on_click=selecionar_card_status,
-                args=("Com transferência",),
-            )
+        for col_status_card, card_status in zip(cols_status_cards, status_cards_ordem):
+            with col_status_card:
+                card_metric(
+                    card_status["nome"],
+                    f"{card_status["valor"]}",
+                    month_key_to_label(selected_month),
+                    card_status["emoji"],
+                    card_status["cor"],
+                )
 
-        with d3:
-            card_metric(
-                "Conversando",
-                f"{status_resumo_caes.get('Conversando', 0)}",
-                month_key_to_label(selected_month),
-                "💬",
-                "#8B5A2B",
-            )
-            st.button(
-                "Ver nomes",
-                use_container_width=True,
-                key="btn_card_conversando",
-                on_click=selecionar_card_status,
-                args=("Conversando",),
-            )
-
-        with d4:
-            card_metric(
-                "Sem Resposta",
-                f"{status_resumo_caes.get('Sem Resposta', 0)}",
-                month_key_to_label(selected_month),
-                "📭",
-                "#D64B3C",
-            )
-            st.button(
-                "Ver nomes",
-                use_container_width=True,
-                key="btn_card_sem_resposta",
-                on_click=selecionar_card_status,
-                args=("Sem Resposta",),
-            )
-
-        with d5:
-            card_metric(
-                "Sem transferência",
-                f"{status_resumo_caes.get('Sem transferência', 0)}",
-                month_key_to_label(selected_month),
-                "📄",
-                "#6D4C9F",
-            )
-            st.button(
-                "Ver nomes",
-                use_container_width=True,
-                key="btn_card_sem_transferencia",
-                on_click=selecionar_card_status,
-                args=("Sem transferência",),
-            )
-
-        with d6:
-            card_metric(
-                "Novo Lead",
-                f"{total_novos_leads}",
-                month_key_to_label(selected_month),
-                "🆕",
-                "#2e6cbf",
-            )
-            st.button(
-                "Ver nomes",
-                use_container_width=True,
-                key="btn_card_novo_lead",
-                on_click=selecionar_card_status,
-                args=("Novo Lead",),
-            )
+                st.button(
+                    "Ver nomes",
+                    use_container_width=True,
+                    key=card_status["key"],
+                    on_click=selecionar_card_status,
+                    args=(card_status["nome"],),
+                )
 
         status_card_aberto = st.session_state.get("status_card_aberto", "")
 
@@ -4892,21 +4898,21 @@ elif page == "Pedigree":
             render_area_acao_ped(st.session_state.acao_ped)
 
     responsaveis_acoes = {
-        "Jullia": [
+        "Vendas": [
             "Novo",
             "Transferência",
             "Sem transferência",
             "Problemas",
             "Aprovação Cliente",
         ],
-        "Valéria": [
+        "Produção": [
             "Aprovação Interna",
             "Imprimir Pedigree",
             "Imprimir RG+ Certidão",
             "Imprimir Etiqueta",
             "Airtag",
         ],
-        "Mayra": [
+        "Envio": [
             "RG E CERTIDÃO",
             "Envio",
             "Enviado Cliente",
@@ -4930,40 +4936,40 @@ elif page == "Pedigree":
     }
 
     # =========================
-    # JULLIA
+    # VENDAS
     # =========================
     titulo_responsavel(
-        "Jullia",
+        "Vendas",
         "Entrada, transferência, problemas e aprovação com cliente.",
         "#032450",
     )
 
-    if st.session_state.get("responsavel_ped_aberto") == "Jullia":
-        render_cards_responsavel("Jullia")
+    if st.session_state.get("responsavel_ped_aberto") == "Vendas":
+        render_cards_responsavel("Vendas")
 
     # =========================
-    # VALÉRIA
+    # PRODUÇÃO
     # =========================
     titulo_responsavel(
-        "Valéria",
+        "Produção",
         "Aprovação interna e preparação/impressão dos documentos.",
         "#0D3D7A",
     )
 
-    if st.session_state.get("responsavel_ped_aberto") == "Valéria":
-        render_cards_responsavel("Valéria")
+    if st.session_state.get("responsavel_ped_aberto") == "Produção":
+        render_cards_responsavel("Produção")
 
     # =========================
-    # MAYRA
+    # ENVIO
     # =========================
     titulo_responsavel(
-        "Mayra",
+        "Envio",
         "RG/Certidão, envio e confirmação com o cliente.",
         "#2e6cbf",
     )
 
-    if st.session_state.get("responsavel_ped_aberto") == "Mayra":
-        render_cards_responsavel("Mayra")
+    if st.session_state.get("responsavel_ped_aberto") == "Envio":
+        render_cards_responsavel("Envio")
 
 
     # Cards e gráfico de Pedigree foram removidos desta aba.
