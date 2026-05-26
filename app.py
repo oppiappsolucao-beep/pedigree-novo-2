@@ -4668,7 +4668,7 @@ elif page == "Pedigree":
                         st.error(f"Erro ao salvar na planilha: {e}")
 
         else:
-            df_acao = df_ped[df_ped["ACAO"] == acao_atual].copy()
+            df_acao = df_acao_filtrado(acao_atual)
             total_acao = len(df_acao)
 
             st.markdown(
@@ -4756,19 +4756,41 @@ elif page == "Pedigree":
         except Exception:
             return 0
 
+    def df_ped_mes_atual():
+        """
+        Retorna todos os formulários de Pedigree do mês selecionado.
+
+        Exemplo:
+        Maio teve X formulários no total.
+        Esse X será dividido entre:
+        Transferência, Sem transferência, Problemas, Aprovação Cliente etc.
+        """
+        if df_ped is None or df_ped.empty:
+            return pd.DataFrame()
+
+        df_mes = df_ped.copy()
+
+        if "_mes_key" in df_mes.columns and selected_ped_month:
+            df_mes = df_mes[df_mes["_mes_key"] == selected_ped_month].copy()
+
+        return df_mes
+
     def df_acao_filtrado(acao):
+        """
+        Base única para contar e abrir os nomes dos cards de Ações do Pedigree.
+
+        Primeiro filtra pelo mês selecionado.
+        Depois divide os formulários daquele mês pelo status/etapa.
+        """
         if acao == "Novo":
             return pd.DataFrame()
 
-        if df_ped is None or df_ped.empty or "ACAO" not in df_ped.columns:
+        df_mes = df_ped_mes_atual()
+
+        if df_mes.empty or "ACAO" not in df_mes.columns:
             return pd.DataFrame()
 
-        df_filtrado = df_ped[df_ped["ACAO"] == acao].copy()
-
-        if "_mes_key" in df_filtrado.columns and selected_ped_month:
-            df_filtrado = df_filtrado[df_filtrado["_mes_key"] == selected_ped_month].copy()
-
-        return df_filtrado
+        return df_mes[df_mes["ACAO"] == acao].copy()
 
     def contar_acao_ped(acao):
         if acao == "Novo":
@@ -4886,6 +4908,27 @@ elif page == "Pedigree":
 
         if not acoes:
             return
+
+        total_responsavel_mes = sum(contar_acao_ped(acao) for acao in acoes)
+
+        st.markdown(
+            f"""
+            <div style="
+                margin: 8px 0 12px 0;
+                padding: 10px 14px;
+                border-radius: 14px;
+                background: rgba(46,108,191,0.07);
+                border: 1px solid rgba(46,108,191,0.18);
+                color: #334155;
+                font-size: 0.88rem;
+            ">
+                No mês de <b>{html.escape(month_key_to_label(selected_ped_month))}</b>,
+                esta área possui <b>{total_responsavel_mes}</b> formulário(s),
+                divididos entre as etapas abaixo.
+            </div>
+            """,
+            unsafe_allow_html=True,
+        )
 
         cols = st.columns(len(acoes))
 
