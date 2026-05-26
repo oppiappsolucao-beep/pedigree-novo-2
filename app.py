@@ -1853,6 +1853,20 @@ def render_cliente_card(cliente: pd.Series, status_opcoes: list):
     status_atual = normalize_text(cliente.get("Status Pedigree", ""))
     transferencia = normalize_text(cliente.get("Transferência", ""))
     obs_status = normalize_text(cliente.get("Observações Status", ""))
+
+    if not obs_status:
+        for col_itens in [
+            "Itens escolhidos",
+            "Itens Escolhidos",
+            "Produtos escolhidos",
+            "Produtos Escolhidos",
+            "Produtos",
+        ]:
+            if col_itens in cliente.index:
+                obs_status = normalize_text(cliente.get(col_itens, ""))
+
+                if obs_status:
+                    break
     cao = normalize_text(cliente.get("Nome Cachorro", ""))
     nascimento = format_date(cliente.get("Data Nascimento", ""))
     pelagem = normalize_text(cliente.get("Pelagem", ""))
@@ -1968,7 +1982,7 @@ def render_cliente_card(cliente: pd.Series, status_opcoes: list):
         st.write("**Endereço:**", endereco)
         st.write("**Status Pedigree:**", status_atual)
         st.write("**Transferência:**", transferencia)
-        st.write("**Observações Status:**", obs_status)
+        st.write("**Itens escolhidos:**", obs_status if obs_status else "-")
 
     with c2:
         st.markdown("#### Informações Cão")
