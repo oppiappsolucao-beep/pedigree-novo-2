@@ -5,6 +5,7 @@ import json
 import mimetypes
 import unicodedata
 import datetime as dt
+import time
 from pathlib import Path
 from typing import Optional, List, Tuple
 
@@ -62,6 +63,40 @@ def get_worksheet(worksheet_name: str):
     client = get_gsheet_client()
     sheet = client.open_by_key(SHEET_ID)
     return sheet.worksheet(worksheet_name)
+
+
+
+def get_all_records_retry(worksheet, tentativas: int = 3, espera: float = 1.2):
+    """
+    Lê a planilha com pequenas tentativas extras.
+    Isso evita quebrar o dashboard quando o Google Sheets demora ou responde erro momentâneo.
+    """
+    ultimo_erro = None
+
+    for tentativa in range(tentativas):
+        try:
+            return worksheet.get_all_records()
+        except Exception as e:
+            ultimo_erro = e
+            time.sleep(espera * (tentativa + 1))
+
+    raise ultimo_erro
+
+
+def get_all_values_retry(worksheet, tentativas: int = 3, espera: float = 1.2):
+    """
+    Lê valores da planilha com pequenas tentativas extras.
+    """
+    ultimo_erro = None
+
+    for tentativa in range(tentativas):
+        try:
+            return worksheet.get_all_values()
+        except Exception as e:
+            ultimo_erro = e
+            time.sleep(espera * (tentativa + 1))
+
+    raise ultimo_erro
 
 
 
@@ -148,7 +183,7 @@ def upload_foto_pet_to_drive(foto_pet, tutor_nome: str) -> str:
 @st.cache_data(show_spinner=False, ttl=CACHE_TTL_SECONDS)
 def load_main_data() -> pd.DataFrame:
     worksheet = get_worksheet(MAIN_WORKSHEET_NAME)
-    records = worksheet.get_all_records()
+    records = get_all_records_retry(worksheet)
     df = pd.DataFrame(records)
     df.columns = [str(c).strip() for c in df.columns]
     return df
@@ -157,7 +192,7 @@ def load_main_data() -> pd.DataFrame:
 @st.cache_data(show_spinner=False, ttl=CACHE_TTL_SECONDS)
 def load_pedigree_data() -> pd.DataFrame:
     worksheet = get_worksheet(PED_WORKSHEET_NAME)
-    records = worksheet.get_all_records()
+    records = get_all_records_retry(worksheet)
     df = pd.DataFrame(records)
     df.columns = [str(c).strip() for c in df.columns]
     return df
@@ -166,7 +201,7 @@ def load_pedigree_data() -> pd.DataFrame:
 @st.cache_data(show_spinner=False, ttl=CACHE_TTL_SECONDS)
 def load_commission_data() -> pd.DataFrame:
     worksheet = get_worksheet(COMM_WORKSHEET_NAME)
-    values = worksheet.get_all_values()
+    values = get_all_values_retry(worksheet)
 
     if not values:
         return pd.DataFrame()
@@ -528,7 +563,7 @@ def proxima_linha_real_por_coluna(worksheet, header_name: str) -> int:
     preenchido até 168, vazio de 169 até 832, lixo antigo em 833.
     Retorna 169, não 842.
     """
-    values = worksheet.get_all_values()
+    values = get_all_values_retry(worksheet)
 
     if not values:
         return 2
@@ -624,7 +659,7 @@ def proxima_linha_real_comissao(worksheet) -> int:
     Não usa append_row, porque o Google Sheets pode considerar linhas formatadas
     como usadas e jogar o registro muito para baixo.
     """
-    values = worksheet.get_all_values()
+    values = get_all_values_retry(worksheet)
 
     if not values:
         return 2
@@ -1296,7 +1331,7 @@ def ensure_columns(worksheet, required_cols):
 
 
 def find_row_by_phone_or_cpf(worksheet, telefone, cpf):
-    records = worksheet.get_all_records()
+    records = get_all_records_retry(worksheet)
     tel_digits = only_digits(telefone)
     cpf_digits = only_digits(cpf)
 
@@ -1454,7 +1489,7 @@ def marcar_novo_formulario_pedigree_feito(row_number: int):
 
 def find_commission_row_by_cliente_name(cliente_nome: str):
     worksheet = get_worksheet(COMM_WORKSHEET_NAME)
-    values = worksheet.get_all_values()
+    values = get_all_values_retry(worksheet)
 
     if not values:
         return None
@@ -1480,13 +1515,76 @@ def find_commission_row_by_cliente_name(cliente_nome: str):
 
 def excluir_ficha_pedigree(row_number: int, cliente_nome: str):
     """
-    Exclui somente a ficha da aba Planilha Dash Valéria sem mayra.
+    Exclui totalmente a ficha:
+    - remove a linha da aba Pedigree;
+    - remove a linha correspondente da aba Pedigree Comissão Ju;
+    - limpa o cache para recalcular tudo sem contar o nome apagado.
 
-    A aba Pedigree Comissão Ju não é alterada pelo dashboard.
+    Prioridade de vínculo:
+    1) Linha Clear Origem, quando existir;
+    2) Nome do cliente, como fallback.
     """
+    row_number = int(row_number)
+
     ped_ws = get_worksheet(PED_WORKSHEET_NAME)
-    ped_ws.delete_rows(int(row_number))
+    comm_ws = get_worksheet(COMM_WORKSHEET_NAME)
+
+    linha_clear_origem = ""
+
+    try:
+        ped_headers = [str(h).strip() for h in ped_ws.row_values(1)]
+        ped_row_values = ped_ws.row_values(row_number)
+
+        if "Linha Clear Origem" in ped_headers:
+            idx_origem = ped_headers.index("Linha Clear Origem")
+            if idx_origem < len(ped_row_values):
+                linha_clear_origem = normalize_text(ped_row_values[idx_origem])
+    except Exception:
+        linha_clear_origem = ""
+
+    # Primeiro apaga a comissão correspondente.
+    try:
+        comm_values = get_all_values_retry(comm_ws)
+
+        if comm_values:
+            comm_headers = [str(h).strip() for h in comm_values[0]]
+            row_comm_delete = None
+
+            if linha_clear_origem and "Linha Clear Origem" in comm_headers:
+                idx_origem_comm = comm_headers.index("Linha Clear Origem")
+
+                for idx_row, row in enumerate(comm_values[1:], start=2):
+                    valor_origem = normalize_text(row[idx_origem_comm]) if idx_origem_comm < len(row) else ""
+
+                    if valor_origem == linha_clear_origem:
+                        row_comm_delete = idx_row
+                        break
+
+            if row_comm_delete is None and cliente_nome and "Cliente" in comm_headers:
+                idx_cliente_comm = comm_headers.index("Cliente")
+                cliente_norm = normalize_search_text(cliente_nome)
+
+                for idx_row, row in enumerate(comm_values[1:], start=2):
+                    valor_cliente = normalize_search_text(row[idx_cliente_comm]) if idx_cliente_comm < len(row) else ""
+
+                    if valor_cliente == cliente_norm:
+                        row_comm_delete = idx_row
+                        break
+
+            if row_comm_delete:
+                comm_ws.delete_rows(int(row_comm_delete))
+
+    except Exception as e:
+        st.warning(f"A ficha foi apagada do Pedigree, mas não consegui apagar da Comissão automaticamente: {e}")
+
+    # Depois apaga a ficha da aba Pedigree.
+    ped_ws.delete_rows(row_number)
+
     st.cache_data.clear()
+    try:
+        st.cache_resource.clear()
+    except Exception:
+        pass
 
 
 def card_metric(title: str, value: str, subtitle: str, emoji: str, color: str):
@@ -2070,6 +2168,9 @@ def render_cliente_card(cliente: pd.Series, status_opcoes: list):
             if st.button("Sim, excluir", use_container_width=True, key=f"sim_excluir_{row_number}"):
 
                 excluir_ficha_pedigree(row_number, nome)
+
+                st.session_state.acao_ped = None
+                st.session_state[f"confirmar_exclusao_{row_number}"] = False
 
                 st.success("Ficha excluída com sucesso.")
                 st.rerun()
