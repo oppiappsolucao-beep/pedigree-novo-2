@@ -3770,7 +3770,7 @@ if page == "Visão Geral":
             with col_status_card:
                 card_metric(
                     card_status["nome"],
-                    f"{card_status["valor"]}",
+                    str(card_status["valor"]),
                     month_key_to_label(selected_month),
                     card_status["emoji"],
                     card_status["cor"],
