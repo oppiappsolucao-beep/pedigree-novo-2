@@ -4711,6 +4711,9 @@ elif page == "Pedigree":
     if "acao_ped" not in st.session_state:
         st.session_state.acao_ped = None
 
+    if "responsavel_ped_aberto" not in st.session_state:
+        st.session_state.responsavel_ped_aberto = None
+
     def set_acao_ped(nome):
         if nome == "Aprovação":
             nome = "Aprovação Interna"
@@ -4720,28 +4723,211 @@ elif page == "Pedigree":
         else:
             st.session_state.acao_ped = nome
 
+    def set_responsavel_ped(nome):
+        if st.session_state.get("responsavel_ped_aberto") == nome:
+            st.session_state.responsavel_ped_aberto = None
+            st.session_state.acao_ped = None
+        else:
+            st.session_state.responsavel_ped_aberto = nome
+            st.session_state.acao_ped = None
+
+    def contar_novo_pendente():
+        try:
+            if df is None or df.empty:
+                return 0
+
+            col_novo_form = (
+                "Novo Formulário Pedigree"
+                if "Novo Formulário Pedigree" in df.columns
+                else detect_col(df, [["novo", "formulário", "pedigree"], ["novo", "formulario", "pedigree"]])
+            )
+
+            if not col_novo_form or col_novo_form not in df.columns:
+                return 0
+
+            serie = df[col_novo_form].astype(str).apply(normalize_search_text)
+            return int(serie.eq(normalize_search_text("Pendente")).sum())
+        except Exception:
+            return 0
+
+    def df_acao_filtrado(acao):
+        if acao == "Novo":
+            return pd.DataFrame()
+
+        if df_ped is None or df_ped.empty or "ACAO" not in df_ped.columns:
+            return pd.DataFrame()
+
+        df_filtrado = df_ped[df_ped["ACAO"] == acao].copy()
+
+        if "_mes_key" in df_filtrado.columns and selected_ped_month:
+            df_filtrado = df_filtrado[df_filtrado["_mes_key"] == selected_ped_month].copy()
+
+        return df_filtrado
+
+    def contar_acao_ped(acao):
+        if acao == "Novo":
+            return contar_novo_pendente()
+
+        return int(len(df_acao_filtrado(acao)))
+
     def titulo_responsavel(nome, subtitulo, cor):
+        qtd_total = sum(contar_acao_ped(acao) for acao in responsaveis_acoes.get(nome, []))
+        aberto = st.session_state.get("responsavel_ped_aberto") == nome
+
         st.markdown(
             f"""
             <div style="
-                margin: 18px 0 10px 0;
-                padding: 12px 16px;
-                border-radius: 16px;
-                background: linear-gradient(90deg, rgba(3,36,80,0.06), rgba(46,108,191,0.04));
+                margin: 18px 0 8px 0;
+                padding: 13px 16px;
+                border-radius: 18px;
+                background: linear-gradient(90deg, rgba(3,36,80,0.07), rgba(46,108,191,0.04));
                 border: 1px solid #D8E2F3;
                 border-left: 8px solid {cor};
                 box-shadow: 0 8px 24px rgba(15, 23, 42, 0.04);
             ">
-                <div style="font-weight: 900; color: #032450; font-size: 1rem;">
-                    {html.escape(nome)}
-                </div>
-                <div style="color: #6B7280; font-size: 0.82rem; margin-top: 2px;">
-                    {html.escape(subtitulo)}
+                <div style="display:flex; justify-content:space-between; gap:14px; align-items:center;">
+                    <div>
+                        <div style="font-weight: 900; color: #032450; font-size: 1rem;">
+                            {html.escape(nome)}
+                        </div>
+                        <div style="color: #6B7280; font-size: 0.82rem; margin-top: 2px;">
+                            {html.escape(subtitulo)}
+                        </div>
+                    </div>
+                    <div style="
+                        min-width:72px;
+                        text-align:center;
+                        border-radius:14px;
+                        background:#FFFFFF;
+                        border:1px solid #D8E2F3;
+                        padding:7px 10px;
+                        color:#032450;
+                        font-weight:900;
+                    ">
+                        {qtd_total}
+                    </div>
                 </div>
             </div>
             """,
             unsafe_allow_html=True,
         )
+
+        label_botao = "Fechar etapas" if aberto else f"Abrir {nome}"
+        st.button(
+            label_botao,
+            use_container_width=True,
+            key=f"btn_resp_{nome}",
+            on_click=set_responsavel_ped,
+            args=(nome,),
+        )
+
+    def card_acao_ped(acao, emoji, cor):
+        total = contar_acao_ped(acao)
+
+        st.markdown(
+            f"""
+            <div style="
+                background:#FFFFFF;
+                border:1px solid #E0E6F2;
+                border-radius:20px;
+                padding:16px 14px 12px 14px;
+                min-height:122px;
+                box-shadow:0 12px 30px rgba(15,23,42,0.06);
+            ">
+                <div style="display:flex; align-items:center; gap:12px;">
+                    <div style="
+                        width:50px;
+                        height:50px;
+                        border-radius:16px;
+                        background:{cor};
+                        display:flex;
+                        align-items:center;
+                        justify-content:center;
+                        color:#FFFFFF;
+                        font-size:1.25rem;
+                        font-weight:900;
+                    ">
+                        {emoji}
+                    </div>
+                    <div>
+                        <div style="font-size:0.82rem; color:#334155; font-weight:800; line-height:1.2;">
+                            {html.escape(acao)}
+                        </div>
+                        <div style="font-size:1.75rem; color:#032450; font-weight:950; line-height:1.05;">
+                            {total}
+                        </div>
+                        <div style="font-size:0.76rem; color:#6B7280; margin-top:4px;">
+                            {html.escape(month_key_to_label(selected_ped_month))}
+                        </div>
+                    </div>
+                </div>
+            </div>
+            """,
+            unsafe_allow_html=True,
+        )
+
+        texto_btn = "Abrir formulário" if acao == "Novo" else "Ver nomes"
+        st.button(
+            texto_btn,
+            use_container_width=True,
+            key=f"btn_card_acao_{acao}",
+            on_click=set_acao_ped,
+            args=(acao,),
+        )
+
+    def render_cards_responsavel(nome):
+        acoes = responsaveis_acoes.get(nome, [])
+
+        if not acoes:
+            return
+
+        cols = st.columns(len(acoes))
+
+        for col, acao in zip(cols, acoes):
+            with col:
+                emoji, cor = acoes_visual.get(acao, ("📌", "#2e6cbf"))
+                card_acao_ped(acao, emoji, cor)
+
+        if st.session_state.get("acao_ped") in acoes:
+            render_area_acao_ped(st.session_state.acao_ped)
+
+    responsaveis_acoes = {
+        "Jullia": [
+            "Novo",
+            "Transferência",
+            "Sem transferência",
+            "Problemas",
+            "Aprovação Cliente",
+        ],
+        "Valéria": [
+            "Aprovação Interna",
+            "Imprimir Pedigree",
+            "Imprimir RG+ Certidão",
+            "Imprimir Etiqueta",
+            "Airtag",
+        ],
+        "Mayra": [
+            "RG E CERTIDÃO",
+            "Envio",
+            "Enviado Cliente",
+        ],
+    }
+
+    acoes_visual = {
+        "Novo": ("🆕", "#2e6cbf"),
+        "Transferência": ("⚖️", "#032450"),
+        "Sem transferência": ("📄", "#0D3D7A"),
+        "Problemas": ("⚠️", "#7A1F1F"),
+        "Aprovação Cliente": ("✅", "#1E7A46"),
+        "Aprovação Interna": ("🔎", "#0D3D7A"),
+        "Imprimir Pedigree": ("🖨️", "#174f96"),
+        "Imprimir RG+ Certidão": ("📑", "#2e6cbf"),
+        "Imprimir Etiqueta": ("🏷️", "#245ea8"),
+        "Airtag": ("📍", "#477fca"),
+        "RG E CERTIDÃO": ("📘", "#2e6cbf"),
+        "Envio": ("📦", "#174f96"),
+        "Enviado Cliente": ("🚚", "#032450"),
+    }
 
     # =========================
     # JULLIA
@@ -4752,31 +4938,8 @@ elif page == "Pedigree":
         "#032450",
     )
 
-    jullia_linha1 = st.columns(4)
-    jullia_linha2 = st.columns(4)
-
-    with jullia_linha1[0]:
-        st.button("Novo", use_container_width=True, on_click=set_acao_ped, args=("Novo",))
-    with jullia_linha1[1]:
-        st.button("Transferência", use_container_width=True, on_click=set_acao_ped, args=("Transferência",))
-    with jullia_linha1[2]:
-        st.button("Sem transferência", use_container_width=True, on_click=set_acao_ped, args=("Sem transferência",))
-    with jullia_linha1[3]:
-        st.button("Problemas", use_container_width=True, on_click=set_acao_ped, args=("Problemas",))
-
-    with jullia_linha2[0]:
-        st.button("Aprovação Cliente", use_container_width=True, on_click=set_acao_ped, args=("Aprovação Cliente",))
-
-    jullia_acoes = [
-        "Novo",
-        "Transferência",
-        "Sem transferência",
-        "Problemas",
-        "Aprovação Cliente",
-    ]
-
-    if st.session_state.acao_ped in jullia_acoes:
-        render_area_acao_ped(st.session_state.acao_ped)
+    if st.session_state.get("responsavel_ped_aberto") == "Jullia":
+        render_cards_responsavel("Jullia")
 
     # =========================
     # VALÉRIA
@@ -4787,31 +4950,8 @@ elif page == "Pedigree":
         "#0D3D7A",
     )
 
-    valeria_linha1 = st.columns(4)
-    valeria_linha2 = st.columns(4)
-
-    with valeria_linha1[0]:
-        st.button("Aprovação Interna", use_container_width=True, on_click=set_acao_ped, args=("Aprovação Interna",))
-    with valeria_linha1[1]:
-        st.button("Imprimir Pedigree", use_container_width=True, on_click=set_acao_ped, args=("Imprimir Pedigree",))
-    with valeria_linha1[2]:
-        st.button("Imprimir RG+ Certidão", use_container_width=True, on_click=set_acao_ped, args=("Imprimir RG+ Certidão",))
-    with valeria_linha1[3]:
-        st.button("Imprimir Etiqueta", use_container_width=True, on_click=set_acao_ped, args=("Imprimir Etiqueta",))
-
-    with valeria_linha2[0]:
-        st.button("Airtag", use_container_width=True, on_click=set_acao_ped, args=("Airtag",))
-
-    valeria_acoes = [
-        "Aprovação Interna",
-        "Imprimir Pedigree",
-        "Imprimir RG+ Certidão",
-        "Imprimir Etiqueta",
-        "Airtag",
-    ]
-
-    if st.session_state.acao_ped in valeria_acoes:
-        render_area_acao_ped(st.session_state.acao_ped)
+    if st.session_state.get("responsavel_ped_aberto") == "Valéria":
+        render_cards_responsavel("Valéria")
 
     # =========================
     # MAYRA
@@ -4822,23 +4962,8 @@ elif page == "Pedigree":
         "#2e6cbf",
     )
 
-    mayra_linha1 = st.columns(4)
-
-    with mayra_linha1[0]:
-        st.button("RG E CERTIDÃO", use_container_width=True, on_click=set_acao_ped, args=("RG E CERTIDÃO",))
-    with mayra_linha1[1]:
-        st.button("Envio", use_container_width=True, on_click=set_acao_ped, args=("Envio",))
-    with mayra_linha1[2]:
-        st.button("Enviado Cliente", use_container_width=True, on_click=set_acao_ped, args=("Enviado Cliente",))
-
-    mayra_acoes = [
-        "RG E CERTIDÃO",
-        "Envio",
-        "Enviado Cliente",
-    ]
-
-    if st.session_state.acao_ped in mayra_acoes:
-        render_area_acao_ped(st.session_state.acao_ped)
+    if st.session_state.get("responsavel_ped_aberto") == "Mayra":
+        render_cards_responsavel("Mayra")
 
 
     # Cards e gráfico de Pedigree foram removidos desta aba.
