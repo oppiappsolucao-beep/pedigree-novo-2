@@ -399,16 +399,125 @@ def ensure_commission_base_headers():
 
 def salvar_pedigree_na_comissao(dados):
     """
-    MODO SOMENTE LEITURA DA COMISSÃO.
+    Envia automaticamente cada novo formulário preenchido na área Pedigree
+    para a aba Pedigree Comissão Ju.
 
-    Esta função foi mantida apenas para não quebrar chamadas antigas,
-    mas NÃO grava mais nada na aba Pedigree Comissão Ju.
-
-    Regra atual:
-    - Pedigree salva somente na aba Planilha Dash Valéria sem mayra.
-    - Comissão apenas lê a aba Pedigree Comissão Ju e calcula na tela.
+    Regras:
+    - NÃO altera valores fixos do sistema.
+    - Usa os mesmos valores/cálculos já existentes no dashboard.
+    - Lê o multiselect salvo em Observações Status.
+    - Se a escolha NÃO for somente "Pedigree sem transferência",
+      marca Correios automaticamente.
+    - Evita duplicar a mesma linha usando Linha Clear Origem, quando existir.
     """
-    return None
+    worksheet = get_worksheet(COMM_WORKSHEET_NAME)
+
+    required_cols = [
+        "Data da Venda",
+        "Mês da Venda",
+        "Cliente",
+        "Quantidade de Pedigrees",
+        "Produtos",
+        "Mês da Compra do Cliente",
+        "Valor",
+        "Vendedor",
+        "Linha Clear Origem",
+    ]
+
+    headers = garantir_colunas_comissao(worksheet, required_cols)
+
+    cliente = normalize_text(dados.get("Nome", ""))
+    data_venda = normalize_text(dados.get("Data Compra", "")) or dt.date.today().strftime("%d/%m/%Y")
+    mes_venda = normalize_text(dados.get("Mês", "")) or mes_nome_from_date(dt.date.today())
+    linha_clear_origem = normalize_text(dados.get("Linha Clear Origem", ""))
+
+    itens_raw = normalize_text(dados.get("Observações Status", ""))
+    itens_norm = [
+        normalize_search_text(item)
+        for item in re.split(r"[,;|]+", itens_raw)
+        if normalize_text(item)
+    ]
+
+    ped_trans = any(item == "pedigree" for item in itens_norm)
+    ped_sem = any("sem transferencia" in item or "sem transferencia" in normalize_search_text(item) for item in itens_norm)
+    rg = any(item == "rg" for item in itens_norm)
+    certidao = any("certidao" in item for item in itens_norm)
+    airtag = any("airtag" in item or "air tag" in item for item in itens_norm)
+
+    # Regra pedida:
+    # somente "Pedigree sem transferência" => não marca Correios.
+    # qualquer outra escolha junto ou diferente => marca Correios.
+    somente_pedigree_sem_transferencia = (
+        ped_sem
+        and not ped_trans
+        and not rg
+        and not certidao
+        and not airtag
+    )
+
+    correios = bool(itens_norm) and not somente_pedigree_sem_transferencia
+
+    produtos = montar_produto_com_correios(
+        ped_trans,
+        ped_sem,
+        correios,
+        rg,
+        certidao,
+        airtag,
+    )
+
+    valor = calcular_valor_por_checks(
+        ped_trans,
+        ped_sem,
+        correios,
+        rg,
+        certidao,
+        airtag,
+        1,
+    )
+
+    row_data = {
+        "Data da Venda": data_venda,
+        "Mês da Venda": mes_venda,
+        "Cliente": cliente,
+        "Quantidade de Pedigrees": 1,
+        "Produtos": produtos,
+        "Mês da Compra do Cliente": mes_venda,
+        "Valor": format_money(valor),
+        "Vendedor": "Jullia",
+        "Linha Clear Origem": linha_clear_origem,
+    }
+
+    # Evita duplicar a mesma venda, quando a origem existir.
+    row_number_existente = None
+
+    if linha_clear_origem and "Linha Clear Origem" in headers:
+        col_origem_idx = headers.index("Linha Clear Origem") + 1
+        valores_origem = worksheet.col_values(col_origem_idx)
+
+        for idx_origem, valor_origem in enumerate(valores_origem[1:], start=2):
+            if normalize_text(valor_origem) == linha_clear_origem:
+                row_number_existente = idx_origem
+                break
+
+    row_values = [row_data.get(header, "") for header in headers]
+
+    if row_number_existente:
+        worksheet.update(
+            f"A{row_number_existente}",
+            [row_values],
+            value_input_option="USER_ENTERED",
+        )
+    else:
+        next_row = proxima_linha_real_comissao(worksheet)
+        worksheet.update(
+            f"A{next_row}",
+            [row_values],
+            value_input_option="USER_ENTERED",
+        )
+
+    st.cache_data.clear()
+    return True
 
 
 def proxima_linha_real_por_coluna(worksheet, header_name: str) -> int:
@@ -4398,6 +4507,7 @@ elif page == "Pedigree":
 
                     try:
                         salvar_formulario_pedigree(dados_formulario)
+                        salvar_pedigree_na_comissao(dados_formulario)
 
                         if linha_clear_origem_default:
                             marcar_novo_formulario_pedigree_feito(
