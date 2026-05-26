@@ -434,10 +434,8 @@ def ensure_commission_base_headers():
 
 def salvar_pedigree_na_comissao(dados):
     """
-    MODO TRAVA DE SEGURANÇA.
-
+    TRAVA DE SEGURANÇA:
     Não grava automaticamente na aba Pedigree Comissão Ju.
-    A comissão permanece somente com os dados já existentes na planilha.
     """
     return None
 
@@ -3956,6 +3954,9 @@ elif page == "Pedigree":
     # Interpretação automática do texto da coluna "Status Pedigree" para abrir a área correta.
     # Não cria coluna nova: apenas lê o nome existente e mostra no botão/área correspondente.
     MAP_STATUS_ACAO = {
+        "novo": "Novo",
+        "novo lead": "Novo",
+        "pendente": "Novo",
         "fazer pedigree venda": "Transferência",
         "fazer pedigree s/ trans": "Sem transferência",
         "fazer pedrigree s/ trans": "Sem transferência",
@@ -4577,33 +4578,14 @@ elif page == "Pedigree":
             st.session_state.responsavel_ped_aberto = nome
             st.session_state.acao_ped = None
 
-    def contar_novo_pendente():
-        try:
-            if df is None or df.empty:
-                return 0
-
-            col_novo_form = (
-                "Novo Formulário Pedigree"
-                if "Novo Formulário Pedigree" in df.columns
-                else detect_col(df, [["novo", "formulário", "pedigree"], ["novo", "formulario", "pedigree"]])
-            )
-
-            if not col_novo_form or col_novo_form not in df.columns:
-                return 0
-
-            serie = df[col_novo_form].astype(str).apply(normalize_search_text)
-            return int(serie.eq(normalize_search_text("Pendente")).sum())
-        except Exception:
-            return 0
-
     def df_ped_mes_atual():
         """
-        Retorna todos os formulários de Pedigree do mês selecionado.
+        Retorna SOMENTE os formulários que já existem na aba Pedigree,
+        respeitando o Mês de referência selecionado.
 
-        Exemplo:
-        Maio teve X formulários no total.
-        Esse X será dividido entre:
-        Transferência, Sem transferência, Problemas, Aprovação Cliente etc.
+        IMPORTANTE:
+        Não usa mais a aba Clear para contar os cards do Pedigree.
+        Nem todo mundo da Clear comprou Pedigree.
         """
         if df_ped is None or df_ped.empty:
             return pd.DataFrame()
@@ -4617,12 +4599,12 @@ elif page == "Pedigree":
 
     def df_acao_filtrado(acao):
         """
-        Base única para contar e abrir os nomes dos cards de Ações do Pedigree.
-
-        Primeiro filtra pelo mês selecionado.
-        Depois divide os formulários daquele mês pelo status/etapa.
+        Base única dos cards da área Pedigree:
+        - pega apenas quem está na aba Pedigree;
+        - filtra pelo mês selecionado;
+        - divide por Status Pedigree/ACAO.
         """
-        if acao == "Novo":
+        if df_ped is None or df_ped.empty or "ACAO" not in df_ped.columns:
             return pd.DataFrame()
 
         df_mes = df_ped_mes_atual()
@@ -4633,9 +4615,10 @@ elif page == "Pedigree":
         return df_mes[df_mes["ACAO"] == acao].copy()
 
     def contar_acao_ped(acao):
-        if acao == "Novo":
-            return contar_novo_pendente()
-
+        """
+        Conta somente os registros que estão na aba Pedigree.
+        Não conta leads da aba Clear.
+        """
         return int(len(df_acao_filtrado(acao)))
 
     def titulo_responsavel(nome, subtitulo, cor):
