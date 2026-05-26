@@ -2318,7 +2318,7 @@ st.markdown(
     .block-container {
         padding-top: 1.2rem;
         padding-bottom: 2rem;
-        max-width: 1500px;
+        max-width: 210px;
     }
 
     .brand-box {
@@ -2395,8 +2395,8 @@ st.markdown(
     }
 
     .sidebar-logo-circle {
-        width: 150px;
-        height: 150px;
+        width: 210px;
+        height: 210px;
         border-radius: 50%;
         overflow: hidden;
         border: 3px solid var(--gold);
@@ -2769,7 +2769,7 @@ def render_login_screen():
             .login-shell {{
                 width: 50vw;
                 min-width: 700px;
-                max-width: 950px;
+                max-width: 210px;
                 margin: 0 auto;
                 padding-top: 0.15rem;
             }}
@@ -2843,7 +2843,7 @@ def render_login_screen():
             div[data-testid="stForm"] {{
                 width: 50vw !important;
                 min-width: 700px !important;
-                max-width: 950px !important;
+                max-width: 210px !important;
                 margin: 0 auto !important;
                 background: #26384B !important;
                 padding: 18px 42px 120px 42px !important;
@@ -2904,7 +2904,7 @@ def render_login_screen():
             .login-footer {{
                 width: 50vw;
                 min-width: 700px;
-                max-width: 950px;
+                max-width: 210px;
                 margin: 22px auto 0 auto;
                 text-align: center;
                 color: rgba(255,255,255,0.76);
@@ -2916,7 +2916,7 @@ def render_login_screen():
             .login-error {{
                 width: 50vw;
                 min-width: 700px;
-                max-width: 950px;
+                max-width: 210px;
                 margin: 12px auto 0 auto;
                 background: rgba(255, 86, 86, 0.15);
                 border: 1px solid rgba(255, 86, 86, 0.42);
@@ -2928,7 +2928,7 @@ def render_login_screen():
                 text-align: center;
             }}
 
-            @media (max-width: 640px) {{
+            @media (max-width: 210px) {{
                 .login-shell, div[data-testid="stForm"], .login-footer, .login-error {{
                     width: 94vw !important;
                 }}
