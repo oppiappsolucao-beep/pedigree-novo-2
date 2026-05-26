@@ -434,125 +434,12 @@ def ensure_commission_base_headers():
 
 def salvar_pedigree_na_comissao(dados):
     """
-    Envia automaticamente cada novo formulário preenchido na área Pedigree
-    para a aba Pedigree Comissão Ju.
+    MODO TRAVA DE SEGURANÇA.
 
-    Regras:
-    - NÃO altera valores fixos do sistema.
-    - Usa os mesmos valores/cálculos já existentes no dashboard.
-    - Lê o multiselect salvo em Observações Status.
-    - Se a escolha NÃO for somente "Pedigree sem transferência",
-      marca Correios automaticamente.
-    - Evita duplicar a mesma linha usando Linha Clear Origem, quando existir.
+    Não grava automaticamente na aba Pedigree Comissão Ju.
+    A comissão permanece somente com os dados já existentes na planilha.
     """
-    worksheet = get_worksheet(COMM_WORKSHEET_NAME)
-
-    required_cols = [
-        "Data da Venda",
-        "Mês da Venda",
-        "Cliente",
-        "Quantidade de Pedigrees",
-        "Produtos",
-        "Mês da Compra do Cliente",
-        "Valor",
-        "Vendedor",
-        "Linha Clear Origem",
-    ]
-
-    headers = garantir_colunas_comissao(worksheet, required_cols)
-
-    cliente = normalize_text(dados.get("Nome", ""))
-    data_venda = normalize_text(dados.get("Data Compra", "")) or dt.date.today().strftime("%d/%m/%Y")
-    mes_venda = normalize_text(dados.get("Mês", "")) or mes_nome_from_date(dt.date.today())
-    linha_clear_origem = normalize_text(dados.get("Linha Clear Origem", ""))
-
-    itens_raw = normalize_text(dados.get("Observações Status", ""))
-    itens_norm = [
-        normalize_search_text(item)
-        for item in re.split(r"[,;|]+", itens_raw)
-        if normalize_text(item)
-    ]
-
-    ped_trans = any(item == "pedigree" for item in itens_norm)
-    ped_sem = any("sem transferencia" in item or "sem transferencia" in normalize_search_text(item) for item in itens_norm)
-    rg = any(item == "rg" for item in itens_norm)
-    certidao = any("certidao" in item for item in itens_norm)
-    airtag = any("airtag" in item or "air tag" in item for item in itens_norm)
-
-    # Regra pedida:
-    # somente "Pedigree sem transferência" => não marca Correios.
-    # qualquer outra escolha junto ou diferente => marca Correios.
-    somente_pedigree_sem_transferencia = (
-        ped_sem
-        and not ped_trans
-        and not rg
-        and not certidao
-        and not airtag
-    )
-
-    correios = bool(itens_norm) and not somente_pedigree_sem_transferencia
-
-    produtos = montar_produto_com_correios(
-        ped_trans,
-        ped_sem,
-        correios,
-        rg,
-        certidao,
-        airtag,
-    )
-
-    valor = calcular_valor_por_checks(
-        ped_trans,
-        ped_sem,
-        correios,
-        rg,
-        certidao,
-        airtag,
-        1,
-    )
-
-    row_data = {
-        "Data da Venda": data_venda,
-        "Mês da Venda": mes_venda,
-        "Cliente": cliente,
-        "Quantidade de Pedigrees": 1,
-        "Produtos": produtos,
-        "Mês da Compra do Cliente": mes_venda,
-        "Valor": format_money(valor),
-        "Vendedor": "Jullia",
-        "Linha Clear Origem": linha_clear_origem,
-    }
-
-    # Evita duplicar a mesma venda, quando a origem existir.
-    row_number_existente = None
-
-    if linha_clear_origem and "Linha Clear Origem" in headers:
-        col_origem_idx = headers.index("Linha Clear Origem") + 1
-        valores_origem = worksheet.col_values(col_origem_idx)
-
-        for idx_origem, valor_origem in enumerate(valores_origem[1:], start=2):
-            if normalize_text(valor_origem) == linha_clear_origem:
-                row_number_existente = idx_origem
-                break
-
-    row_values = [row_data.get(header, "") for header in headers]
-
-    if row_number_existente:
-        worksheet.update(
-            f"A{row_number_existente}",
-            [row_values],
-            value_input_option="USER_ENTERED",
-        )
-    else:
-        next_row = proxima_linha_real_comissao(worksheet)
-        worksheet.update(
-            f"A{next_row}",
-            [row_values],
-            value_input_option="USER_ENTERED",
-        )
-
-    st.cache_data.clear()
-    return True
+    return None
 
 
 def proxima_linha_real_por_coluna(worksheet, header_name: str) -> int:
@@ -766,190 +653,13 @@ def salvar_novas_linhas_comissao(novas_linhas: list[dict]) -> int:
 
 def sync_pedigrees_para_comissao():
     """
-    Sincroniza automaticamente a aba Pedigree com a aba Pedigree Comissão Ju.
+    MODO TRAVA DE SEGURANÇA.
 
-    Se uma ficha já foi preenchida no Pedigree e ainda não caiu na Comissão,
-    ela será adicionada automaticamente.
+    Não copia, não apaga e não altera nada na aba Pedigree Comissão Ju.
+    Serve apenas para limpar cache/recarregar os dados já existentes.
     """
-    df_ped_sync = load_pedigree_data().copy()
-
-    if df_ped_sync.empty:
-        return 0
-
-    worksheet = get_worksheet(COMM_WORKSHEET_NAME)
-
-    required_cols = [
-        "Data da Venda",
-        "Mês da Venda",
-        "Cliente",
-        "Quantidade de Pedigrees",
-        "Produtos",
-        "Mês da Compra do Cliente",
-        "Valor",
-        "Vendedor",
-        "Linha Clear Origem",
-    ]
-
-    headers = garantir_colunas_comissao(worksheet, required_cols)
-    comm_values = get_all_values_retry(worksheet)
-
-    existentes_origem = set()
-    existentes_cliente_data = set()
-
-    if comm_values:
-        comm_headers = [str(h).strip() for h in comm_values[0]]
-        idx_origem = comm_headers.index("Linha Clear Origem") if "Linha Clear Origem" in comm_headers else None
-        idx_cliente = comm_headers.index("Cliente") if "Cliente" in comm_headers else None
-        idx_data = comm_headers.index("Data da Venda") if "Data da Venda" in comm_headers else None
-
-        for row in comm_values[1:]:
-            if idx_origem is not None and idx_origem < len(row):
-                origem = normalize_text(row[idx_origem])
-                if origem:
-                    existentes_origem.add(origem)
-
-            if idx_cliente is not None and idx_data is not None:
-                cliente_val = normalize_search_text(row[idx_cliente]) if idx_cliente < len(row) else ""
-                data_val = normalize_text(row[idx_data]) if idx_data < len(row) else ""
-                if cliente_val and data_val:
-                    existentes_cliente_data.add((cliente_val, data_val))
-
-    novas_linhas = []
-
-    for _, row in df_ped_sync.iterrows():
-        cliente = normalize_text(row.get("Nome", ""))
-        if not cliente:
-            continue
-
-        linha_clear_origem = normalize_text(row.get("Linha Clear Origem", ""))
-
-        if linha_clear_origem and linha_clear_origem in existentes_origem:
-            continue
-
-        data_venda = (
-            normalize_text(row.get("Data Compra", ""))
-            or normalize_text(row.get("Data da Venda", ""))
-            or dt.date.today().strftime("%d/%m/%Y")
-        )
-
-        mes_venda = normalize_text(row.get("Mês", ""))
-
-        if not mes_venda:
-            mes_key = build_month_key_from_values("", data_venda)
-            mes_venda = month_name_pt(mes_key[1]) if mes_key else mes_nome_from_date(dt.date.today())
-
-        chave_cliente_data = (normalize_search_text(cliente), data_venda)
-
-        if not linha_clear_origem and chave_cliente_data in existentes_cliente_data:
-            continue
-
-        itens_raw = normalize_text(row.get("Observações Status", ""))
-
-        if not itens_raw:
-            for col_itens in [
-                "Itens escolhidos",
-                "Itens Escolhidos",
-                "Produtos escolhidos",
-                "Produtos Escolhidos",
-                "Produtos",
-            ]:
-                if col_itens in row.index:
-                    itens_raw = normalize_text(row.get(col_itens, ""))
-                    if itens_raw:
-                        break
-
-        itens_norm = [
-            normalize_search_text(item)
-            for item in re.split(r"[,;|+]+", itens_raw)
-            if normalize_text(item)
-        ]
-
-        status_ped = normalize_search_text(row.get("Status Pedigree", ""))
-        transferencia_txt = normalize_search_text(row.get("Transferência", ""))
-
-        ped_trans = any(item == "pedigree" or item == "pedigree com transferencia" for item in itens_norm)
-        ped_sem = any("sem transferencia" in item or "s/ troca" in item or "s trans" in item for item in itens_norm)
-        rg = any(item == "rg" for item in itens_norm)
-        certidao = any("certidao" in item for item in itens_norm)
-        airtag = any("airtag" in item or "air tag" in item for item in itens_norm)
-
-        # Fallback para fichas antigas sem multiselect preenchido.
-        if not any([ped_trans, ped_sem, rg, certidao, airtag]):
-            if "sem transferencia" in status_ped or "s/ trans" in status_ped or "s/ troca" in status_ped:
-                ped_sem = True
-            elif "transferencia" in status_ped or "pedigree venda" in status_ped or transferencia_txt in ["sim", "s", "true", "1"]:
-                ped_trans = True
-
-            if "rg" in status_ped:
-                rg = True
-            if "certidao" in status_ped:
-                certidao = True
-            if "airtag" in status_ped:
-                airtag = True
-
-        somente_pedigree_sem_transferencia = (
-            ped_sem
-            and not ped_trans
-            and not rg
-            and not certidao
-            and not airtag
-        )
-
-        # Regra: qualquer coisa que NÃO seja somente Pedigree sem transferência recebe Correios.
-        correios = bool(any([ped_trans, ped_sem, rg, certidao, airtag])) and not somente_pedigree_sem_transferencia
-
-        produtos = montar_produto_com_correios(
-            ped_trans,
-            ped_sem,
-            correios,
-            rg,
-            certidao,
-            airtag,
-        )
-
-        valor = calcular_valor_por_checks(
-            ped_trans,
-            ped_sem,
-            correios,
-            rg,
-            certidao,
-            airtag,
-            1,
-        )
-
-        row_data = {
-            "Data da Venda": data_venda,
-            "Mês da Venda": mes_venda,
-            "Cliente": cliente,
-            "Quantidade de Pedigrees": 1,
-            "Produtos": produtos,
-            "Mês da Compra do Cliente": mes_venda,
-            "Valor": format_money(valor),
-            "Vendedor": "Jullia",
-            "Linha Clear Origem": linha_clear_origem,
-        }
-
-        novas_linhas.append([row_data.get(header, "") for header in headers])
-
-        if linha_clear_origem:
-            existentes_origem.add(linha_clear_origem)
-        else:
-            existentes_cliente_data.add(chave_cliente_data)
-
-    if not novas_linhas:
-        st.cache_data.clear()
-        return 0
-
-    next_row = proxima_linha_real_comissao(worksheet)
-
-    worksheet.update(
-        f"A{next_row}",
-        novas_linhas,
-        value_input_option="USER_ENTERED",
-    )
-
     st.cache_data.clear()
-    return len(novas_linhas)
+    return 0
 
 def salvar_edicoes_linhas_comissao(edicoes_linhas: list[dict]) -> int:
     """
@@ -4785,7 +4495,6 @@ elif page == "Pedigree":
 
                     try:
                         salvar_formulario_pedigree(dados_formulario)
-                        salvar_pedigree_na_comissao(dados_formulario)
 
                         if linha_clear_origem_default:
                             marcar_novo_formulario_pedigree_feito(
@@ -5165,25 +4874,11 @@ elif page == "Comissão":
     with sync_col1:
         sincronizar_agora = st.button("Sincronizar", use_container_width=True, key="btn_sync_pedigree_comissao")
 
-    # Sincroniza automaticamente ao abrir/recarregar a aba Comissão.
-    # Assim, se alguma ficha já foi preenchida no Pedigree e ainda não caiu na comissão,
-    # ela entra na planilha Pedigree Comissão Ju automaticamente.
-    try:
-        qtd_sync_auto = sync_pedigrees_para_comissao()
-        if qtd_sync_auto:
-            st.success(f"{qtd_sync_auto} ficha(s) nova(s) sincronizada(s) automaticamente na comissão.")
-            st.rerun()
-    except Exception as e:
-        st.warning(f"Não consegui sincronizar automaticamente agora: {e}")
-
     if sincronizar_agora:
         try:
-            qtd_sync_manual = sync_pedigrees_para_comissao()
+            sync_pedigrees_para_comissao()
             st.session_state["sync_pedigree_comissao_feito"] = True
-            if qtd_sync_manual:
-                st.success(f"{qtd_sync_manual} ficha(s) nova(s) adicionada(s) na aba Pedigree Comissão Ju.")
-            else:
-                st.success("Comissão recarregada. Nenhuma ficha nova para adicionar.")
+            st.success("Dados recarregados. Nenhuma linha foi adicionada, apagada ou alterada na planilha.")
             st.rerun()
         except Exception as e:
             st.warning(f"Não foi possível recarregar a aba de Comissão: {e}")
