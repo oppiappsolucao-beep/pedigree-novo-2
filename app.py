@@ -4014,6 +4014,7 @@ elif page == "Pedigree":
             "Cor",
             "Endereço completo",
             "Status Pedigree",
+            "Status Venda Pedigree",
             "Transferência",
             "Observações Status",
             "Nome Cachorro",
@@ -4044,6 +4045,52 @@ elif page == "Pedigree":
         df_ped["_search_all"] = df_ped.apply(normalize_full_row, axis=1)
         df_ped["_tel_digits_ped"] = df_ped["Telefone"].apply(only_digits)
         df_ped["ACAO"] = df_ped["Status Pedigree"].apply(map_status_para_acao)
+
+        # Regra correta dos cards da aba Pedigree:
+        # usa SOMENTE a aba Pedigree e se baseia também na coluna Status Venda Pedigree.
+        # Não usa Clear e não usa Pedigree Comissão Ju para montar essas caixas.
+        def map_status_venda_pedigree_para_acao(status_venda):
+            status_norm = normalize_search_text(status_venda)
+
+            if status_norm in [
+                normalize_search_text("Vendido"),
+                normalize_search_text("Com transferência"),
+                normalize_search_text("Com transferencia"),
+            ]:
+                return "Transferência"
+
+            if status_norm in [
+                normalize_search_text("Emitir Sem Venda"),
+                normalize_search_text("Sem transferência"),
+                normalize_search_text("Sem transferencia"),
+            ]:
+                return "Sem transferência"
+
+            if status_norm in [
+                normalize_search_text("Conversando"),
+                normalize_search_text("Novo Lead"),
+                "",
+            ]:
+                return "Novo"
+
+            if status_norm in [
+                normalize_search_text("Não tem interesse"),
+                normalize_search_text("Nao tem interesse"),
+                normalize_search_text("Sem Resposta"),
+            ]:
+                return "Problemas"
+
+            return ""
+
+        if "Status Venda Pedigree" in df_ped.columns:
+            acao_por_status_venda = df_ped["Status Venda Pedigree"].apply(map_status_venda_pedigree_para_acao)
+
+            # Quando a coluna Status Venda Pedigree tiver um status válido,
+            # ela manda no card. Caso esteja vazia/sem mapeamento, mantém Status Pedigree.
+            df_ped["ACAO"] = acao_por_status_venda.where(
+                acao_por_status_venda.astype(str).str.strip() != "",
+                df_ped["ACAO"],
+            )
     else:
         df_ped = pd.DataFrame(
             columns=[
@@ -4057,6 +4104,7 @@ elif page == "Pedigree":
                 "Cor",
                 "Endereço completo",
                 "Status Pedigree",
+                "Status Venda Pedigree",
                 "Transferência",
                 "Observações Status",
                 "Nome Cachorro",
@@ -4580,12 +4628,13 @@ elif page == "Pedigree":
 
     def df_ped_mes_atual():
         """
-        Retorna SOMENTE os formulários que já existem na aba Pedigree,
-        respeitando o Mês de referência selecionado.
+        Cards da aba Pedigree.
 
-        IMPORTANTE:
-        Não usa mais a aba Clear para contar os cards do Pedigree.
-        Nem todo mundo da Clear comprou Pedigree.
+        Regra correta:
+        - usa SOMENTE a aba Pedigree;
+        - filtra pelo Mês de referência;
+        - divide os formulários pela coluna Status Venda Pedigree quando ela existir;
+        - se Status Venda Pedigree estiver vazio, usa Status Pedigree como apoio.
         """
         if df_ped is None or df_ped.empty:
             return pd.DataFrame()
@@ -4598,12 +4647,6 @@ elif page == "Pedigree":
         return df_mes
 
     def df_acao_filtrado(acao):
-        """
-        Base única dos cards da área Pedigree:
-        - pega apenas quem está na aba Pedigree;
-        - filtra pelo mês selecionado;
-        - divide por Status Pedigree/ACAO.
-        """
         if df_ped is None or df_ped.empty or "ACAO" not in df_ped.columns:
             return pd.DataFrame()
 
@@ -4615,10 +4658,6 @@ elif page == "Pedigree":
         return df_mes[df_mes["ACAO"] == acao].copy()
 
     def contar_acao_ped(acao):
-        """
-        Conta somente os registros que estão na aba Pedigree.
-        Não conta leads da aba Clear.
-        """
         return int(len(df_acao_filtrado(acao)))
 
     def titulo_responsavel(nome, subtitulo, cor):
