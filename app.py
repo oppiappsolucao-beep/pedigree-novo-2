@@ -2395,8 +2395,8 @@ st.markdown(
     }
 
     .sidebar-logo-circle {
-        width: 145px;
-        height: 145px;
+        width: 150px;
+        height: 150px;
         border-radius: 50%;
         overflow: hidden;
         border: 3px solid var(--gold);
