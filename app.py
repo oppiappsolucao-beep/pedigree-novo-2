@@ -780,6 +780,46 @@ def sync_pedigrees_para_comissao():
 
 
 
+def excluir_linhas_comissao_por_numero(linhas_para_excluir: list[int]) -> int:
+    """
+    Apaga da aba Pedigree Comissão Ju as linhas removidas no editor do dashboard.
+
+    Importante:
+    - apaga de baixo para cima para não bagunçar a numeração das linhas;
+    - limpa o cache para recalcular os totais sem contar os nomes apagados.
+    """
+    linhas_validas = sorted(
+        {
+            safe_int_zero(linha)
+            for linha in linhas_para_excluir
+            if safe_int_zero(linha) > 1
+        },
+        reverse=True,
+    )
+
+    if not linhas_validas:
+        return 0
+
+    worksheet = get_worksheet(COMM_WORKSHEET_NAME)
+    apagadas = 0
+
+    for linha in linhas_validas:
+        try:
+            worksheet.delete_rows(int(linha))
+            apagadas += 1
+        except Exception as e:
+            st.warning(f"Não consegui apagar a linha {linha} da comissão: {e}")
+
+    st.cache_data.clear()
+
+    try:
+        st.cache_resource.clear()
+    except Exception:
+        pass
+
+    return apagadas
+
+
 def salvar_edicoes_linhas_comissao(edicoes_linhas: list[dict]) -> int:
     """
     Atualiza linhas já existentes da aba Pedigree Comissão Ju diretamente pelo dashboard.
@@ -5294,6 +5334,28 @@ elif page == "Comissão":
                     novas_linhas_para_salvar = []
                     edicoes_linhas_para_salvar = []
 
+                    # Detecta linhas removidas pelo botão de apagar linha do st.data_editor.
+                    # Se a linha existia antes e não voltou no edited_df, apaga também da planilha.
+                    linhas_originais_editor = {
+                        safe_int_zero(valor)
+                        for valor in df_editor_view.get("Linha", pd.Series(dtype=object)).tolist()
+                        if safe_int_zero(valor) > 1
+                    }
+
+                    linhas_editadas_editor = {
+                        safe_int_zero(valor)
+                        for valor in edited_df.get("Linha", pd.Series(dtype=object)).tolist()
+                        if safe_int_zero(valor) > 1
+                    }
+
+                    linhas_para_excluir_comissao = sorted(
+                        linhas_originais_editor - linhas_editadas_editor,
+                        reverse=True,
+                    )
+
+                    for linha_excluida in linhas_para_excluir_comissao:
+                        st.session_state[selecoes_key].pop(str(linha_excluida), None)
+
                     for _, row_state_editor in edited_df.iterrows():
                         linha_state_num = safe_int_zero(row_state_editor.get("Linha", 0))
                         linha_state = str(linha_state_num)
@@ -5365,13 +5427,23 @@ elif page == "Comissão":
                                 })
 
                     try:
+                        # Primeiro salva edições usando a numeração atual.
                         qtd_editadas = salvar_edicoes_linhas_comissao(edicoes_linhas_para_salvar)
+
+                        # Depois salva novas linhas.
                         qtd_salvas = salvar_novas_linhas_comissao(novas_linhas_para_salvar) if novas_linhas_para_salvar else 0
 
-                        if qtd_editadas or qtd_salvas:
-                            st.success(f"{qtd_editadas} linha(s) atualizada(s) e {qtd_salvas} nova(s) venda(s) adicionada(s) na aba Pedigree Comissão Ju.")
+                        # Por último apaga as linhas removidas no editor, de baixo para cima.
+                        qtd_apagadas = excluir_linhas_comissao_por_numero(linhas_para_excluir_comissao)
+
+                        if qtd_editadas or qtd_salvas or qtd_apagadas:
+                            st.success(
+                                f"{qtd_editadas} linha(s) atualizada(s), "
+                                f"{qtd_salvas} nova(s) venda(s) adicionada(s) e "
+                                f"{qtd_apagadas} linha(s) apagada(s) da aba Pedigree Comissão Ju."
+                            )
                         else:
-                            st.info("Prévia recalculada. Nenhuma linha nova ou alteração para salvar.")
+                            st.info("Prévia recalculada. Nenhuma linha nova, alteração ou exclusão para salvar.")
 
                         st.rerun()
                     except Exception as e:
