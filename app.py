@@ -5089,24 +5089,27 @@ elif page == "Comissão":
 
         default_comm_month = comm_months[-1]
 
-        # Filtros e resumo movidos para o topo para liberar espaço lateral.
+        # Filtros e resumo no topo, um do lado do outro.
         st.markdown(
             """
             <div class="live-card">
                 <div class="live-title">Resumo e filtros da Comissão</div>
-                <div class="live-sub">Use os filtros abaixo para acompanhar os valores.</div>
+                <div class="live-sub">Use os campos abaixo para acompanhar os valores.</div>
             </div>
             """,
             unsafe_allow_html=True,
         )
 
-        data_referencia = st.selectbox(
-            "Data de referência",
-            options=comm_months,
-            index=comm_months.index(default_comm_month),
-            format_func=month_key_to_label,
-            key="data_referencia_comissao",
-        )
+        topo_filtro_1, topo_filtro_2, topo_filtro_3 = st.columns([1, 1, 2])
+
+        with topo_filtro_1:
+            data_referencia = st.selectbox(
+                "Data de referência",
+                options=comm_months,
+                index=comm_months.index(default_comm_month),
+                format_func=month_key_to_label,
+                key="data_referencia_comissao",
+            )
 
 
         df_produtos_mes = df_com[df_com["_mes_key"] == data_referencia].copy()
@@ -5157,14 +5160,7 @@ elif page == "Comissão":
             ).sum()
         )
 
-        mes_valor_cliente = st.selectbox(
-            "Valor total vendido no mês",
-            options=comm_months,
-            index=comm_months.index(default_comm_month),
-            format_func=month_key_to_label,
-            key="valor_clientes_mes_comissao",
-        )
-
+        mes_valor_cliente = data_referencia
         df_mes_valor = df_com[df_com["_mes_key"] == mes_valor_cliente].copy()
 
         # O card precisa bater exatamente com a soma da coluna Valor.
@@ -5176,7 +5172,10 @@ elif page == "Comissão":
         else:
             valor_clientes_mes = 0.0
 
-        valor_total_mes_placeholder = st.empty()
+        cards_topo_1, cards_topo_2, cards_topo_3 = st.columns([1, 1.35, 2.2])
+
+        with cards_topo_1:
+            valor_total_mes_placeholder = st.empty()
 
         def render_valor_total_mes_card(valor_total_mes_atual: float):
             valor_total_mes_placeholder.markdown(
@@ -5198,7 +5197,6 @@ elif page == "Comissão":
         render_valor_total_mes_card(valor_clientes_mes)
 
 
-        st.markdown('<br>', unsafe_allow_html=True)
 
         selected_comm_month = data_referencia
 
@@ -5219,12 +5217,10 @@ elif page == "Comissão":
                 ]
             )
 
-        filtro1, filtro2 = st.columns([1.2, 2.4])
-
-        with filtro1:
+        with topo_filtro_2:
             selected_vendedor = st.selectbox("Vendedor", vendedores, key="vendedor_comissao")
 
-        with filtro2:
+        with topo_filtro_3:
             busca_comissao = st.text_input(
                 "Busca rápida",
                 placeholder="Buscar por cliente, produto, vendedor...",
@@ -5267,8 +5263,11 @@ elif page == "Comissão":
         # A comissão da Jullia é calculada pela base inteira do mês selecionado.
         # A caixa abaixo é preenchida depois do editor, assim ela atualiza ao marcar/desmarcar produtos.
         df_com_mes_calculo_jullia = df_com[df_com["_mes_key"] == selected_comm_month].copy()
-        comissao_card_placeholder = st.empty()
-        regra_card_placeholder = st.empty()
+        with cards_topo_2:
+            comissao_card_placeholder = st.empty()
+
+        with cards_topo_3:
+            regra_card_placeholder = st.empty()
 
         def render_card_comissao_jullia(df_base_calculo):
             dados_jullia_render = calcular_comissao_jullia(
