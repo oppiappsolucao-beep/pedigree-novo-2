@@ -5111,16 +5111,6 @@ elif page == "Comissão":
             )
 
 
-            st.markdown(
-                """
-                <div class="live-card">
-                    <div class="live-title">Total de vendas por produto</div>
-                    <div class="live-sub">Contagem pelo produto selecionado na planilha.</div>
-                </div>
-                """,
-                unsafe_allow_html=True,
-            )
-
             df_produtos_mes = df_com[df_com["_mes_key"] == data_referencia].copy()
             produto = df_produtos_mes["_produto_norm"]
 
@@ -5167,20 +5157,6 @@ elif page == "Comissão":
                     & ~produto.str.contains("rg", na=False)
                     & ~produto.str.contains("airtag", na=False)
                 ).sum()
-            )
-
-            st.markdown(
-                f"""
-                <div class="live-card">
-                    <div class="live-sub"><b>Pedigree com Transferência:</b> {qtd_pedigree_trans}</div>
-                    <div class="live-sub"><b>Airtag:</b> {qtd_airtag}</div>
-                    <div class="live-sub"><b>Certidão e RG:</b> {qtd_cert_rg}</div>
-                    <div class="live-sub"><b>Somente RG:</b> {qtd_somente_rg}</div>
-                    <div class="live-sub"><b>Pedigree sem Transferência:</b> {qtd_ped_sem_trans}</div>
-                    <div class="live-sub"><b>Somente Certidão:</b> {qtd_somente_certidao}</div>
-                </div>
-                """,
-                unsafe_allow_html=True,
             )
 
             mes_valor_cliente = st.selectbox(
@@ -5344,6 +5320,65 @@ elif page == "Comissão":
                     """,
                     unsafe_allow_html=True,
                 )
+
+            # Gráfico de colunas: Total de vendas por produto.
+            # Fica entre "Regra aplicada" e "Lista de vendas da comissão".
+            produtos_chart_data = pd.DataFrame(
+                {
+                    "Produto": [
+                        "Pedigree com Transferência",
+                        "Airtag",
+                        "Certidão e RG",
+                        "Somente RG",
+                        "Pedigree sem Transferência",
+                        "Somente Certidão",
+                    ],
+                    "Quantidade": [
+                        qtd_pedigree_trans,
+                        qtd_airtag,
+                        qtd_cert_rg,
+                        qtd_somente_rg,
+                        qtd_ped_sem_trans,
+                        qtd_somente_certidao,
+                    ],
+                }
+            )
+
+            st.markdown(
+                """
+                <div class="live-card" style="margin-top:1rem; margin-bottom:0.65rem;">
+                    <div class="live-title">Total de vendas por produto</div>
+                    <div class="live-sub">Contagem pelo produto selecionado na planilha.</div>
+                </div>
+                """,
+                unsafe_allow_html=True,
+            )
+
+            fig_produtos = px.bar(
+                produtos_chart_data,
+                x="Produto",
+                y="Quantidade",
+                text="Quantidade",
+                title=None,
+            )
+
+            fig_produtos.update_traces(
+                textposition="outside",
+                cliponaxis=False,
+            )
+
+            fig_produtos.update_layout(
+                height=360,
+                margin=dict(l=10, r=10, t=10, b=90),
+                xaxis_title="",
+                yaxis_title="Quantidade",
+                showlegend=False,
+                uniformtext_minsize=10,
+                uniformtext_mode="show",
+            )
+
+            fig_produtos.update_xaxes(tickangle=-25)
+            st.plotly_chart(fig_produtos, use_container_width=True)
 
             st.markdown(
                 """
