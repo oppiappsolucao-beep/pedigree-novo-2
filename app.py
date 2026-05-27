@@ -676,6 +676,47 @@ def sync_pedigrees_para_comissao():
     st.cache_data.clear()
     return 0
 
+def excluir_linhas_comissao_por_numero(linhas_para_excluir: list[int]) -> int:
+    """
+    Apaga da aba Pedigree Comissão Ju as linhas removidas no editor do dashboard.
+
+    Importante:
+    - apaga de baixo para cima para não bagunçar a numeração das linhas;
+    - só apaga quando a linha realmente foi removida no editor;
+    - limpa o cache para recalcular os totais.
+    """
+    linhas_validas = sorted(
+        {
+            safe_int_zero(linha)
+            for linha in linhas_para_excluir
+            if safe_int_zero(linha) > 1
+        },
+        reverse=True,
+    )
+
+    if not linhas_validas:
+        return 0
+
+    worksheet = get_worksheet(COMM_WORKSHEET_NAME)
+    apagadas = 0
+
+    for linha in linhas_validas:
+        try:
+            worksheet.delete_rows(int(linha))
+            apagadas += 1
+        except Exception as e:
+            st.warning(f"Não consegui apagar a linha {linha} da comissão: {e}")
+
+    st.cache_data.clear()
+
+    try:
+        st.cache_resource.clear()
+    except Exception:
+        pass
+
+    return apagadas
+
+
 def salvar_edicoes_linhas_comissao(edicoes_linhas: list[dict]) -> int:
     """
     Atualiza linhas já existentes da aba Pedigree Comissão Ju diretamente pelo dashboard.
