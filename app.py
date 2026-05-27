@@ -5089,650 +5089,650 @@ elif page == "Comissão":
 
         default_comm_month = comm_months[-1]
 
-        left_col, right_col = st.columns([1.05, 2.7])
+        # Filtros e resumo movidos para o topo para liberar espaço lateral.
+        st.markdown(
+            """
+            <div class="live-card">
+                <div class="live-title">Resumo e filtros da Comissão</div>
+                <div class="live-sub">Use os filtros abaixo para acompanhar os valores.</div>
+            </div>
+            """,
+            unsafe_allow_html=True,
+        )
 
-        with left_col:
-            st.markdown(
-                """
-                <div class="live-card">
-                    <div class="live-title">Filtros da Comissão</div>
-                    <div class="live-sub">Use os filtros abaixo para acompanhar os valores.</div>
+        data_referencia = st.selectbox(
+            "Data de referência",
+            options=comm_months,
+            index=comm_months.index(default_comm_month),
+            format_func=month_key_to_label,
+            key="data_referencia_comissao",
+        )
+
+
+        df_produtos_mes = df_com[df_com["_mes_key"] == data_referencia].copy()
+        produto = df_produtos_mes["_produto_norm"]
+
+        qtd_pedigree_trans = int(
+            (
+                produto.str.contains("pedigree", na=False)
+                & ~produto.str.contains("s/ troca", na=False)
+                & ~produto.str.contains("sem transferencia", na=False)
+                & ~produto.str.contains("s/ trans", na=False)
+            ).sum()
+        )
+
+        qtd_airtag = int(produto.str.contains("airtag", na=False).sum())
+
+        qtd_cert_rg = int(
+            (
+                produto.str.contains("certidao", na=False)
+                & produto.str.contains("rg", na=False)
+            ).sum()
+        )
+
+        qtd_somente_rg = int(
+            (
+                produto.str.contains("rg", na=False)
+                & ~produto.str.contains("certidao", na=False)
+                & ~produto.str.contains("airtag", na=False)
+            ).sum()
+        )
+
+        qtd_ped_sem_trans = int(
+            (
+                produto.str.contains("pedigree", na=False)
+                & (
+                    produto.str.contains("s/ troca", na=False)
+                    | produto.str.contains("sem transferencia", na=False)
+                    | produto.str.contains("s/ trans", na=False)
+                )
+            ).sum()
+        )
+
+        qtd_somente_certidao = int(
+            (
+                produto.str.contains("certidao", na=False)
+                & ~produto.str.contains("rg", na=False)
+                & ~produto.str.contains("airtag", na=False)
+            ).sum()
+        )
+
+        mes_valor_cliente = st.selectbox(
+            "Valor total vendido no mês",
+            options=comm_months,
+            index=comm_months.index(default_comm_month),
+            format_func=month_key_to_label,
+            key="valor_clientes_mes_comissao",
+        )
+
+        df_mes_valor = df_com[df_com["_mes_key"] == mes_valor_cliente].copy()
+
+        # O card precisa bater exatamente com a soma da coluna Valor.
+        # Por isso a soma é feita lendo a própria coluna Valor visível/atualizada,
+        # e não uma métrica antiga em memória. Quando uma venda é adicionada ou
+        # excluída da planilha, ao recarregar/sincronizar o total acompanha a base atual.
+        if not df_mes_valor.empty and col_valor and col_valor in df_mes_valor.columns:
+            valor_clientes_mes = float(df_mes_valor[col_valor].apply(parse_money).sum())
+        else:
+            valor_clientes_mes = 0.0
+
+        valor_total_mes_placeholder = st.empty()
+
+        def render_valor_total_mes_card(valor_total_mes_atual: float):
+            valor_total_mes_placeholder.markdown(
+                f"""
+                <div class="metric-card">
+                    <div class="metric-wrap">
+                        <div class="metric-icon" style="background:#2e6cbf;">💰</div>
+                        <div>
+                            <div class="metric-label">Valor total<br>vendido no mês</div>
+                            <div class="metric-value">{format_money(valor_total_mes_atual)}</div>
+                            <div class="metric-sub">{month_key_to_label(mes_valor_cliente)}</div>
+                        </div>
+                    </div>
                 </div>
                 """,
                 unsafe_allow_html=True,
             )
 
-            data_referencia = st.selectbox(
-                "Data de referência",
-                options=comm_months,
-                index=comm_months.index(default_comm_month),
-                format_func=month_key_to_label,
-                key="data_referencia_comissao",
-            )
+        render_valor_total_mes_card(valor_clientes_mes)
 
 
-            df_produtos_mes = df_com[df_com["_mes_key"] == data_referencia].copy()
-            produto = df_produtos_mes["_produto_norm"]
+        st.markdown('<br>', unsafe_allow_html=True)
 
-            qtd_pedigree_trans = int(
-                (
-                    produto.str.contains("pedigree", na=False)
-                    & ~produto.str.contains("s/ troca", na=False)
-                    & ~produto.str.contains("sem transferencia", na=False)
-                    & ~produto.str.contains("s/ trans", na=False)
-                ).sum()
-            )
+        selected_comm_month = data_referencia
 
-            qtd_airtag = int(produto.str.contains("airtag", na=False).sum())
+        # Regra definida:
+        # - Meses anteriores a Maio/2026: comissão calculada somente pela leitura da planilha.
+        # - Maio/2026 em diante: comissão calculada pelas marcações feitas no dashboard.
+        MES_DASHBOARD_INICIO = (2026, 5)
+        usar_marcacoes_dashboard = selected_comm_month >= MES_DASHBOARD_INICIO
 
-            qtd_cert_rg = int(
-                (
-                    produto.str.contains("certidao", na=False)
-                    & produto.str.contains("rg", na=False)
-                ).sum()
-            )
+        vendedores = ["Todos"]
 
-            qtd_somente_rg = int(
-                (
-                    produto.str.contains("rg", na=False)
-                    & ~produto.str.contains("certidao", na=False)
-                    & ~produto.str.contains("airtag", na=False)
-                ).sum()
-            )
-
-            qtd_ped_sem_trans = int(
-                (
-                    produto.str.contains("pedigree", na=False)
-                    & (
-                        produto.str.contains("s/ troca", na=False)
-                        | produto.str.contains("sem transferencia", na=False)
-                        | produto.str.contains("s/ trans", na=False)
-                    )
-                ).sum()
-            )
-
-            qtd_somente_certidao = int(
-                (
-                    produto.str.contains("certidao", na=False)
-                    & ~produto.str.contains("rg", na=False)
-                    & ~produto.str.contains("airtag", na=False)
-                ).sum()
-            )
-
-            mes_valor_cliente = st.selectbox(
-                "Valor total vendido no mês",
-                options=comm_months,
-                index=comm_months.index(default_comm_month),
-                format_func=month_key_to_label,
-                key="valor_clientes_mes_comissao",
-            )
-
-            df_mes_valor = df_com[df_com["_mes_key"] == mes_valor_cliente].copy()
-
-            # O card precisa bater exatamente com a soma da coluna Valor.
-            # Por isso a soma é feita lendo a própria coluna Valor visível/atualizada,
-            # e não uma métrica antiga em memória. Quando uma venda é adicionada ou
-            # excluída da planilha, ao recarregar/sincronizar o total acompanha a base atual.
-            if not df_mes_valor.empty and col_valor and col_valor in df_mes_valor.columns:
-                valor_clientes_mes = float(df_mes_valor[col_valor].apply(parse_money).sum())
-            else:
-                valor_clientes_mes = 0.0
-
-            valor_total_mes_placeholder = st.empty()
-
-            def render_valor_total_mes_card(valor_total_mes_atual: float):
-                valor_total_mes_placeholder.markdown(
-                    f"""
-                    <div class="metric-card">
-                        <div class="metric-wrap">
-                            <div class="metric-icon" style="background:#2e6cbf;">💰</div>
-                            <div>
-                                <div class="metric-label">Valor total<br>vendido no mês</div>
-                                <div class="metric-value">{format_money(valor_total_mes_atual)}</div>
-                                <div class="metric-sub">{month_key_to_label(mes_valor_cliente)}</div>
-                            </div>
-                        </div>
-                    </div>
-                    """,
-                    unsafe_allow_html=True,
-                )
-
-            render_valor_total_mes_card(valor_clientes_mes)
-
-        with right_col:
-            selected_comm_month = data_referencia
-
-            # Regra definida:
-            # - Meses anteriores a Maio/2026: comissão calculada somente pela leitura da planilha.
-            # - Maio/2026 em diante: comissão calculada pelas marcações feitas no dashboard.
-            MES_DASHBOARD_INICIO = (2026, 5)
-            usar_marcacoes_dashboard = selected_comm_month >= MES_DASHBOARD_INICIO
-
-            vendedores = ["Todos"]
-
-            if col_vendedor and col_vendedor in df_com.columns:
-                vendedores += sorted(
-                    [
-                        v
-                        for v in df_com[col_vendedor].dropna().astype(str).str.strip().unique().tolist()
-                        if v
-                    ]
-                )
-
-            filtro1, filtro2 = st.columns([1.2, 2.4])
-
-            with filtro1:
-                selected_vendedor = st.selectbox("Vendedor", vendedores, key="vendedor_comissao")
-
-            with filtro2:
-                busca_comissao = st.text_input(
-                    "Busca rápida",
-                    placeholder="Buscar por cliente, produto, vendedor...",
-                )
-
-            df_com_filtrado = df_com[df_com["_mes_key"] == selected_comm_month].copy()
-
-            if selected_vendedor != "Todos" and col_vendedor and col_vendedor in df_com_filtrado.columns:
-                df_com_filtrado = df_com_filtrado[
-                    df_com_filtrado[col_vendedor].astype(str).str.strip() == selected_vendedor
-                ].copy()
-
-            if busca_comissao.strip():
-                q = normalize_search_text(busca_comissao)
-
-                busca_cols = [
-                    c
-                    for c in [col_cliente, col_produtos, col_vendedor, col_mes_compra_cliente]
-                    if c and c in df_com_filtrado.columns
+        if col_vendedor and col_vendedor in df_com.columns:
+            vendedores += sorted(
+                [
+                    v
+                    for v in df_com[col_vendedor].dropna().astype(str).str.strip().unique().tolist()
+                    if v
                 ]
-
-                if busca_cols:
-                    mask_busca = pd.Series(False, index=df_com_filtrado.index)
-
-                    for c in busca_cols:
-                        mask_busca = mask_busca | df_com_filtrado[c].apply(normalize_search_text).str.contains(q, na=False)
-
-                    df_com_filtrado = df_com_filtrado[mask_busca].copy()
-
-            total_vendas = len(df_com_filtrado)
-            valor_total = float(df_com_filtrado["_valor_num"].sum()) if not df_com_filtrado.empty else 0.0
-            silimario_total = float(df_com_filtrado["_silimario_num"].sum()) if not df_com_filtrado.empty else 0.0
-            ticket_medio = valor_total / total_vendas if total_vendas else 0.0
-
-            if not df_com_filtrado.empty and col_produtos and col_produtos in df_com_filtrado.columns:
-                produtos_unicos = df_com_filtrado[col_produtos].astype(str).str.strip().replace("", pd.NA).dropna().nunique()
-            else:
-                produtos_unicos = 0
-
-            # A comissão da Jullia é calculada pela base inteira do mês selecionado.
-            # A caixa abaixo é preenchida depois do editor, assim ela atualiza ao marcar/desmarcar produtos.
-            df_com_mes_calculo_jullia = df_com[df_com["_mes_key"] == selected_comm_month].copy()
-            comissao_card_placeholder = st.empty()
-            regra_card_placeholder = st.empty()
-
-            def render_card_comissao_jullia(df_base_calculo):
-                dados_jullia_render = calcular_comissao_jullia(
-                    df_base_calculo,
-                    col_produtos,
-                    col_valor,
-                    col_vendedor,
-                )
-
-                comissao_fixa_mes = comissao_historica_fixa(selected_comm_month)
-
-                if comissao_fixa_mes is not None and selected_comm_month < (2026, 5):
-                    comissao_jullia_render = float(comissao_fixa_mes)
-                    percentual_jullia_render = dados_jullia_render["percentual_jullia"]
-                    qtd_jullia_validas_render = dados_jullia_render["qtd_vendas_jullia_validas"]
-                    total_validas_mes_render = dados_jullia_render["total_vendas_validas_mes"]
-                    faixa_jullia_render = "Comissão histórica fixa conferida manualmente"
-                else:
-                    comissao_jullia_render = dados_jullia_render["comissao_jullia"]
-                    percentual_jullia_render = dados_jullia_render["percentual_jullia"]
-                    qtd_jullia_validas_render = dados_jullia_render["qtd_vendas_jullia_validas"]
-                    total_validas_mes_render = dados_jullia_render["total_vendas_validas_mes"]
-                    faixa_jullia_render = dados_jullia_render["faixa"]
-
-                comissao_card_placeholder.markdown(
-                    f"""
-                    <div class="metric-card" style="min-height:126px; display:flex; align-items:center;">
-                        <div class="metric-wrap">
-                            <div class="metric-icon" style="background:#2e6cbf;">💰</div>
-                            <div>
-                                <div class="metric-label">Comissão Jullia</div>
-                                <div class="metric-value">{format_money(comissao_jullia_render)}</div>
-                                <div class="metric-sub">{qtd_jullia_validas_render} de {total_validas_mes_render} vendas válidas • {percentual_jullia_render:.1%}</div>
-                            </div>
-                        </div>
-                    </div>
-                    """,
-                    unsafe_allow_html=True,
-                )
-
-                regra_card_placeholder.markdown(
-                    f"""
-                    <div class="live-card" style="margin-top:1rem;">
-                        <div class="live-title">Regra aplicada</div>
-                        <div class="live-sub">
-                            {faixa_jullia_render}. {"Janeiro a Abril/2026 usam o valor fechado manualmente. Maio/2026 em diante usa as marcações do dashboard." if comissao_fixa_mes is not None and selected_comm_month < (2026, 5) else "Base: todas as vendas do mês com produto escolhido, menos Pedigree sem transferência."}
-                        </div>
-                    </div>
-                    """,
-                    unsafe_allow_html=True,
-                )
-
-            # Gráfico de colunas: Total de vendas por produto.
-            # Fica entre "Regra aplicada" e "Lista de vendas da comissão".
-            produtos_chart_data = pd.DataFrame(
-                {
-                    "Produto": [
-                        "Pedigree com Transferência",
-                        "Airtag",
-                        "Certidão e RG",
-                        "Somente RG",
-                        "Pedigree sem Transferência",
-                        "Somente Certidão",
-                    ],
-                    "Quantidade": [
-                        qtd_pedigree_trans,
-                        qtd_airtag,
-                        qtd_cert_rg,
-                        qtd_somente_rg,
-                        qtd_ped_sem_trans,
-                        qtd_somente_certidao,
-                    ],
-                }
             )
 
-            st.markdown(
-                """
-                <div class="live-card" style="margin-top:1rem; margin-bottom:0.65rem;">
-                    <div class="live-title">Total de vendas por produto</div>
-                    <div class="live-sub">Contagem pelo produto selecionado na planilha.</div>
-                </div>
-                """,
-                unsafe_allow_html=True,
+        filtro1, filtro2 = st.columns([1.2, 2.4])
+
+        with filtro1:
+            selected_vendedor = st.selectbox("Vendedor", vendedores, key="vendedor_comissao")
+
+        with filtro2:
+            busca_comissao = st.text_input(
+                "Busca rápida",
+                placeholder="Buscar por cliente, produto, vendedor...",
             )
 
-            fig_produtos = px.bar(
-                produtos_chart_data,
-                x="Produto",
-                y="Quantidade",
-                text="Quantidade",
-                title=None,
-            )
+        df_com_filtrado = df_com[df_com["_mes_key"] == selected_comm_month].copy()
 
-            fig_produtos.update_traces(
-                textposition="outside",
-                cliponaxis=False,
-            )
+        if selected_vendedor != "Todos" and col_vendedor and col_vendedor in df_com_filtrado.columns:
+            df_com_filtrado = df_com_filtrado[
+                df_com_filtrado[col_vendedor].astype(str).str.strip() == selected_vendedor
+            ].copy()
 
-            fig_produtos.update_layout(
-                height=360,
-                margin=dict(l=10, r=10, t=10, b=90),
-                xaxis_title="",
-                yaxis_title="Quantidade",
-                showlegend=False,
-                uniformtext_minsize=10,
-                uniformtext_mode="show",
-            )
+        if busca_comissao.strip():
+            q = normalize_search_text(busca_comissao)
 
-            fig_produtos.update_xaxes(tickangle=-25)
-            st.plotly_chart(fig_produtos, use_container_width=True)
-
-            st.markdown(
-                """
-                <div class="live-card">
-                    <div class="live-title">📄 Lista de vendas da comissão</div>
-                    <div class="live-sub">Base filtrada da aba Pedigree Comissão Ju.</div>
-                </div>
-                """,
-                unsafe_allow_html=True,
-            )
-
-            cols_show = [
+            busca_cols = [
                 c
-                for c in [
-                    col_data_venda,
-                    col_mes_venda,
-                    col_cliente,
-                    col_produtos,
-                    col_mes_compra_cliente,
-                    col_valor,
-                    col_vendedor,
-                    col_silimario,
-                ]
+                for c in [col_cliente, col_produtos, col_vendedor, col_mes_compra_cliente]
                 if c and c in df_com_filtrado.columns
             ]
 
-            if not df_com_filtrado.empty and cols_show:
-                df_editor = df_com_filtrado.copy()
+            if busca_cols:
+                mask_busca = pd.Series(False, index=df_com_filtrado.index)
 
-                if col_produtos and col_produtos in df_editor.columns:
-                    produto_series = df_editor[col_produtos].fillna("").astype(str)
-                else:
-                    produto_series = pd.Series([""] * len(df_editor), index=df_editor.index)
+                for c in busca_cols:
+                    mask_busca = mask_busca | df_com_filtrado[c].apply(normalize_search_text).str.contains(q, na=False)
 
-                checks_df = produto_series.apply(checks_por_produto).apply(pd.Series)
+                df_com_filtrado = df_com_filtrado[mask_busca].copy()
 
-                if "__row_number" not in df_editor.columns:
-                    df_editor["__row_number"] = df_editor.index + 2
+        total_vendas = len(df_com_filtrado)
+        valor_total = float(df_com_filtrado["_valor_num"].sum()) if not df_com_filtrado.empty else 0.0
+        silimario_total = float(df_com_filtrado["_silimario_num"].sum()) if not df_com_filtrado.empty else 0.0
+        ticket_medio = valor_total / total_vendas if total_vendas else 0.0
 
-                df_editor_view = pd.DataFrame({
-                    "Linha": df_editor["__row_number"].fillna(0).astype(int),
-                    "Data da Venda": df_editor[col_data_venda] if col_data_venda and col_data_venda in df_editor.columns else "",
-                    "Mês da Venda": df_editor[col_mes_venda] if col_mes_venda and col_mes_venda in df_editor.columns else "",
-                    "Cliente": df_editor[col_cliente] if col_cliente and col_cliente in df_editor.columns else "",
-                    "Quantidade de Pedigrees": df_editor[col_qtd_pedigrees].apply(safe_int_zero).replace(0, 1) if col_qtd_pedigrees and col_qtd_pedigrees in df_editor.columns else 1,
-                    "Pedigree Transferência": checks_df["Pedigree Transferência"].astype(bool),
-                    "Sem Transferência": checks_df["Sem Transferência"].astype(bool),
-                    "Correios": checks_df["Correios"].astype(bool) if "Correios" in checks_df.columns else checks_df["Pedigree Transferência"].astype(bool),
-                    "RG": checks_df["RG"].astype(bool),
-                    "Certidão": checks_df["Certidão"].astype(bool),
-                    "Airtag": checks_df["Airtag"].astype(bool),
-                    "Valor": "",
-                    "Vendedor": df_editor[col_vendedor] if col_vendedor and col_vendedor in df_editor.columns else "",
-                })
+        if not df_com_filtrado.empty and col_produtos and col_produtos in df_com_filtrado.columns:
+            produtos_unicos = df_com_filtrado[col_produtos].astype(str).str.strip().replace("", pd.NA).dropna().nunique()
+        else:
+            produtos_unicos = 0
 
-                editor_key = f"editor_checks_comissao_{selected_comm_month}_{selected_vendedor}_{busca_comissao}"
+        # A comissão da Jullia é calculada pela base inteira do mês selecionado.
+        # A caixa abaixo é preenchida depois do editor, assim ela atualiza ao marcar/desmarcar produtos.
+        df_com_mes_calculo_jullia = df_com[df_com["_mes_key"] == selected_comm_month].copy()
+        comissao_card_placeholder = st.empty()
+        regra_card_placeholder = st.empty()
 
-                # Estado próprio por linha. Isso evita o problema de selecionar um checkbox
-                # e perder as outras marcações da mesma linha no rerun do Streamlit.
-                selecoes_key = "selecoes_comissao_por_linha"
-                if selecoes_key not in st.session_state:
-                    st.session_state[selecoes_key] = {}
+        def render_card_comissao_jullia(df_base_calculo):
+            dados_jullia_render = calcular_comissao_jullia(
+                df_base_calculo,
+                col_produtos,
+                col_valor,
+                col_vendedor,
+            )
 
-                checkbox_cols = [
-                    "Pedigree Transferência",
-                    "Sem Transferência",
-                    "Correios",
-                    "RG",
-                    "Certidão",
-                    "Airtag",
-                ]
+            comissao_fixa_mes = comissao_historica_fixa(selected_comm_month)
 
-                for idx_init, row_init in df_editor_view.iterrows():
-                    linha_init = str(safe_int_zero(row_init.get("Linha", 0)))
-                    if linha_init in st.session_state[selecoes_key]:
-                        estado_linha = st.session_state[selecoes_key][linha_init]
+            if comissao_fixa_mes is not None and selected_comm_month < (2026, 5):
+                comissao_jullia_render = float(comissao_fixa_mes)
+                percentual_jullia_render = dados_jullia_render["percentual_jullia"]
+                qtd_jullia_validas_render = dados_jullia_render["qtd_vendas_jullia_validas"]
+                total_validas_mes_render = dados_jullia_render["total_vendas_validas_mes"]
+                faixa_jullia_render = "Comissão histórica fixa conferida manualmente"
+            else:
+                comissao_jullia_render = dados_jullia_render["comissao_jullia"]
+                percentual_jullia_render = dados_jullia_render["percentual_jullia"]
+                qtd_jullia_validas_render = dados_jullia_render["qtd_vendas_jullia_validas"]
+                total_validas_mes_render = dados_jullia_render["total_vendas_validas_mes"]
+                faixa_jullia_render = dados_jullia_render["faixa"]
 
-                        # Restaura a quantidade digitada anteriormente.
-                        # Sem isso, o Streamlit voltava para 1 e parecia que a conta não mudava.
-                        if "Quantidade de Pedigrees" in estado_linha:
-                            df_editor_view.at[idx_init, "Quantidade de Pedigrees"] = safe_int_zero(estado_linha.get("Quantidade de Pedigrees", 1)) or 1
-
-                        for col_chk in checkbox_cols:
-                            df_editor_view.at[idx_init, col_chk] = bool(estado_linha.get(col_chk, False))
-
-                def recalcular_linha_editor(row_editor):
-                    ped_trans_calc = checkbox_marcado(row_editor.get("Pedigree Transferência", False))
-                    ped_sem_calc = checkbox_marcado(row_editor.get("Sem Transferência", False))
-                    correios_calc = checkbox_marcado(row_editor.get("Correios", False))
-                    rg_calc = checkbox_marcado(row_editor.get("RG", False))
-                    certidao_calc = checkbox_marcado(row_editor.get("Certidão", False))
-                    airtag_calc = checkbox_marcado(row_editor.get("Airtag", False))
-                    qtd_calc = safe_int_zero(row_editor.get("Quantidade de Pedigrees", 1)) or 1
-
-                    # Permite múltiplas escolhas simultâneas.
-                    # Sem Transferência não é frete; o frete obrigatório já entra fixo quando Transferência está marcada.
-
-                    produto_calc = montar_produto_por_checks(
-                        ped_trans_calc,
-                        ped_sem_calc,
-                        rg_calc,
-                        certidao_calc,
-                        airtag_calc,
-                    )
-
-                    return format_money(calcular_valor_por_checks(ped_trans_calc, ped_sem_calc, correios_calc, rg_calc, certidao_calc, airtag_calc, qtd_calc))
-
-                df_editor_view["Valor"] = df_editor_view.apply(recalcular_linha_editor, axis=1)
-
-                st.markdown(
-                    f"""
-                    <div class="live-sub" style="margin-top:0.2rem; margin-bottom:0.8rem;">
-                        {"Marque os produtos desejados e informe a Quantidade de Pedigrees. Para inserir uma nova venda, adicione uma linha no final preenchendo Data da Venda, Mês da Venda e Cliente. Depois clique em Calcular prévia / salvar novas linhas." if usar_marcacoes_dashboard else "Mês histórico: você pode ajustar Quantidade de Pedigrees/Produtos no dashboard e salvar direto na planilha; a comissão final do mês continua usando os valores históricos conferidos."}
+            comissao_card_placeholder.markdown(
+                f"""
+                <div class="metric-card" style="min-height:126px; display:flex; align-items:center;">
+                    <div class="metric-wrap">
+                        <div class="metric-icon" style="background:#2e6cbf;">💰</div>
+                        <div>
+                            <div class="metric-label">Comissão Jullia</div>
+                            <div class="metric-value">{format_money(comissao_jullia_render)}</div>
+                            <div class="metric-sub">{qtd_jullia_validas_render} de {total_validas_mes_render} vendas válidas • {percentual_jullia_render:.1%}</div>
+                        </div>
                     </div>
-                    """,
-                    unsafe_allow_html=True,
+                </div>
+                """,
+                unsafe_allow_html=True,
+            )
+
+            regra_card_placeholder.markdown(
+                f"""
+                <div class="live-card" style="margin-top:1rem;">
+                    <div class="live-title">Regra aplicada</div>
+                    <div class="live-sub">
+                        {faixa_jullia_render}. {"Janeiro a Abril/2026 usam o valor fechado manualmente. Maio/2026 em diante usa as marcações do dashboard." if comissao_fixa_mes is not None and selected_comm_month < (2026, 5) else "Base: todas as vendas do mês com produto escolhido, menos Pedigree sem transferência."}
+                    </div>
+                </div>
+                """,
+                unsafe_allow_html=True,
+            )
+
+        # Gráfico de colunas: Total de vendas por produto.
+        # Fica entre "Regra aplicada" e "Lista de vendas da comissão".
+        produtos_chart_data = pd.DataFrame(
+            {
+                "Produto": [
+                    "Pedigree com Transferência",
+                    "Airtag",
+                    "Certidão e RG",
+                    "Somente RG",
+                    "Pedigree sem Transferência",
+                    "Somente Certidão",
+                ],
+                "Quantidade": [
+                    qtd_pedigree_trans,
+                    qtd_airtag,
+                    qtd_cert_rg,
+                    qtd_somente_rg,
+                    qtd_ped_sem_trans,
+                    qtd_somente_certidao,
+                ],
+            }
+        )
+
+        st.markdown(
+            """
+            <div class="live-card" style="margin-top:1rem; margin-bottom:0.65rem;">
+                <div class="live-title">Total de vendas por produto</div>
+                <div class="live-sub">Contagem pelo produto selecionado na planilha.</div>
+            </div>
+            """,
+            unsafe_allow_html=True,
+        )
+
+        fig_produtos = px.bar(
+            produtos_chart_data,
+            x="Produto",
+            y="Quantidade",
+            text="Quantidade",
+            title=None,
+        )
+
+        fig_produtos.update_traces(
+            textposition="outside",
+            cliponaxis=False,
+        )
+
+        fig_produtos.update_layout(
+            height=360,
+            margin=dict(l=10, r=10, t=10, b=90),
+            xaxis_title="",
+            yaxis_title="Quantidade",
+            showlegend=False,
+            uniformtext_minsize=10,
+            uniformtext_mode="show",
+        )
+
+        fig_produtos.update_xaxes(tickangle=-25)
+        st.plotly_chart(fig_produtos, use_container_width=True)
+
+        st.markdown(
+            """
+            <div class="live-card">
+                <div class="live-title">📄 Lista de vendas da comissão</div>
+                <div class="live-sub">Base filtrada da aba Pedigree Comissão Ju.</div>
+            </div>
+            """,
+            unsafe_allow_html=True,
+        )
+
+        cols_show = [
+            c
+            for c in [
+                col_data_venda,
+                col_mes_venda,
+                col_cliente,
+                col_produtos,
+                col_mes_compra_cliente,
+                col_valor,
+                col_vendedor,
+                col_silimario,
+            ]
+            if c and c in df_com_filtrado.columns
+        ]
+
+        if not df_com_filtrado.empty and cols_show:
+            df_editor = df_com_filtrado.copy()
+
+            if col_produtos and col_produtos in df_editor.columns:
+                produto_series = df_editor[col_produtos].fillna("").astype(str)
+            else:
+                produto_series = pd.Series([""] * len(df_editor), index=df_editor.index)
+
+            checks_df = produto_series.apply(checks_por_produto).apply(pd.Series)
+
+            if "__row_number" not in df_editor.columns:
+                df_editor["__row_number"] = df_editor.index + 2
+
+            df_editor_view = pd.DataFrame({
+                "Linha": df_editor["__row_number"].fillna(0).astype(int),
+                "Data da Venda": df_editor[col_data_venda] if col_data_venda and col_data_venda in df_editor.columns else "",
+                "Mês da Venda": df_editor[col_mes_venda] if col_mes_venda and col_mes_venda in df_editor.columns else "",
+                "Cliente": df_editor[col_cliente] if col_cliente and col_cliente in df_editor.columns else "",
+                "Quantidade de Pedigrees": df_editor[col_qtd_pedigrees].apply(safe_int_zero).replace(0, 1) if col_qtd_pedigrees and col_qtd_pedigrees in df_editor.columns else 1,
+                "Pedigree Transferência": checks_df["Pedigree Transferência"].astype(bool),
+                "Sem Transferência": checks_df["Sem Transferência"].astype(bool),
+                "Correios": checks_df["Correios"].astype(bool) if "Correios" in checks_df.columns else checks_df["Pedigree Transferência"].astype(bool),
+                "RG": checks_df["RG"].astype(bool),
+                "Certidão": checks_df["Certidão"].astype(bool),
+                "Airtag": checks_df["Airtag"].astype(bool),
+                "Valor": "",
+                "Vendedor": df_editor[col_vendedor] if col_vendedor and col_vendedor in df_editor.columns else "",
+            })
+
+            editor_key = f"editor_checks_comissao_{selected_comm_month}_{selected_vendedor}_{busca_comissao}"
+
+            # Estado próprio por linha. Isso evita o problema de selecionar um checkbox
+            # e perder as outras marcações da mesma linha no rerun do Streamlit.
+            selecoes_key = "selecoes_comissao_por_linha"
+            if selecoes_key not in st.session_state:
+                st.session_state[selecoes_key] = {}
+
+            checkbox_cols = [
+                "Pedigree Transferência",
+                "Sem Transferência",
+                "Correios",
+                "RG",
+                "Certidão",
+                "Airtag",
+            ]
+
+            for idx_init, row_init in df_editor_view.iterrows():
+                linha_init = str(safe_int_zero(row_init.get("Linha", 0)))
+                if linha_init in st.session_state[selecoes_key]:
+                    estado_linha = st.session_state[selecoes_key][linha_init]
+
+                    # Restaura a quantidade digitada anteriormente.
+                    # Sem isso, o Streamlit voltava para 1 e parecia que a conta não mudava.
+                    if "Quantidade de Pedigrees" in estado_linha:
+                        df_editor_view.at[idx_init, "Quantidade de Pedigrees"] = safe_int_zero(estado_linha.get("Quantidade de Pedigrees", 1)) or 1
+
+                    for col_chk in checkbox_cols:
+                        df_editor_view.at[idx_init, col_chk] = bool(estado_linha.get(col_chk, False))
+
+            def recalcular_linha_editor(row_editor):
+                ped_trans_calc = checkbox_marcado(row_editor.get("Pedigree Transferência", False))
+                ped_sem_calc = checkbox_marcado(row_editor.get("Sem Transferência", False))
+                correios_calc = checkbox_marcado(row_editor.get("Correios", False))
+                rg_calc = checkbox_marcado(row_editor.get("RG", False))
+                certidao_calc = checkbox_marcado(row_editor.get("Certidão", False))
+                airtag_calc = checkbox_marcado(row_editor.get("Airtag", False))
+                qtd_calc = safe_int_zero(row_editor.get("Quantidade de Pedigrees", 1)) or 1
+
+                # Permite múltiplas escolhas simultâneas.
+                # Sem Transferência não é frete; o frete obrigatório já entra fixo quando Transferência está marcada.
+
+                produto_calc = montar_produto_por_checks(
+                    ped_trans_calc,
+                    ped_sem_calc,
+                    rg_calc,
+                    certidao_calc,
+                    airtag_calc,
                 )
 
-                # IMPORTANTE:
-                # O st.data_editor fora de formulário faz o Streamlit rodar a página inteira
-                # a cada checkbox marcado. Isso fazia a grade voltar para o começo.
-                # Dentro do st.form, você pode marcar várias opções/linhas primeiro;
-                # a página só recalcula quando clicar em "Calcular prévia".
-                with st.form(key=f"form_{editor_key}", clear_on_submit=False):
-                    edited_df = st.data_editor(
-                        df_editor_view,
-                        use_container_width=True,
-                        hide_index=True,
-                        height=430,
-                        column_config={
-                            "Linha": st.column_config.NumberColumn("Linha", disabled=True),
-                            "Data da Venda": st.column_config.TextColumn("Data da Venda"),
-                            "Mês da Venda": st.column_config.TextColumn("Mês da Venda"),
-                            "Cliente": st.column_config.TextColumn("Cliente"),
-                            "Quantidade de Pedigrees": st.column_config.NumberColumn("Quantidade de Pedigrees", min_value=1, step=1),
-                            "Pedigree Transferência": st.column_config.CheckboxColumn("Pedigree Transferência"),
-                            "Sem Transferência": st.column_config.CheckboxColumn("Sem Transferência"),
-                            "Correios": st.column_config.CheckboxColumn("Correios"),
-                            "RG": st.column_config.CheckboxColumn("RG"),
-                            "Certidão": st.column_config.CheckboxColumn("Certidão"),
-                            "Airtag": st.column_config.CheckboxColumn("Airtag"),
-                            "Valor": st.column_config.TextColumn("Valor", disabled=True),
-                            "Vendedor": st.column_config.TextColumn("Vendedor", disabled=True),
-                        },
-                        key=editor_key,
-                        disabled=["Valor", "Vendedor"],
-                        num_rows="dynamic",
+                return format_money(calcular_valor_por_checks(ped_trans_calc, ped_sem_calc, correios_calc, rg_calc, certidao_calc, airtag_calc, qtd_calc))
+
+            df_editor_view["Valor"] = df_editor_view.apply(recalcular_linha_editor, axis=1)
+
+            st.markdown(
+                f"""
+                <div class="live-sub" style="margin-top:0.2rem; margin-bottom:0.8rem;">
+                    {"Marque os produtos desejados e informe a Quantidade de Pedigrees. Para inserir uma nova venda, adicione uma linha no final preenchendo Data da Venda, Mês da Venda e Cliente. Depois clique em Calcular prévia / salvar novas linhas." if usar_marcacoes_dashboard else "Mês histórico: você pode ajustar Quantidade de Pedigrees/Produtos no dashboard e salvar direto na planilha; a comissão final do mês continua usando os valores históricos conferidos."}
+                </div>
+                """,
+                unsafe_allow_html=True,
+            )
+
+            # IMPORTANTE:
+            # O st.data_editor fora de formulário faz o Streamlit rodar a página inteira
+            # a cada checkbox marcado. Isso fazia a grade voltar para o começo.
+            # Dentro do st.form, você pode marcar várias opções/linhas primeiro;
+            # a página só recalcula quando clicar em "Calcular prévia".
+            with st.form(key=f"form_{editor_key}", clear_on_submit=False):
+                edited_df = st.data_editor(
+                    df_editor_view,
+                    use_container_width=True,
+                    hide_index=True,
+                    height=430,
+                    column_config={
+                        "Linha": st.column_config.NumberColumn("Linha", disabled=True),
+                        "Data da Venda": st.column_config.TextColumn("Data da Venda"),
+                        "Mês da Venda": st.column_config.TextColumn("Mês da Venda"),
+                        "Cliente": st.column_config.TextColumn("Cliente"),
+                        "Quantidade de Pedigrees": st.column_config.NumberColumn("Quantidade de Pedigrees", min_value=1, step=1),
+                        "Pedigree Transferência": st.column_config.CheckboxColumn("Pedigree Transferência"),
+                        "Sem Transferência": st.column_config.CheckboxColumn("Sem Transferência"),
+                        "Correios": st.column_config.CheckboxColumn("Correios"),
+                        "RG": st.column_config.CheckboxColumn("RG"),
+                        "Certidão": st.column_config.CheckboxColumn("Certidão"),
+                        "Airtag": st.column_config.CheckboxColumn("Airtag"),
+                        "Valor": st.column_config.TextColumn("Valor", disabled=True),
+                        "Vendedor": st.column_config.TextColumn("Vendedor", disabled=True),
+                    },
+                    key=editor_key,
+                    disabled=["Valor", "Vendedor"],
+                    num_rows="dynamic",
+                )
+
+                aplicar_previa = st.form_submit_button(
+                    "Calcular prévia da comissão",
+                    use_container_width=True,
+                )
+
+            # Atualiza o estado próprio com TODAS as marcações retornadas pelo editor
+            # somente quando o usuário terminar de marcar e clicar no botão.
+            # Assim a tabela não fica voltando para o começo a cada clique.
+            if aplicar_previa:
+                novas_linhas_para_salvar = []
+                edicoes_linhas_para_salvar = []
+
+                # Detecta linhas removidas pelo botão de apagar linha do st.data_editor.
+                # Se a linha existia antes e não voltou no edited_df, apaga também da planilha.
+                linhas_originais_editor = {
+                    safe_int_zero(valor)
+                    for valor in df_editor_view.get("Linha", pd.Series(dtype=object)).tolist()
+                    if safe_int_zero(valor) > 1
+                }
+
+                linhas_editadas_editor = {
+                    safe_int_zero(valor)
+                    for valor in edited_df.get("Linha", pd.Series(dtype=object)).tolist()
+                    if safe_int_zero(valor) > 1
+                }
+
+                linhas_para_excluir_comissao = sorted(
+                    linhas_originais_editor - linhas_editadas_editor,
+                    reverse=True,
+                )
+
+                for linha_excluida in linhas_para_excluir_comissao:
+                    st.session_state[selecoes_key].pop(str(linha_excluida), None)
+
+                for _, row_state_editor in edited_df.iterrows():
+                    linha_state_num = safe_int_zero(row_state_editor.get("Linha", 0))
+                    linha_state = str(linha_state_num)
+
+                    data_linha = normalize_text(row_state_editor.get("Data da Venda", ""))
+                    mes_linha = normalize_text(row_state_editor.get("Mês da Venda", ""))
+                    cliente_linha = normalize_text(row_state_editor.get("Cliente", ""))
+                    qtd_pedigrees_linha = safe_int_zero(row_state_editor.get("Quantidade de Pedigrees", 1)) or 1
+
+                    ped_trans_linha = checkbox_marcado(row_state_editor.get("Pedigree Transferência", False))
+                    ped_sem_linha = checkbox_marcado(row_state_editor.get("Sem Transferência", False))
+                    correios_linha = checkbox_marcado(row_state_editor.get("Correios", False))
+                    rg_linha = checkbox_marcado(row_state_editor.get("RG", False))
+                    certidao_linha = checkbox_marcado(row_state_editor.get("Certidão", False))
+                    airtag_linha = checkbox_marcado(row_state_editor.get("Airtag", False))
+
+                    produto_linha = montar_produto_com_correios(
+                        ped_trans_linha,
+                        ped_sem_linha,
+                        correios_linha,
+                        rg_linha,
+                        certidao_linha,
+                        airtag_linha,
+                    )
+                    valor_linha = calcular_valor_por_checks(
+                        ped_trans_linha,
+                        ped_sem_linha,
+                        correios_linha,
+                        rg_linha,
+                        certidao_linha,
+                        airtag_linha,
+                        qtd_pedigrees_linha,
                     )
 
-                    aplicar_previa = st.form_submit_button(
-                        "Calcular prévia da comissão",
-                        use_container_width=True,
-                    )
+                    if linha_state != "0":
+                        estado_linha_atual = {
+                            col_chk: checkbox_marcado(row_state_editor.get(col_chk, False))
+                            for col_chk in checkbox_cols
+                        }
+                        estado_linha_atual["Quantidade de Pedigrees"] = qtd_pedigrees_linha
+                        st.session_state[selecoes_key][linha_state] = estado_linha_atual
 
-                # Atualiza o estado próprio com TODAS as marcações retornadas pelo editor
-                # somente quando o usuário terminar de marcar e clicar no botão.
-                # Assim a tabela não fica voltando para o começo a cada clique.
-                if aplicar_previa:
-                    novas_linhas_para_salvar = []
-                    edicoes_linhas_para_salvar = []
-
-                    # Detecta linhas removidas pelo botão de apagar linha do st.data_editor.
-                    # Se a linha existia antes e não voltou no edited_df, apaga também da planilha.
-                    linhas_originais_editor = {
-                        safe_int_zero(valor)
-                        for valor in df_editor_view.get("Linha", pd.Series(dtype=object)).tolist()
-                        if safe_int_zero(valor) > 1
-                    }
-
-                    linhas_editadas_editor = {
-                        safe_int_zero(valor)
-                        for valor in edited_df.get("Linha", pd.Series(dtype=object)).tolist()
-                        if safe_int_zero(valor) > 1
-                    }
-
-                    linhas_para_excluir_comissao = sorted(
-                        linhas_originais_editor - linhas_editadas_editor,
-                        reverse=True,
-                    )
-
-                    for linha_excluida in linhas_para_excluir_comissao:
-                        st.session_state[selecoes_key].pop(str(linha_excluida), None)
-
-                    for _, row_state_editor in edited_df.iterrows():
-                        linha_state_num = safe_int_zero(row_state_editor.get("Linha", 0))
-                        linha_state = str(linha_state_num)
-
-                        data_linha = normalize_text(row_state_editor.get("Data da Venda", ""))
-                        mes_linha = normalize_text(row_state_editor.get("Mês da Venda", ""))
-                        cliente_linha = normalize_text(row_state_editor.get("Cliente", ""))
-                        qtd_pedigrees_linha = safe_int_zero(row_state_editor.get("Quantidade de Pedigrees", 1)) or 1
-
-                        ped_trans_linha = checkbox_marcado(row_state_editor.get("Pedigree Transferência", False))
-                        ped_sem_linha = checkbox_marcado(row_state_editor.get("Sem Transferência", False))
-                        correios_linha = checkbox_marcado(row_state_editor.get("Correios", False))
-                        rg_linha = checkbox_marcado(row_state_editor.get("RG", False))
-                        certidao_linha = checkbox_marcado(row_state_editor.get("Certidão", False))
-                        airtag_linha = checkbox_marcado(row_state_editor.get("Airtag", False))
-
-                        produto_linha = montar_produto_com_correios(
-                            ped_trans_linha,
-                            ped_sem_linha,
-                            correios_linha,
-                            rg_linha,
-                            certidao_linha,
-                            airtag_linha,
-                        )
-                        valor_linha = calcular_valor_por_checks(
-                            ped_trans_linha,
-                            ped_sem_linha,
-                            correios_linha,
-                            rg_linha,
-                            certidao_linha,
-                            airtag_linha,
-                            qtd_pedigrees_linha,
-                        )
-
-                        if linha_state != "0":
-                            estado_linha_atual = {
-                                col_chk: checkbox_marcado(row_state_editor.get(col_chk, False))
-                                for col_chk in checkbox_cols
-                            }
-                            estado_linha_atual["Quantidade de Pedigrees"] = qtd_pedigrees_linha
-                            st.session_state[selecoes_key][linha_state] = estado_linha_atual
-
-                            # Salva diretamente na planilha a quantidade, produtos e valor calculado.
-                            # Isso resolve os casos de clientes com 2 ou mais pedigrees na mesma venda.
-                            if qtd_pedigrees_linha >= 2 or produto_linha or data_linha or mes_linha or cliente_linha:
-                                edicoes_linhas_para_salvar.append({
-                                    "Linha": linha_state_num,
-                                    "Data da Venda": data_linha,
-                                    "Mês da Venda": mes_linha,
-                                    "Cliente": cliente_linha,
-                                    "Quantidade de Pedigrees": qtd_pedigrees_linha,
-                                    "Produtos": produto_linha,
-                                    "Mês da Compra do Cliente": mes_linha,
-                                    "Valor": format_money(valor_linha),
-                                    "Vendedor": normalize_text(row_state_editor.get("Vendedor", "Jullia")) or "Jullia",
-                                })
-                        else:
-                            # Linha nova criada no editor. Só salva quando tiver pelo menos Data/Mês/Cliente ou algum produto marcado.
-                            if data_linha or mes_linha or cliente_linha or produto_linha:
-                                novas_linhas_para_salvar.append({
-                                    "Data da Venda": data_linha,
-                                    "Mês da Venda": mes_linha,
-                                    "Cliente": cliente_linha,
-                                    "Quantidade de Pedigrees": qtd_pedigrees_linha,
-                                    "Produtos": produto_linha,
-                                    "Mês da Compra do Cliente": mes_linha,
-                                    "Valor": format_money(valor_linha),
-                                    "Vendedor": "Jullia",
-                                })
-
-                    try:
-                        # Primeiro salva edições usando a numeração atual.
-                        qtd_editadas = salvar_edicoes_linhas_comissao(edicoes_linhas_para_salvar)
-
-                        # Depois salva novas linhas.
-                        qtd_salvas = salvar_novas_linhas_comissao(novas_linhas_para_salvar) if novas_linhas_para_salvar else 0
-
-                        # Por último apaga as linhas removidas no editor, de baixo para cima.
-                        qtd_apagadas = excluir_linhas_comissao_por_numero(linhas_para_excluir_comissao)
-
-                        if qtd_editadas or qtd_salvas or qtd_apagadas:
-                            st.success(
-                                f"{qtd_editadas} linha(s) atualizada(s), "
-                                f"{qtd_salvas} nova(s) venda(s) adicionada(s) e "
-                                f"{qtd_apagadas} linha(s) apagada(s) da aba Pedigree Comissão Ju."
-                            )
-                        else:
-                            st.info("Prévia recalculada. Nenhuma linha nova, alteração ou exclusão para salvar.")
-
-                        st.rerun()
-                    except Exception as e:
-                        st.error(f"Erro ao salvar alterações na planilha: {e}")
-                else:
-                    # Sem submit, usa a versão inicial/persistida para renderizar a prévia atual.
-                    # Isso evita salvar alterações parciais que ainda estão sendo marcadas na tela.
-                    pass
-
-                # Prévia ao vivo da comissão:
-                # monta uma base nova com o que está marcado no editor, sem depender da planilha salvar primeiro.
-                df_com_mes_preview = df_com_mes_calculo_jullia.copy()
-
-                if "__row_number" not in df_com_mes_preview.columns:
-                    df_com_mes_preview["__row_number"] = df_com_mes_preview.index + 2
-
-                linhas_editadas_preview = []
-
-                for _, row_edit_preview in (edited_df if usar_marcacoes_dashboard else pd.DataFrame()).iterrows():
-                    row_number_preview = safe_int_zero(row_edit_preview.get("Linha", 0))
-
-                    ped_trans_preview = checkbox_marcado(row_edit_preview.get("Pedigree Transferência", False))
-                    ped_sem_preview = checkbox_marcado(row_edit_preview.get("Sem Transferência", False))
-                    correios_preview = checkbox_marcado(row_edit_preview.get("Correios", False))
-                    rg_preview = checkbox_marcado(row_edit_preview.get("RG", False))
-                    certidao_preview = checkbox_marcado(row_edit_preview.get("Certidão", False))
-                    airtag_preview = checkbox_marcado(row_edit_preview.get("Airtag", False))
-                    qtd_pedigrees_preview = safe_int_zero(row_edit_preview.get("Quantidade de Pedigrees", 1)) or 1
-
-                    # Permite múltiplas escolhas simultâneas.
-                    # Sem Transferência não é frete. Se Transferência e Sem Transferência ficarem marcados juntos, a Transferência vence e não soma R$ 35,80 duas vezes.
-
-                    produto_preview = montar_produto_com_correios(
-                        ped_trans_preview,
-                        ped_sem_preview,
-                        correios_preview,
-                        rg_preview,
-                        certidao_preview,
-                        airtag_preview,
-                    )
-
-                    valor_preview = calcular_valor_por_checks(ped_trans_preview, ped_sem_preview, correios_preview, rg_preview, certidao_preview, airtag_preview, qtd_pedigrees_preview)
-
-                    if row_number_preview > 0:
-                        linhas_editadas_preview.append(row_number_preview)
-
-                        mask_preview = df_com_mes_preview["__row_number"].astype(int) == row_number_preview
-
-                        if mask_preview.any():
-                            if col_produtos and col_produtos in df_com_mes_preview.columns:
-                                df_com_mes_preview.loc[mask_preview, col_produtos] = produto_preview
-
-                            if col_valor and col_valor in df_com_mes_preview.columns:
-                                df_com_mes_preview.loc[mask_preview, col_valor] = format_money(valor_preview)
-
-                            # Garante que o card Comissão Jullia conte a quantidade digitada.
-                            if "Quantidade de Pedigrees" not in df_com_mes_preview.columns:
-                                df_com_mes_preview["Quantidade de Pedigrees"] = 1
-                            df_com_mes_preview.loc[mask_preview, "Quantidade de Pedigrees"] = qtd_pedigrees_preview
-
-                            if col_vendedor and col_vendedor in df_com_mes_preview.columns:
-                                df_com_mes_preview.loc[mask_preview, col_vendedor] = normalize_text(row_edit_preview.get("Vendedor", "Jullia"))
-
-                # Atualiza também o card lateral de Valor Total Vendido no Mês
-                # usando exatamente a soma da coluna Valor depois da prévia/edição.
-                # Assim, se uma linha for adicionada, alterada ou excluída da base,
-                # o total fica sempre igual à soma dos valores exibidos.
-                if selected_comm_month == mes_valor_cliente:
-                    if col_valor and col_valor in df_com_mes_preview.columns and not df_com_mes_preview.empty:
-                        valor_total_mes_preview = float(df_com_mes_preview[col_valor].apply(parse_money).sum())
+                        # Salva diretamente na planilha a quantidade, produtos e valor calculado.
+                        # Isso resolve os casos de clientes com 2 ou mais pedigrees na mesma venda.
+                        if qtd_pedigrees_linha >= 2 or produto_linha or data_linha or mes_linha or cliente_linha:
+                            edicoes_linhas_para_salvar.append({
+                                "Linha": linha_state_num,
+                                "Data da Venda": data_linha,
+                                "Mês da Venda": mes_linha,
+                                "Cliente": cliente_linha,
+                                "Quantidade de Pedigrees": qtd_pedigrees_linha,
+                                "Produtos": produto_linha,
+                                "Mês da Compra do Cliente": mes_linha,
+                                "Valor": format_money(valor_linha),
+                                "Vendedor": normalize_text(row_state_editor.get("Vendedor", "Jullia")) or "Jullia",
+                            })
                     else:
-                        valor_total_mes_preview = 0.0
-                    render_valor_total_mes_card(valor_total_mes_preview)
+                        # Linha nova criada no editor. Só salva quando tiver pelo menos Data/Mês/Cliente ou algum produto marcado.
+                        if data_linha or mes_linha or cliente_linha or produto_linha:
+                            novas_linhas_para_salvar.append({
+                                "Data da Venda": data_linha,
+                                "Mês da Venda": mes_linha,
+                                "Cliente": cliente_linha,
+                                "Quantidade de Pedigrees": qtd_pedigrees_linha,
+                                "Produtos": produto_linha,
+                                "Mês da Compra do Cliente": mes_linha,
+                                "Valor": format_money(valor_linha),
+                                "Vendedor": "Jullia",
+                            })
 
-                render_card_comissao_jullia(df_com_mes_preview)
+                try:
+                    # Primeiro salva edições usando a numeração atual.
+                    qtd_editadas = salvar_edicoes_linhas_comissao(edicoes_linhas_para_salvar)
 
-                if usar_marcacoes_dashboard:
-                    st.info("Marque tudo primeiro e depois clique em Calcular prévia / salvar novas linhas. Linhas novas são gravadas sempre abaixo da última linha escrita.")
-                else:
-                    st.info("Mês histórico: clientes com mais de 1 pedigree podem ser corrigidos no dashboard e gravados direto na planilha.")
+                    # Depois salva novas linhas.
+                    qtd_salvas = salvar_novas_linhas_comissao(novas_linhas_para_salvar) if novas_linhas_para_salvar else 0
+
+                    # Por último apaga as linhas removidas no editor, de baixo para cima.
+                    qtd_apagadas = excluir_linhas_comissao_por_numero(linhas_para_excluir_comissao)
+
+                    if qtd_editadas or qtd_salvas or qtd_apagadas:
+                        st.success(
+                            f"{qtd_editadas} linha(s) atualizada(s), "
+                            f"{qtd_salvas} nova(s) venda(s) adicionada(s) e "
+                            f"{qtd_apagadas} linha(s) apagada(s) da aba Pedigree Comissão Ju."
+                        )
+                    else:
+                        st.info("Prévia recalculada. Nenhuma linha nova, alteração ou exclusão para salvar.")
+
+                    st.rerun()
+                except Exception as e:
+                    st.error(f"Erro ao salvar alterações na planilha: {e}")
             else:
-                render_card_comissao_jullia(df_com_mes_calculo_jullia)
-                st.info("Nenhuma venda encontrada com os filtros selecionados.")
+                # Sem submit, usa a versão inicial/persistida para renderizar a prévia atual.
+                # Isso evita salvar alterações parciais que ainda estão sendo marcadas na tela.
+                pass
+
+            # Prévia ao vivo da comissão:
+            # monta uma base nova com o que está marcado no editor, sem depender da planilha salvar primeiro.
+            df_com_mes_preview = df_com_mes_calculo_jullia.copy()
+
+            if "__row_number" not in df_com_mes_preview.columns:
+                df_com_mes_preview["__row_number"] = df_com_mes_preview.index + 2
+
+            linhas_editadas_preview = []
+
+            for _, row_edit_preview in (edited_df if usar_marcacoes_dashboard else pd.DataFrame()).iterrows():
+                row_number_preview = safe_int_zero(row_edit_preview.get("Linha", 0))
+
+                ped_trans_preview = checkbox_marcado(row_edit_preview.get("Pedigree Transferência", False))
+                ped_sem_preview = checkbox_marcado(row_edit_preview.get("Sem Transferência", False))
+                correios_preview = checkbox_marcado(row_edit_preview.get("Correios", False))
+                rg_preview = checkbox_marcado(row_edit_preview.get("RG", False))
+                certidao_preview = checkbox_marcado(row_edit_preview.get("Certidão", False))
+                airtag_preview = checkbox_marcado(row_edit_preview.get("Airtag", False))
+                qtd_pedigrees_preview = safe_int_zero(row_edit_preview.get("Quantidade de Pedigrees", 1)) or 1
+
+                # Permite múltiplas escolhas simultâneas.
+                # Sem Transferência não é frete. Se Transferência e Sem Transferência ficarem marcados juntos, a Transferência vence e não soma R$ 35,80 duas vezes.
+
+                produto_preview = montar_produto_com_correios(
+                    ped_trans_preview,
+                    ped_sem_preview,
+                    correios_preview,
+                    rg_preview,
+                    certidao_preview,
+                    airtag_preview,
+                )
+
+                valor_preview = calcular_valor_por_checks(ped_trans_preview, ped_sem_preview, correios_preview, rg_preview, certidao_preview, airtag_preview, qtd_pedigrees_preview)
+
+                if row_number_preview > 0:
+                    linhas_editadas_preview.append(row_number_preview)
+
+                    mask_preview = df_com_mes_preview["__row_number"].astype(int) == row_number_preview
+
+                    if mask_preview.any():
+                        if col_produtos and col_produtos in df_com_mes_preview.columns:
+                            df_com_mes_preview.loc[mask_preview, col_produtos] = produto_preview
+
+                        if col_valor and col_valor in df_com_mes_preview.columns:
+                            df_com_mes_preview.loc[mask_preview, col_valor] = format_money(valor_preview)
+
+                        # Garante que o card Comissão Jullia conte a quantidade digitada.
+                        if "Quantidade de Pedigrees" not in df_com_mes_preview.columns:
+                            df_com_mes_preview["Quantidade de Pedigrees"] = 1
+                        df_com_mes_preview.loc[mask_preview, "Quantidade de Pedigrees"] = qtd_pedigrees_preview
+
+                        if col_vendedor and col_vendedor in df_com_mes_preview.columns:
+                            df_com_mes_preview.loc[mask_preview, col_vendedor] = normalize_text(row_edit_preview.get("Vendedor", "Jullia"))
+
+            # Atualiza também o card lateral de Valor Total Vendido no Mês
+            # usando exatamente a soma da coluna Valor depois da prévia/edição.
+            # Assim, se uma linha for adicionada, alterada ou excluída da base,
+            # o total fica sempre igual à soma dos valores exibidos.
+            if selected_comm_month == mes_valor_cliente:
+                if col_valor and col_valor in df_com_mes_preview.columns and not df_com_mes_preview.empty:
+                    valor_total_mes_preview = float(df_com_mes_preview[col_valor].apply(parse_money).sum())
+                else:
+                    valor_total_mes_preview = 0.0
+                render_valor_total_mes_card(valor_total_mes_preview)
+
+            render_card_comissao_jullia(df_com_mes_preview)
+
+            if usar_marcacoes_dashboard:
+                st.info("Marque tudo primeiro e depois clique em Calcular prévia / salvar novas linhas. Linhas novas são gravadas sempre abaixo da última linha escrita.")
+            else:
+                st.info("Mês histórico: clientes com mais de 1 pedigree podem ser corrigidos no dashboard e gravados direto na planilha.")
+        else:
+            render_card_comissao_jullia(df_com_mes_calculo_jullia)
+            st.info("Nenhuma venda encontrada com os filtros selecionados.")
 
     else:
         st.warning("A aba Pedigree Comissão Ju está vazia ou não foi encontrada.")
