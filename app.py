@@ -198,8 +198,14 @@ def load_pedigree_data() -> pd.DataFrame:
     return df
 
 
-@st.cache_data(show_spinner=False, ttl=CACHE_TTL_SECONDS)
 def load_commission_data() -> pd.DataFrame:
+    """
+    Lê a aba Pedigree Comissão Ju sempre direto da planilha.
+
+    Motivo:
+    os valores manuais podem ser alterados tanto no dashboard quanto no Google Sheets.
+    Sem cache aqui, qualquer mudança na planilha aparece no dashboard ao recarregar/sincronizar.
+    """
     worksheet = get_worksheet(COMM_WORKSHEET_NAME)
     values = get_all_values_retry(worksheet)
 
@@ -766,6 +772,16 @@ def salvar_edicoes_linhas_comissao(edicoes_linhas: list[dict]) -> int:
 
         for col_manual in COMISSAO_MANUAL_VALUE_COLS:
             novos_valores[col_manual] = normalize_text(item.get(col_manual, ""))
+
+        # No editor, os checkboxes "Correios", "Airtag" e "Certidão" existem como escolhas.
+        # Os valores manuais aparecem como "Correios Valor", "Airtag Valor" e "Certidão Valor".
+        # Aqui garantimos que a planilha receba o valor digitado, não o checkbox.
+        if "Correios Valor" in item:
+            novos_valores["Correios"] = normalize_text(item.get("Correios Valor", ""))
+        if "Airtag Valor" in item:
+            novos_valores["Airtag"] = normalize_text(item.get("Airtag Valor", ""))
+        if "Certidão Valor" in item:
+            novos_valores["Certidão"] = normalize_text(item.get("Certidão Valor", ""))
 
         for col_name, value in novos_valores.items():
             if col_name in headers:
@@ -5098,7 +5114,15 @@ elif page == "Comissão":
         try:
             sync_pedigrees_para_comissao()
             st.session_state["sync_pedigree_comissao_feito"] = True
-            st.success("Dados recarregados. Nenhuma linha foi adicionada, apagada ou alterada na planilha.")
+
+            # Limpa estados visuais do editor para refletir exatamente o que está no Google Sheets.
+            st.session_state.pop("selecoes_comissao_por_linha", None)
+            for key_editor in list(st.session_state.keys()):
+                if str(key_editor).startswith("editor_checks_comissao_"):
+                    st.session_state.pop(key_editor, None)
+
+            st.cache_data.clear()
+            st.success("Dados recarregados da planilha. Nenhuma linha foi adicionada, apagada ou alterada.")
             st.rerun()
         except Exception as e:
             st.warning(f"Não foi possível recarregar a aba de Comissão: {e}")
@@ -5534,7 +5558,7 @@ elif page == "Comissão":
             st.markdown(
                 f"""
                 <div class="live-sub" style="margin-top:0.2rem; margin-bottom:0.8rem;">
-                    {"Marque somente as escolhas do cliente. Os valores são manuais: preencha Valor, Cinoclube, Clear, Correios, Airtag, Certidão e Jullia. Depois clique em Salvar alterações da comissão." if usar_marcacoes_dashboard else "Mês histórico: você pode ajustar Quantidade de Pedigrees/Produtos no dashboard e salvar direto na planilha; a comissão final do mês continua usando os valores históricos conferidos."}
+                    {"Marque somente as escolhas do cliente. Os valores são manuais: preencha Valor, Cinoclube, Clear, Correios, Airtag, Certidão e Jullia. Ao clicar em Salvar, os valores são gravados direto na planilha. Se mudar direto no Google Sheets, clique em Sincronizar ou recarregue a página." if usar_marcacoes_dashboard else "Mês histórico: você pode ajustar Quantidade de Pedigrees/Produtos no dashboard e salvar direto na planilha; a comissão final do mês continua usando os valores históricos conferidos."}
                 </div>
                 """,
                 unsafe_allow_html=True,
@@ -5579,7 +5603,7 @@ elif page == "Comissão":
                 )
 
                 aplicar_previa = st.form_submit_button(
-                    "Salvar alterações da comissão",
+                    "Salvar na planilha e atualizar totais",
                     use_container_width=True,
                 )
 
@@ -5805,8 +5829,15 @@ elif page == "Comissão":
                             f"{qtd_apagadas} linha(s) apagada(s) da aba Pedigree Comissão Ju."
                         )
                     else:
-                        st.info("Prévia recalculada. Nenhuma linha nova, alteração ou exclusão para salvar.")
+                        st.info("Nenhuma linha nova, alteração ou exclusão para salvar.")
 
+                    # Após salvar, limpa o estado local e recarrega lendo da planilha.
+                    st.session_state.pop(selecoes_key, None)
+                    for key_editor in list(st.session_state.keys()):
+                        if str(key_editor).startswith("editor_checks_comissao_"):
+                            st.session_state.pop(key_editor, None)
+
+                    st.cache_data.clear()
                     st.rerun()
                 except Exception as e:
                     st.error(f"Erro ao salvar alterações na planilha: {e}")
