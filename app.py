@@ -311,6 +311,18 @@ VALOR_CERTIDAO = 30.00
 VALOR_AIRTAG = 130.00
 VALOR_COMBO_RG_CERTIDAO_AIRTAG = 190.00
 
+# Colunas manuais da aba Comissão.
+# Os checkboxes agora servem apenas para registrar a escolha/produto.
+# Valores são digitados manualmente nestas colunas e somados nos cards.
+COMISSAO_MANUAL_VALUE_COLS = [
+    "Cinoclube",
+    "Clear",
+    "Correios",
+    "Airtag",
+    "Certidão",
+    "Jullia",
+]
+
 # Ajustes manuais definidos para meses históricos.
 # Janeiro a Abril/2026 ficam fechados pela conferência manual,
 # sem depender das marcações feitas no dashboard.
@@ -605,6 +617,7 @@ def salvar_novas_linhas_comissao(novas_linhas: list[dict]) -> int:
         "Mês da Compra do Cliente",
         "Valor",
         "Vendedor",
+        *COMISSAO_MANUAL_VALUE_COLS,
     ]
 
     headers = garantir_colunas_comissao(worksheet, required_cols)
@@ -634,6 +647,9 @@ def salvar_novas_linhas_comissao(novas_linhas: list[dict]) -> int:
             "Valor": valor,
             "Vendedor": normalize_text(item.get("Vendedor", "Jullia")) or "Jullia",
         }
+
+        for col_manual in COMISSAO_MANUAL_VALUE_COLS:
+            row_data[col_manual] = normalize_text(item.get(col_manual, ""))
 
         rows_to_write.append([row_data.get(header, "") for header in headers])
 
@@ -681,6 +697,7 @@ def salvar_edicoes_linhas_comissao(edicoes_linhas: list[dict]) -> int:
         "Mês da Compra do Cliente",
         "Valor",
         "Vendedor",
+        *COMISSAO_MANUAL_VALUE_COLS,
     ]
     headers = garantir_colunas_comissao(worksheet, required_cols)
 
@@ -705,6 +722,9 @@ def salvar_edicoes_linhas_comissao(edicoes_linhas: list[dict]) -> int:
             "Valor": normalize_text(item.get("Valor", "")),
             "Vendedor": normalize_text(item.get("Vendedor", "Jullia")) or "Jullia",
         }
+
+        for col_manual in COMISSAO_MANUAL_VALUE_COLS:
+            novos_valores[col_manual] = normalize_text(item.get(col_manual, ""))
 
         for col_name, value in novos_valores.items():
             if col_name in headers:
@@ -5042,6 +5062,28 @@ elif page == "Comissão":
         except Exception as e:
             st.warning(f"Não foi possível recarregar a aba de Comissão: {e}")
 
+    # Garante as colunas manuais solicitadas na aba Pedigree Comissão Ju.
+    # Só adiciona cabeçalhos faltantes; não mexe em valores existentes.
+    try:
+        ws_comissao_headers = get_worksheet(COMM_WORKSHEET_NAME)
+        headers_atuais_comissao = [str(h).strip() for h in ws_comissao_headers.row_values(1)]
+        cols_base_comissao = [
+            "Data da Venda",
+            "Mês da Venda",
+            "Cliente",
+            "Quantidade de Pedigrees",
+            "Produtos",
+            "Mês da Compra do Cliente",
+            "Valor",
+            "Vendedor",
+            *COMISSAO_MANUAL_VALUE_COLS,
+        ]
+        if any(col not in headers_atuais_comissao for col in cols_base_comissao):
+            garantir_colunas_comissao(ws_comissao_headers, cols_base_comissao)
+            st.cache_data.clear()
+    except Exception as e:
+        st.warning(f"Não consegui garantir as colunas manuais da comissão agora: {e}")
+
     df_com = load_commission_data().copy()
 
     if not df_com.empty:
@@ -5269,27 +5311,14 @@ elif page == "Comissão":
         regra_card_placeholder = None
 
         def render_card_comissao_jullia(df_base_calculo):
-            dados_jullia_render = calcular_comissao_jullia(
-                df_base_calculo,
-                col_produtos,
-                col_valor,
-                col_vendedor,
-            )
-
-            comissao_fixa_mes = comissao_historica_fixa(selected_comm_month)
-
-            if comissao_fixa_mes is not None and selected_comm_month < (2026, 5):
-                comissao_jullia_render = float(comissao_fixa_mes)
-                percentual_jullia_render = dados_jullia_render["percentual_jullia"]
-                qtd_jullia_validas_render = dados_jullia_render["qtd_vendas_jullia_validas"]
-                total_validas_mes_render = dados_jullia_render["total_vendas_validas_mes"]
-                faixa_jullia_render = "Comissão histórica fixa conferida manualmente"
+            # Agora a Comissão Jullia NÃO é calculada por checkbox/produto.
+            # Ela soma diretamente a coluna manual "Jullia" da planilha.
+            if df_base_calculo is not None and not df_base_calculo.empty and "Jullia" in df_base_calculo.columns:
+                comissao_jullia_render = float(df_base_calculo["Jullia"].apply(parse_money).sum())
             else:
-                comissao_jullia_render = dados_jullia_render["comissao_jullia"]
-                percentual_jullia_render = dados_jullia_render["percentual_jullia"]
-                qtd_jullia_validas_render = dados_jullia_render["qtd_vendas_jullia_validas"]
-                total_validas_mes_render = dados_jullia_render["total_vendas_validas_mes"]
-                faixa_jullia_render = dados_jullia_render["faixa"]
+                comissao_jullia_render = 0.0
+
+            qtd_linhas_render = int(len(df_base_calculo)) if df_base_calculo is not None else 0
 
             comissao_card_placeholder.markdown(
                 f"""
@@ -5299,7 +5328,7 @@ elif page == "Comissão":
                         <div>
                             <div class="metric-label">Comissão Jullia</div>
                             <div class="metric-value">{format_money(comissao_jullia_render)}</div>
-                            <div class="metric-sub">{qtd_jullia_validas_render} de {total_validas_mes_render} vendas válidas • {percentual_jullia_render:.1%}</div>
+                            <div class="metric-sub">soma da coluna Jullia • {qtd_linhas_render} linha(s)</div>
                         </div>
                     </div>
                 </div>
@@ -5411,13 +5440,20 @@ elif page == "Comissão":
                 "Mês da Venda": df_editor[col_mes_venda] if col_mes_venda and col_mes_venda in df_editor.columns else "",
                 "Cliente": df_editor[col_cliente] if col_cliente and col_cliente in df_editor.columns else "",
                 "Quantidade de Pedigrees": df_editor[col_qtd_pedigrees].apply(safe_int_zero).replace(0, 1) if col_qtd_pedigrees and col_qtd_pedigrees in df_editor.columns else 1,
+                "Escolha do cliente": df_editor[col_produtos] if col_produtos and col_produtos in df_editor.columns else "",
                 "Pedigree Transferência": checks_df["Pedigree Transferência"].astype(bool),
                 "Sem Transferência": checks_df["Sem Transferência"].astype(bool),
                 "Correios": checks_df["Correios"].astype(bool) if "Correios" in checks_df.columns else checks_df["Pedigree Transferência"].astype(bool),
                 "RG": checks_df["RG"].astype(bool),
                 "Certidão": checks_df["Certidão"].astype(bool),
                 "Airtag": checks_df["Airtag"].astype(bool),
-                "Valor": "",
+                "Valor": df_editor[col_valor] if col_valor and col_valor in df_editor.columns else "",
+                "Cinoclube": df_editor["Cinoclube"] if "Cinoclube" in df_editor.columns else "",
+                "Clear": df_editor["Clear"] if "Clear" in df_editor.columns else "",
+                "Correios Valor": df_editor["Correios"] if "Correios" in df_editor.columns else "",
+                "Airtag Valor": df_editor["Airtag"] if "Airtag" in df_editor.columns else "",
+                "Certidão Valor": df_editor["Certidão"] if "Certidão" in df_editor.columns else "",
+                "Jullia": df_editor["Jullia"] if "Jullia" in df_editor.columns else "",
                 "Vendedor": df_editor[col_vendedor] if col_vendedor and col_vendedor in df_editor.columns else "",
             })
 
@@ -5451,34 +5487,13 @@ elif page == "Comissão":
                     for col_chk in checkbox_cols:
                         df_editor_view.at[idx_init, col_chk] = bool(estado_linha.get(col_chk, False))
 
-            def recalcular_linha_editor(row_editor):
-                ped_trans_calc = checkbox_marcado(row_editor.get("Pedigree Transferência", False))
-                ped_sem_calc = checkbox_marcado(row_editor.get("Sem Transferência", False))
-                correios_calc = checkbox_marcado(row_editor.get("Correios", False))
-                rg_calc = checkbox_marcado(row_editor.get("RG", False))
-                certidao_calc = checkbox_marcado(row_editor.get("Certidão", False))
-                airtag_calc = checkbox_marcado(row_editor.get("Airtag", False))
-                qtd_calc = safe_int_zero(row_editor.get("Quantidade de Pedigrees", 1)) or 1
-
-                # Permite múltiplas escolhas simultâneas.
-                # Sem Transferência não é frete; o frete obrigatório já entra fixo quando Transferência está marcada.
-
-                produto_calc = montar_produto_por_checks(
-                    ped_trans_calc,
-                    ped_sem_calc,
-                    rg_calc,
-                    certidao_calc,
-                    airtag_calc,
-                )
-
-                return format_money(calcular_valor_por_checks(ped_trans_calc, ped_sem_calc, correios_calc, rg_calc, certidao_calc, airtag_calc, qtd_calc))
-
-            df_editor_view["Valor"] = df_editor_view.apply(recalcular_linha_editor, axis=1)
+            # Valor agora é manual/editável. Os checkboxes servem apenas para registrar a escolha do cliente.
+            # Nenhum valor é calculado automaticamente pelos botões.
 
             st.markdown(
                 f"""
                 <div class="live-sub" style="margin-top:0.2rem; margin-bottom:0.8rem;">
-                    {"Marque os produtos desejados e informe a Quantidade de Pedigrees. Para inserir uma nova venda, adicione uma linha no final preenchendo Data da Venda, Mês da Venda e Cliente. Depois clique em Calcular prévia / salvar novas linhas." if usar_marcacoes_dashboard else "Mês histórico: você pode ajustar Quantidade de Pedigrees/Produtos no dashboard e salvar direto na planilha; a comissão final do mês continua usando os valores históricos conferidos."}
+                    {"Marque somente as escolhas do cliente. Os valores são manuais: preencha Valor, Cinoclube, Clear, Correios, Airtag, Certidão e Jullia. Depois clique em Salvar alterações da comissão." if usar_marcacoes_dashboard else "Mês histórico: você pode ajustar Quantidade de Pedigrees/Produtos no dashboard e salvar direto na planilha; a comissão final do mês continua usando os valores históricos conferidos."}
                 </div>
                 """,
                 unsafe_allow_html=True,
@@ -5501,24 +5516,70 @@ elif page == "Comissão":
                         "Mês da Venda": st.column_config.TextColumn("Mês da Venda"),
                         "Cliente": st.column_config.TextColumn("Cliente"),
                         "Quantidade de Pedigrees": st.column_config.NumberColumn("Quantidade de Pedigrees", min_value=1, step=1),
+                        "Escolha do cliente": st.column_config.TextColumn("Escolha do cliente", disabled=True),
                         "Pedigree Transferência": st.column_config.CheckboxColumn("Pedigree Transferência"),
                         "Sem Transferência": st.column_config.CheckboxColumn("Sem Transferência"),
                         "Correios": st.column_config.CheckboxColumn("Correios"),
                         "RG": st.column_config.CheckboxColumn("RG"),
                         "Certidão": st.column_config.CheckboxColumn("Certidão"),
                         "Airtag": st.column_config.CheckboxColumn("Airtag"),
-                        "Valor": st.column_config.TextColumn("Valor", disabled=True),
+                        "Valor": st.column_config.TextColumn("Valor"),
+                        "Cinoclube": st.column_config.TextColumn("Cinoclube"),
+                        "Clear": st.column_config.TextColumn("Clear"),
+                        "Correios Valor": st.column_config.TextColumn("Correios"),
+                        "Airtag Valor": st.column_config.TextColumn("Airtag"),
+                        "Certidão Valor": st.column_config.TextColumn("Certidão"),
+                        "Jullia": st.column_config.TextColumn("Jullia"),
                         "Vendedor": st.column_config.TextColumn("Vendedor", disabled=True),
                     },
                     key=editor_key,
-                    disabled=["Valor", "Vendedor"],
+                    disabled=["Linha", "Escolha do cliente", "Vendedor"],
                     num_rows="dynamic",
                 )
 
                 aplicar_previa = st.form_submit_button(
-                    "Calcular prévia da comissão",
+                    "Salvar alterações da comissão",
                     use_container_width=True,
                 )
+
+            def render_totais_manuais_comissao(df_base_totais):
+                st.markdown("<br>", unsafe_allow_html=True)
+                cols_totais = st.columns(6)
+                colunas_cards = [
+                    ("Cinoclube", "🏛️", "#0F5F6A"),
+                    ("Clear", "🔷", "#FF7A1A"),
+                    ("Correios", "📦", "#2e6cbf"),
+                    ("Airtag", "📍", "#FF9800"),
+                    ("Certidão", "📄", "#1FA463"),
+                    ("Jullia", "💜", "#7C3AED"),
+                ]
+
+                for col_card, (nome_coluna_card, emoji_card, cor_card) in zip(cols_totais, colunas_cards):
+                    with col_card:
+                        coluna_df = nome_coluna_card
+
+                        if nome_coluna_card == "Correios" and "Correios Valor" in df_base_totais.columns:
+                            coluna_df = "Correios Valor"
+                        elif nome_coluna_card == "Airtag" and "Airtag Valor" in df_base_totais.columns:
+                            coluna_df = "Airtag Valor"
+                        elif nome_coluna_card == "Certidão" and "Certidão Valor" in df_base_totais.columns:
+                            coluna_df = "Certidão Valor"
+
+                        total_coluna = (
+                            float(df_base_totais[coluna_df].apply(parse_money).sum())
+                            if coluna_df in df_base_totais.columns and not df_base_totais.empty
+                            else 0.0
+                        )
+
+                        card_metric(
+                            nome_coluna_card,
+                            format_money(total_coluna),
+                            "total no mês",
+                            emoji_card,
+                            cor_card,
+                        )
+
+            render_totais_manuais_comissao(edited_df)
 
             # Atualiza o estado próprio com TODAS as marcações retornadas pelo editor
             # somente quando o usuário terminar de marcar e clicar no botão.
@@ -5573,15 +5634,13 @@ elif page == "Comissão":
                         certidao_linha,
                         airtag_linha,
                     )
-                    valor_linha = calcular_valor_por_checks(
-                        ped_trans_linha,
-                        ped_sem_linha,
-                        correios_linha,
-                        rg_linha,
-                        certidao_linha,
-                        airtag_linha,
-                        qtd_pedigrees_linha,
-                    )
+                    valor_linha = normalize_text(row_state_editor.get("Valor", ""))
+                    cinoclube_linha = normalize_text(row_state_editor.get("Cinoclube", ""))
+                    clear_linha = normalize_text(row_state_editor.get("Clear", ""))
+                    correios_valor_linha = normalize_text(row_state_editor.get("Correios Valor", ""))
+                    airtag_valor_linha = normalize_text(row_state_editor.get("Airtag Valor", ""))
+                    certidao_valor_linha = normalize_text(row_state_editor.get("Certidão Valor", ""))
+                    jullia_linha = normalize_text(row_state_editor.get("Jullia", ""))
 
                     if linha_state != "0":
                         estado_linha_atual = {
@@ -5602,8 +5661,14 @@ elif page == "Comissão":
                                 "Quantidade de Pedigrees": qtd_pedigrees_linha,
                                 "Produtos": produto_linha,
                                 "Mês da Compra do Cliente": mes_linha,
-                                "Valor": format_money(valor_linha),
+                                "Valor": valor_linha,
                                 "Vendedor": normalize_text(row_state_editor.get("Vendedor", "Jullia")) or "Jullia",
+                                "Cinoclube": cinoclube_linha,
+                                "Clear": clear_linha,
+                                "Correios": correios_valor_linha,
+                                "Airtag": airtag_valor_linha,
+                                "Certidão": certidao_valor_linha,
+                                "Jullia": jullia_linha,
                             })
                     else:
                         # Linha nova criada no editor. Só salva quando tiver pelo menos Data/Mês/Cliente ou algum produto marcado.
@@ -5615,8 +5680,14 @@ elif page == "Comissão":
                                 "Quantidade de Pedigrees": qtd_pedigrees_linha,
                                 "Produtos": produto_linha,
                                 "Mês da Compra do Cliente": mes_linha,
-                                "Valor": format_money(valor_linha),
+                                "Valor": valor_linha,
                                 "Vendedor": "Jullia",
+                                "Cinoclube": cinoclube_linha,
+                                "Clear": clear_linha,
+                                "Correios": correios_valor_linha,
+                                "Airtag": airtag_valor_linha,
+                                "Certidão": certidao_valor_linha,
+                                "Jullia": jullia_linha,
                             })
 
                 try:
@@ -5678,7 +5749,13 @@ elif page == "Comissão":
                     airtag_preview,
                 )
 
-                valor_preview = calcular_valor_por_checks(ped_trans_preview, ped_sem_preview, correios_preview, rg_preview, certidao_preview, airtag_preview, qtd_pedigrees_preview)
+                valor_preview = normalize_text(row_edit_preview.get("Valor", ""))
+                cinoclube_preview = normalize_text(row_edit_preview.get("Cinoclube", ""))
+                clear_preview = normalize_text(row_edit_preview.get("Clear", ""))
+                correios_valor_preview = normalize_text(row_edit_preview.get("Correios Valor", ""))
+                airtag_valor_preview = normalize_text(row_edit_preview.get("Airtag Valor", ""))
+                certidao_valor_preview = normalize_text(row_edit_preview.get("Certidão Valor", ""))
+                jullia_preview = normalize_text(row_edit_preview.get("Jullia", ""))
 
                 if row_number_preview > 0:
                     linhas_editadas_preview.append(row_number_preview)
@@ -5690,7 +5767,7 @@ elif page == "Comissão":
                             df_com_mes_preview.loc[mask_preview, col_produtos] = produto_preview
 
                         if col_valor and col_valor in df_com_mes_preview.columns:
-                            df_com_mes_preview.loc[mask_preview, col_valor] = format_money(valor_preview)
+                            df_com_mes_preview.loc[mask_preview, col_valor] = valor_preview
 
                         # Garante que o card Comissão Jullia conte a quantidade digitada.
                         if "Quantidade de Pedigrees" not in df_com_mes_preview.columns:
@@ -5699,6 +5776,17 @@ elif page == "Comissão":
 
                         if col_vendedor and col_vendedor in df_com_mes_preview.columns:
                             df_com_mes_preview.loc[mask_preview, col_vendedor] = normalize_text(row_edit_preview.get("Vendedor", "Jullia"))
+
+                        for col_preview_name, valor_preview_manual in {
+                            "Cinoclube": cinoclube_preview,
+                            "Clear": clear_preview,
+                            "Correios": correios_valor_preview,
+                            "Airtag": airtag_valor_preview,
+                            "Certidão": certidao_valor_preview,
+                            "Jullia": jullia_preview,
+                        }.items():
+                            if col_preview_name in df_com_mes_preview.columns:
+                                df_com_mes_preview.loc[mask_preview, col_preview_name] = valor_preview_manual
 
             # Atualiza também o card lateral de Valor Total Vendido no Mês
             # usando exatamente a soma da coluna Valor depois da prévia/edição.
@@ -5714,7 +5802,7 @@ elif page == "Comissão":
             render_card_comissao_jullia(df_com_mes_preview)
 
             if usar_marcacoes_dashboard:
-                st.info("Marque tudo primeiro e depois clique em Calcular prévia / salvar novas linhas. Linhas novas são gravadas sempre abaixo da última linha escrita.")
+                st.info("Marque as escolhas e preencha os valores manuais. Depois clique em Salvar alterações da comissão. Linhas novas são gravadas sempre abaixo da última linha escrita.")
             else:
                 st.info("Mês histórico: clientes com mais de 1 pedigree podem ser corrigidos no dashboard e gravados direto na planilha.")
         else:
