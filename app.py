@@ -5585,14 +5585,18 @@ elif page == "Comissão":
 
             def render_totais_manuais_comissao(df_base_totais):
                 st.markdown("<br>", unsafe_allow_html=True)
+
                 cols_totais = st.columns(6)
+
+                # Paleta Clear: azul escuro, azul médio e azul claro.
+                # Mantém todos os cards dentro da identidade visual.
                 colunas_cards = [
-                    ("Cinoclube", "🏛️", "#0F5F6A"),
-                    ("Clear", "🔷", "#FF7A1A"),
-                    ("Correios", "📦", "#2e6cbf"),
-                    ("Airtag", "📍", "#FF9800"),
-                    ("Certidão", "📄", "#1FA463"),
-                    ("Jullia", "💜", "#7C3AED"),
+                    ("Cinoclube", "🏛️", "#032450"),
+                    ("Clear", "🔷", "#0D3D7A"),
+                    ("Correios", "📦", "#174F96"),
+                    ("Airtag", "📍", "#2E6CBF"),
+                    ("Certidão", "📄", "#4F8DDB"),
+                    ("Jullia", "💜", "#245EA8"),
                 ]
 
                 for col_card, (nome_coluna_card, emoji_card, cor_card) in zip(cols_totais, colunas_cards):
@@ -5612,12 +5616,65 @@ elif page == "Comissão":
                             else 0.0
                         )
 
-                        card_metric(
-                            nome_coluna_card,
-                            format_money(total_coluna),
-                            "total no mês",
-                            emoji_card,
-                            cor_card,
+                        st.markdown(
+                            f"""
+                            <div style="
+                                background:#FFFFFF;
+                                border:1px solid #E0E6F2;
+                                border-radius:18px;
+                                padding:15px 14px;
+                                min-height:108px;
+                                box-shadow:0 10px 26px rgba(15,23,42,0.06);
+                                display:flex;
+                                align-items:center;
+                                gap:12px;
+                            ">
+                                <div style="
+                                    width:42px;
+                                    height:42px;
+                                    border-radius:14px;
+                                    background:{cor_card};
+                                    display:flex;
+                                    align-items:center;
+                                    justify-content:center;
+                                    color:#FFFFFF;
+                                    font-size:1.05rem;
+                                    flex-shrink:0;
+                                ">
+                                    {emoji_card}
+                                </div>
+                                <div style="min-width:0;">
+                                    <div style="
+                                        color:#032450;
+                                        font-size:0.74rem;
+                                        font-weight:900;
+                                        line-height:1.1;
+                                        margin-bottom:4px;
+                                    ">
+                                        {html.escape(nome_coluna_card)}
+                                    </div>
+                                    <div style="
+                                        color:#032450;
+                                        font-size:1.45rem;
+                                        font-weight:950;
+                                        line-height:1.02;
+                                        letter-spacing:-0.04em;
+                                        white-space:nowrap;
+                                    ">
+                                        {format_money(total_coluna)}
+                                    </div>
+                                    <div style="
+                                        color:#64748B;
+                                        font-size:0.68rem;
+                                        margin-top:4px;
+                                        line-height:1.1;
+                                    ">
+                                        total no mês
+                                    </div>
+                                </div>
+                            </div>
+                            """,
+                            unsafe_allow_html=True,
                         )
 
             render_totais_manuais_comissao(edited_df)
