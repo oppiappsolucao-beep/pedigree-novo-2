@@ -1564,15 +1564,64 @@ def excluir_ficha_pedigree(row_number: int, cliente_nome: str):
 
 
 def card_metric(title: str, value: str, subtitle: str, emoji: str, color: str):
+    """
+    Card padrão compacto, no mesmo estilo dos cards de totais da Comissão.
+    Não altera nenhuma informação/cálculo, somente o layout visual.
+    """
     st.markdown(
         f"""
-        <div class="metric-card">
-            <div class="metric-wrap">
-                <div class="metric-icon" style="background:{color};">{emoji}</div>
-                <div>
-                    <div class="metric-label">{title}</div>
-                    <div class="metric-value">{value}</div>
-                    <div class="metric-sub">{subtitle}</div>
+        <div style="
+            background:#FFFFFF;
+            border:1px solid #E0E6F2;
+            border-radius:18px;
+            padding:15px 14px;
+            min-height:108px;
+            box-shadow:0 10px 26px rgba(15,23,42,0.06);
+            display:flex;
+            align-items:center;
+            gap:12px;
+        ">
+            <div style="
+                width:42px;
+                height:42px;
+                border-radius:14px;
+                background:{color};
+                display:flex;
+                align-items:center;
+                justify-content:center;
+                color:#FFFFFF;
+                font-size:1.05rem;
+                flex-shrink:0;
+            ">
+                {emoji}
+            </div>
+            <div style="min-width:0;">
+                <div style="
+                    color:#032450;
+                    font-size:0.74rem;
+                    font-weight:900;
+                    line-height:1.1;
+                    margin-bottom:4px;
+                ">
+                    {html.escape(str(title))}
+                </div>
+                <div style="
+                    color:#032450;
+                    font-size:1.45rem;
+                    font-weight:950;
+                    line-height:1.02;
+                    letter-spacing:-0.04em;
+                    white-space:nowrap;
+                ">
+                    {html.escape(str(value))}
+                </div>
+                <div style="
+                    color:#64748B;
+                    font-size:0.68rem;
+                    margin-top:4px;
+                    line-height:1.1;
+                ">
+                    {html.escape(str(subtitle))}
                 </div>
             </div>
         </div>
