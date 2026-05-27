@@ -5172,7 +5172,7 @@ elif page == "Comissão":
         else:
             valor_clientes_mes = 0.0
 
-        cards_topo_1, cards_topo_2, cards_topo_3 = st.columns([1, 1.35, 2.2])
+        cards_topo_1, cards_topo_2 = st.columns([1, 1.35])
 
         with cards_topo_1:
             valor_total_mes_placeholder = st.empty()
@@ -5266,8 +5266,7 @@ elif page == "Comissão":
         with cards_topo_2:
             comissao_card_placeholder = st.empty()
 
-        with cards_topo_3:
-            regra_card_placeholder = st.empty()
+        regra_card_placeholder = None
 
         def render_card_comissao_jullia(df_base_calculo):
             dados_jullia_render = calcular_comissao_jullia(
@@ -5308,17 +5307,6 @@ elif page == "Comissão":
                 unsafe_allow_html=True,
             )
 
-            regra_card_placeholder.markdown(
-                f"""
-                <div class="live-card" style="margin-top:1rem;">
-                    <div class="live-title">Regra aplicada</div>
-                    <div class="live-sub">
-                        {faixa_jullia_render}. {"Janeiro a Abril/2026 usam o valor fechado manualmente. Maio/2026 em diante usa as marcações do dashboard." if comissao_fixa_mes is not None and selected_comm_month < (2026, 5) else "Base: todas as vendas do mês com produto escolhido, menos Pedigree sem transferência."}
-                    </div>
-                </div>
-                """,
-                unsafe_allow_html=True,
-            )
 
         # Gráfico de colunas: Total de vendas por produto.
         # Fica entre "Regra aplicada" e "Lista de vendas da comissão".
