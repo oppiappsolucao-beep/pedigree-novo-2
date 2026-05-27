@@ -5172,7 +5172,7 @@ elif page == "Comissão":
         else:
             valor_clientes_mes = 0.0
 
-        cards_topo_1, cards_topo_2 = st.columns([1, 1.35])
+        cards_topo_1, cards_topo_2 = st.columns([1, 1])
 
         with cards_topo_1:
             valor_total_mes_placeholder = st.empty()
@@ -5180,11 +5180,11 @@ elif page == "Comissão":
         def render_valor_total_mes_card(valor_total_mes_atual: float):
             valor_total_mes_placeholder.markdown(
                 f"""
-                <div class="metric-card">
+                <div class="metric-card" style="min-height:126px; display:flex; align-items:center;">
                     <div class="metric-wrap">
                         <div class="metric-icon" style="background:#2e6cbf;">💰</div>
                         <div>
-                            <div class="metric-label">Valor total<br>vendido no mês</div>
+                            <div class="metric-label">Valor total vendido no mês</div>
                             <div class="metric-value">{format_money(valor_total_mes_atual)}</div>
                             <div class="metric-sub">{month_key_to_label(mes_valor_cliente)}</div>
                         </div>
