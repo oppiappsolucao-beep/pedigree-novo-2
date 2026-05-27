@@ -182,11 +182,23 @@ def upload_foto_pet_to_drive(foto_pet, tutor_nome: str) -> str:
 
 @st.cache_data(show_spinner=False, ttl=CACHE_TTL_SECONDS)
 def load_main_data() -> pd.DataFrame:
-    worksheet = get_worksheet(MAIN_WORKSHEET_NAME)
-    records = get_all_records_retry(worksheet)
-    df = pd.DataFrame(records)
-    df.columns = [str(c).strip() for c in df.columns]
-    return df
+    """
+    Carrega a aba principal da Clear.
+
+    Segurança:
+    se o Google Sheets falhar ou a aba principal não responder,
+    o dashboard não quebra inteiro. A página Pedigree/Comissão continua abrindo
+    com as bases que conseguir carregar.
+    """
+    try:
+        worksheet = get_worksheet(MAIN_WORKSHEET_NAME)
+        records = get_all_records_retry(worksheet)
+        df = pd.DataFrame(records)
+        df.columns = [str(c).strip() for c in df.columns]
+        return df
+    except Exception as e:
+        st.warning(f"Não consegui carregar a aba principal da Clear agora: {e}")
+        return pd.DataFrame()
 
 
 @st.cache_data(show_spinner=False, ttl=CACHE_TTL_SECONDS)
@@ -2990,7 +3002,11 @@ with st.sidebar:
         )
 
 
-df = load_main_data().copy()
+try:
+    df = load_main_data().copy()
+except Exception as e:
+    st.warning(f"Não consegui carregar a aba principal da Clear agora: {e}")
+    df = pd.DataFrame()
 
 # Atualização automática da coluna Status Venda Pedigree vinda do dropdown da tabela.
 # Processa antes dos cálculos da Visão Geral para o lead sair da caixa antiga e entrar na nova.
