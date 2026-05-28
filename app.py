@@ -96,50 +96,43 @@ SCOPES = [
 
 
 @st.cache_resource
+@st.cache_resource
 def get_gsheet_client():
-    service_account_info = dict(st.secrets["gcp_service_account"])
+    b64_credentials = os.getenv("GCP_SERVICE_ACCOUNT_B64", "").strip()
 
-    private_key = str(service_account_info.get("private_key", ""))
+    if not b64_credentials:
+        st.error("A variável GCP_SERVICE_ACCOUNT_B64 não foi encontrada no EasyPanel.")
+        st.stop()
 
-    # Corrige quebras de linha vindas do EasyPanel / Streamlit Secrets
-    private_key = private_key.replace("\\n", "\n")
-    private_key = private_key.replace("\r\n", "\n")
-    private_key = private_key.replace("\r", "\n")
-    private_key = private_key.strip().strip('"').strip("'")
+    try:
+        decoded_json = base64.b64decode(b64_credentials).decode("utf-8")
+        service_account_info = json.loads(decoded_json)
+    except Exception as e:
+        st.error("A variável GCP_SERVICE_ACCOUNT_B64 foi encontrada, mas não consegui converter o Base64 para JSON.")
+        st.exception(e)
+        st.stop()
 
-    # Reconstrói o PEM caso ele tenha vindo em uma linha só ou mal quebrado
-    if "-----BEGIN PRIVATE KEY-----" in private_key and "-----END PRIVATE KEY-----" in private_key:
-        private_key_body = private_key.replace("-----BEGIN PRIVATE KEY-----", "")
-        private_key_body = private_key_body.replace("-----END PRIVATE KEY-----", "")
-        private_key_body = private_key_body.replace("\n", "")
-        private_key_body = private_key_body.replace(" ", "")
-        private_key_body = private_key_body.strip()
+    try:
+        if "private_key" in service_account_info:
+            service_account_info["private_key"] = service_account_info["private_key"].replace("\\n", "\n")
 
-        private_key = (
-            "-----BEGIN PRIVATE KEY-----\n"
-            + "\n".join(
-                private_key_body[i:i + 64]
-                for i in range(0, len(private_key_body), 64)
-            )
-            + "\n-----END PRIVATE KEY-----\n"
+        creds = Credentials.from_service_account_info(
+            service_account_info,
+            scopes=SCOPES,
         )
 
-    service_account_info["private_key"] = private_key
+        return gspread.authorize(creds)
 
-    creds = Credentials.from_service_account_info(
-        service_account_info,
-        scopes=SCOPES
-    )
-
-    return gspread.authorize(creds)
+    except Exception as e:
+        st.error("Consegui ler o JSON, mas deu erro ao autenticar com o Google.")
+        st.exception(e)
+        st.stop()
 
 
 def get_worksheet(worksheet_name: str):
     client = get_gsheet_client()
     sheet = client.open_by_key(SHEET_ID)
     return sheet.worksheet(worksheet_name)
-
-
 
 def get_all_records_retry(worksheet, tentativas: int = 3, espera: float = 1.2):
     """
