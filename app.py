@@ -1,22 +1,48 @@
 import os
-from pathlib import Path
+import json
+import base64
+import streamlit as st
+import gspread
+from google.oauth2.service_account import Credentials
 
-# Cria o arquivo secrets.toml no EasyPanel a partir da variável de ambiente
-STREAMLIT_SECRETS = os.environ.get("STREAMLIT_SECRETS", "")
 
-if STREAMLIT_SECRETS:
-    Path("/app/.streamlit").mkdir(parents=True, exist_ok=True)
-    Path("/root/.streamlit").mkdir(parents=True, exist_ok=True)
+SCOPES = [
+    "https://www.googleapis.com/auth/spreadsheets",
+    "https://www.googleapis.com/auth/drive",
+]
 
-    Path("/app/.streamlit/secrets.toml").write_text(
-        STREAMLIT_SECRETS,
-        encoding="utf-8"
-    )
 
-    Path("/root/.streamlit/secrets.toml").write_text(
-        STREAMLIT_SECRETS,
-        encoding="utf-8"
-    )
+@st.cache_resource
+def get_gsheet_client():
+    b64_credentials = os.getenv("GCP_SERVICE_ACCOUNT_B64")
+
+    if not b64_credentials:
+        st.error("A variável GCP_SERVICE_ACCOUNT_B64 não foi encontrada no EasyPanel.")
+        st.stop()
+
+    try:
+        decoded_json = base64.b64decode(b64_credentials).decode("utf-8")
+        service_account_info = json.loads(decoded_json)
+    except Exception as e:
+        st.error("A variável GCP_SERVICE_ACCOUNT_B64 foi encontrada, mas não consegui converter o Base64 para JSON.")
+        st.exception(e)
+        st.stop()
+
+    try:
+        if "private_key" in service_account_info:
+            service_account_info["private_key"] = service_account_info["private_key"].replace("\\n", "\n")
+
+        creds = Credentials.from_service_account_info(
+            service_account_info,
+            scopes=SCOPES,
+        )
+
+        return gspread.authorize(creds)
+
+    except Exception as e:
+        st.error("Consegui ler o JSON, mas deu erro ao autenticar com o Google.")
+        st.exception(e)
+        st.stop()
 import re
 import base64
 import html
