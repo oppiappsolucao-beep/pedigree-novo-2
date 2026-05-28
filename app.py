@@ -71,10 +71,18 @@ SCOPES = [
 
 @st.cache_resource
 def get_gsheet_client():
-    creds = Credentials.from_service_account_info(
-        dict(st.secrets["gcp_service_account"]),
-        scopes=SCOPES,
-    )
+service_account_info = dict(st.secrets["gcp_service_account"])
+
+private_key = service_account_info.get("private_key", "")
+
+private_key = private_key.replace("\\n", "\n").strip()
+
+service_account_info["private_key"] = private_key
+
+creds = Credentials.from_service_account_info(
+    service_account_info,
+    scopes=SCOPES
+)
     return gspread.authorize(creds)
 
 
