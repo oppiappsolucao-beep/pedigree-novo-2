@@ -1,49 +1,5 @@
-import os
-import json
-import base64
-import streamlit as st
-import gspread
-from google.oauth2.service_account import Credentials
-
-
-SCOPES = [
-    "https://www.googleapis.com/auth/spreadsheets",
-    "https://www.googleapis.com/auth/drive",
-]
-
-
-@st.cache_resource
-def get_gsheet_client():
-    b64_credentials = os.getenv("GCP_SERVICE_ACCOUNT_B64")
-
-    if not b64_credentials:
-        st.error("A variável GCP_SERVICE_ACCOUNT_B64 não foi encontrada no EasyPanel.")
-        st.stop()
-
-    try:
-        decoded_json = base64.b64decode(b64_credentials).decode("utf-8")
-        service_account_info = json.loads(decoded_json)
-    except Exception as e:
-        st.error("A variável GCP_SERVICE_ACCOUNT_B64 foi encontrada, mas não consegui converter o Base64 para JSON.")
-        st.exception(e)
-        st.stop()
-
-    try:
-        if "private_key" in service_account_info:
-            service_account_info["private_key"] = service_account_info["private_key"].replace("\\n", "\n")
-
-        creds = Credentials.from_service_account_info(
-            service_account_info,
-            scopes=SCOPES,
-        )
-
-        return gspread.authorize(creds)
-
-    except Exception as e:
-        st.error("Consegui ler o JSON, mas deu erro ao autenticar com o Google.")
-        st.exception(e)
-        st.stop()
 import re
+import os
 import base64
 import html
 import json
@@ -96,9 +52,13 @@ SCOPES = [
 
 
 @st.cache_resource
-@st.cache_resource
 def get_gsheet_client():
     b64_credentials = os.getenv("GCP_SERVICE_ACCOUNT_B64", "").strip()
+
+    # Segurança: se o EasyPanel salvar acidentalmente "GCP_SERVICE_ACCOUNT_B64=..."
+    # dentro do valor, remove o prefixo e usa somente o Base64.
+    if b64_credentials.startswith("GCP_SERVICE_ACCOUNT_B64="):
+        b64_credentials = b64_credentials.split("=", 1)[1].strip()
 
     if not b64_credentials:
         st.error("A variável GCP_SERVICE_ACCOUNT_B64 não foi encontrada no EasyPanel.")
@@ -191,7 +151,7 @@ def upload_foto_pet_to_drive(foto_pet, tutor_nome: str) -> str:
     if not foto_pet:
         return ""
 
-    upload_url = st.secrets.get("DRIVE_UPLOAD_WEBAPP_URL", "")
+    upload_url = os.getenv("DRIVE_UPLOAD_WEBAPP_URL", "") or st.secrets.get("DRIVE_UPLOAD_WEBAPP_URL", "")
 
     if not upload_url:
         raise Exception(
