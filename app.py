@@ -2907,6 +2907,42 @@ def render_login_screen():
                 opacity: 1 !important;
             }}
 
+            /* CORREÇÃO: deixa o campo inteiro 100% branco, inclusive wrapper e senha */
+            div[data-testid="stForm"] [data-baseweb="input"],
+            div[data-testid="stForm"] [data-testid="stTextInputRootElement"],
+            div[data-testid="stForm"] .stTextInput > div,
+            div[data-testid="stForm"] .stTextInput > div > div {{
+                background: #FFFFFF !important;
+                background-color: #FFFFFF !important;
+                border-radius: 999px !important;
+                border: none !important;
+                box-shadow: none !important;
+                overflow: hidden !important;
+            }}
+
+            div[data-testid="stForm"] [data-baseweb="input"] > div,
+            div[data-testid="stForm"] [data-testid="stTextInputRootElement"] > div {{
+                background: #FFFFFF !important;
+                background-color: #FFFFFF !important;
+            }}
+
+            div[data-testid="stForm"] button[aria-label*="Show password"],
+            div[data-testid="stForm"] button[aria-label*="Hide password"],
+            div[data-testid="stForm"] button[title*="Show password"],
+            div[data-testid="stForm"] button[title*="Hide password"],
+            div[data-testid="stForm"] [data-baseweb="input"] button {{
+                background: #FFFFFF !important;
+                background-color: #FFFFFF !important;
+                color: #032450 !important;
+                border: none !important;
+                box-shadow: none !important;
+            }}
+
+            div[data-testid="stForm"] svg {{
+                color: #032450 !important;
+                fill: #032450 !important;
+            }}
+
             div[data-testid="stForm"] input:focus {{
                 background: #FFFFFF !important;
                 color: #032450 !important;
