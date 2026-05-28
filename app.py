@@ -2955,12 +2955,86 @@ def render_login_screen():
             }}
 
             @media (max-width: 640px) {{
-                .login-shell, div[data-testid="stForm"], .login-footer, .login-error {{
-                    width: 94vw !important;
+                html, body, .stApp {{
+                    width: 100% !important;
+                    max-width: 100% !important;
+                    overflow-x: hidden !important;
                 }}
-                .login-hero {{ height: 108px; }}
-                .login-panel {{ padding-left: 18px; padding-right: 18px; }}
-                div[data-testid="stForm"] {{ padding-left: 18px !important; padding-right: 18px !important; }}
+
+                .block-container {{
+                    width: 100% !important;
+                    max-width: 100% !important;
+                    padding: 0.85rem 0.75rem 1.2rem 0.75rem !important;
+                    margin: 0 auto !important;
+                }}
+
+                .login-shell,
+                div[data-testid="stForm"],
+                .login-footer,
+                .login-error {{
+                    width: 100% !important;
+                    min-width: 0 !important;
+                    max-width: 100% !important;
+                    margin-left: auto !important;
+                    margin-right: auto !important;
+                    box-sizing: border-box !important;
+                }}
+
+                .login-card-top {{
+                    width: 100% !important;
+                    min-width: 0 !important;
+                    max-width: 100% !important;
+                    border-radius: 20px 20px 0 0 !important;
+                }}
+
+                .login-hero {{
+                    height: 118px !important;
+                    background-size: cover !important;
+                    background-position: center center !important;
+                }}
+
+                .login-panel {{
+                    padding: 0 18px 22px 18px !important;
+                    text-align: center !important;
+                }}
+
+                .login-badge {{
+                    width: 78px !important;
+                    height: 78px !important;
+                    margin-top: -39px !important;
+                }}
+
+                .login-title {{
+                    font-size: 1.02rem !important;
+                    line-height: 1.18 !important;
+                    white-space: normal !important;
+                    word-break: normal !important;
+                }}
+
+                .login-subtitle {{
+                    font-size: 0.82rem !important;
+                    line-height: 1.35 !important;
+                }}
+
+                div[data-testid="stForm"] {{
+                    padding: 18px 18px 86px 18px !important;
+                    border-radius: 0 0 20px 20px !important;
+                }}
+
+                div[data-testid="stForm"] input {{
+                    min-height: 46px !important;
+                    font-size: 0.95rem !important;
+                }}
+
+                div[data-testid="stForm"] div.stButton > button {{
+                    min-height: 48px !important;
+                    font-size: 0.95rem !important;
+                }}
+
+                .login-footer {{
+                    margin-top: 18px !important;
+                    font-size: 0.72rem !important;
+                }}
             }}
         </style>
 
