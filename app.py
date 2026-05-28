@@ -1,3 +1,22 @@
+import os
+from pathlib import Path
+
+# Cria o arquivo secrets.toml no EasyPanel a partir da variável de ambiente
+STREAMLIT_SECRETS = os.environ.get("STREAMLIT_SECRETS", "")
+
+if STREAMLIT_SECRETS:
+    Path("/app/.streamlit").mkdir(parents=True, exist_ok=True)
+    Path("/root/.streamlit").mkdir(parents=True, exist_ok=True)
+
+    Path("/app/.streamlit/secrets.toml").write_text(
+        STREAMLIT_SECRETS,
+        encoding="utf-8"
+    )
+
+    Path("/root/.streamlit/secrets.toml").write_text(
+        STREAMLIT_SECRETS,
+        encoding="utf-8"
+    )
 import re
 import base64
 import html
