@@ -71,18 +71,40 @@ SCOPES = [
 
 @st.cache_resource
 def get_gsheet_client():
-service_account_info = dict(st.secrets["gcp_service_account"])
+    service_account_info = dict(st.secrets["gcp_service_account"])
 
-private_key = service_account_info.get("private_key", "")
+    private_key = str(service_account_info.get("private_key", ""))
 
-private_key = private_key.replace("\\n", "\n").strip()
+    # Corrige quebras de linha vindas do EasyPanel / Streamlit Secrets
+    private_key = private_key.replace("\\n", "\n")
+    private_key = private_key.replace("\r\n", "\n")
+    private_key = private_key.replace("\r", "\n")
+    private_key = private_key.strip().strip('"').strip("'")
 
-service_account_info["private_key"] = private_key
+    # Reconstrói o PEM caso ele tenha vindo em uma linha só ou mal quebrado
+    if "-----BEGIN PRIVATE KEY-----" in private_key and "-----END PRIVATE KEY-----" in private_key:
+        private_key_body = private_key.replace("-----BEGIN PRIVATE KEY-----", "")
+        private_key_body = private_key_body.replace("-----END PRIVATE KEY-----", "")
+        private_key_body = private_key_body.replace("\n", "")
+        private_key_body = private_key_body.replace(" ", "")
+        private_key_body = private_key_body.strip()
 
-creds = Credentials.from_service_account_info(
-    service_account_info,
-    scopes=SCOPES
-)
+        private_key = (
+            "-----BEGIN PRIVATE KEY-----\n"
+            + "\n".join(
+                private_key_body[i:i + 64]
+                for i in range(0, len(private_key_body), 64)
+            )
+            + "\n-----END PRIVATE KEY-----\n"
+        )
+
+    service_account_info["private_key"] = private_key
+
+    creds = Credentials.from_service_account_info(
+        service_account_info,
+        scopes=SCOPES
+    )
+
     return gspread.authorize(creds)
 
 
