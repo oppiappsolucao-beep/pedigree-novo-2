@@ -35,7 +35,7 @@ st.set_page_config(
     initial_sidebar_state="expanded",
 )
 
-CACHE_TTL_SECONDS = 15
+CACHE_TTL_SECONDS = 120
 SHEET_ID = "1Q0mLvOBxEGCojUITBLxCXRtpXVMAHE3ngvGsa2Cgf9Q"
 
 MAIN_WORKSHEET_NAME = "Clear"
@@ -94,10 +94,10 @@ def get_worksheet(worksheet_name: str):
     sheet = client.open_by_key(SHEET_ID)
     return sheet.worksheet(worksheet_name)
 
-def get_all_records_retry(worksheet, tentativas: int = 3, espera: float = 1.2):
+def get_all_records_retry(worksheet, tentativas: int = 2, espera: float = 8):
     """
-    Lê a planilha com pequenas tentativas extras.
-    Isso evita quebrar o dashboard quando o Google Sheets demora ou responde erro momentâneo.
+    Lê a planilha com retry mais espaçado.
+    Evita piorar o erro 429 de limite de leitura do Google Sheets.
     """
     ultimo_erro = None
 
@@ -106,14 +106,20 @@ def get_all_records_retry(worksheet, tentativas: int = 3, espera: float = 1.2):
             return worksheet.get_all_records()
         except Exception as e:
             ultimo_erro = e
-            time.sleep(espera * (tentativa + 1))
+            mensagem = str(e).lower()
+
+            if "429" in mensagem or "quota exceeded" in mensagem:
+                time.sleep(espera * (tentativa + 1))
+            else:
+                time.sleep(1.5 * (tentativa + 1))
 
     raise ultimo_erro
 
 
-def get_all_values_retry(worksheet, tentativas: int = 3, espera: float = 1.2):
+def get_all_values_retry(worksheet, tentativas: int = 2, espera: float = 8):
     """
-    Lê valores da planilha com pequenas tentativas extras.
+    Lê valores da planilha com retry mais espaçado.
+    Evita piorar o erro 429 de limite de leitura do Google Sheets.
     """
     ultimo_erro = None
 
@@ -122,7 +128,12 @@ def get_all_values_retry(worksheet, tentativas: int = 3, espera: float = 1.2):
             return worksheet.get_all_values()
         except Exception as e:
             ultimo_erro = e
-            time.sleep(espera * (tentativa + 1))
+            mensagem = str(e).lower()
+
+            if "429" in mensagem or "quota exceeded" in mensagem:
+                time.sleep(espera * (tentativa + 1))
+            else:
+                time.sleep(1.5 * (tentativa + 1))
 
     raise ultimo_erro
 
@@ -238,13 +249,11 @@ def load_pedigree_data() -> pd.DataFrame:
     return df
 
 
+@st.cache_data(show_spinner=False, ttl=CACHE_TTL_SECONDS)
 def load_commission_data() -> pd.DataFrame:
     """
-    Lê a aba Pedigree Comissão Ju sempre direto da planilha.
-
-    Motivo:
-    os valores manuais podem ser alterados tanto no dashboard quanto no Google Sheets.
-    Sem cache aqui, qualquer mudança na planilha aparece no dashboard ao recarregar/sincronizar.
+    Lê a aba Pedigree Comissão Ju com cache para evitar erro 429
+    de limite de leitura do Google Sheets.
     """
     worksheet = get_worksheet(COMM_WORKSHEET_NAME)
     values = get_all_values_retry(worksheet)
@@ -3117,7 +3126,7 @@ if page == "Visão Geral":
     # Usa o refresh interno do Streamlit para não sair do dashboard e não voltar ao login.
     if st_autorefresh is not None:
         st_autorefresh(
-            interval=30000,
+            interval=120000,
             limit=None,
             key="visao_geral_auto_refresh",
         )
